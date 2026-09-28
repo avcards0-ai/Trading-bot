@@ -64,9 +64,13 @@ function holders(t: FakeToken) {
   const list: { address: string; pct: number; pool?: boolean }[] = [
     { address: t.pairAddress, pct: 20, pool: true },
   ];
+  // Wallets share what the pool leaves, so the whole list never exceeds 100% of supply.
+  let remaining = 100 - 20;
   let p = t.topHolderPct;
-  for (let i = 0; i < 10; i++) {
-    list.push({ address: `Holder${i}${t.address.slice(0, 6)}`, pct: Math.max(0.3, p) });
+  for (let i = 0; i < 10 && remaining > 0.01; i++) {
+    const pct = Math.min(Math.max(0.3, p), remaining);
+    list.push({ address: `Holder${i}${t.address.slice(0, 6)}`, pct });
+    remaining -= pct;
     p = p * 0.75;
   }
   return list;
