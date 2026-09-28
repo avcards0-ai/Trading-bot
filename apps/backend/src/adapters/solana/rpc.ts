@@ -6,7 +6,9 @@ import type { JsonRpcClient } from '../../lib/jsonRpc';
 const parsedAccount = z
   .object({
     data: z.union([
-      z.object({ program: z.string().nullish(), parsed: z.unknown(), space: z.number().nullish() }).passthrough(),
+      z
+        .object({ program: z.string().nullish(), parsed: z.unknown(), space: z.number().nullish() })
+        .passthrough(),
       z.array(z.string()),
       z.string(),
     ]),
@@ -32,7 +34,9 @@ const tokenBalance = z
     accountIndex: z.number(),
     mint: z.string(),
     owner: z.string().nullish(),
-    uiTokenAmount: z.object({ amount: z.string(), decimals: z.number(), uiAmount: z.number().nullish() }).passthrough(),
+    uiTokenAmount: z
+      .object({ amount: z.string(), decimals: z.number(), uiAmount: z.number().nullish() })
+      .passthrough(),
   })
   .passthrough();
 export type TokenBalance = z.infer<typeof tokenBalance>;
@@ -69,7 +73,16 @@ const parsedTransaction = z
         message: z
           .object({
             accountKeys: z.array(
-              z.union([z.string(), z.object({ pubkey: z.string(), signer: z.boolean().nullish(), writable: z.boolean().nullish() }).passthrough()]),
+              z.union([
+                z.string(),
+                z
+                  .object({
+                    pubkey: z.string(),
+                    signer: z.boolean().nullish(),
+                    writable: z.boolean().nullish(),
+                  })
+                  .passthrough(),
+              ]),
             ),
             instructions: z.array(parsedInstruction),
           })
@@ -80,8 +93,9 @@ const parsedTransaction = z
   .passthrough();
 export type ParsedTransaction = z.infer<typeof parsedTransaction>;
 
-export const accountKeyAddress = (k: ParsedTransaction['transaction']['message']['accountKeys'][number]): string =>
-  typeof k === 'string' ? k : k.pubkey;
+export const accountKeyAddress = (
+  k: ParsedTransaction['transaction']['message']['accountKeys'][number],
+): string => (typeof k === 'string' ? k : k.pubkey);
 
 export class SolanaRpc {
   constructor(private readonly rpc: JsonRpcClient) {}
@@ -121,7 +135,14 @@ export class SolanaRpc {
       'getTokenLargestAccounts',
       [mint, { commitment: 'confirmed' }],
       withContext(
-        z.array(z.object({ address: z.string(), amount: z.string(), decimals: z.number(), uiAmount: z.number().nullish() })),
+        z.array(
+          z.object({
+            address: z.string(),
+            amount: z.string(),
+            decimals: z.number(),
+            uiAmount: z.number().nullish(),
+          }),
+        ),
       ),
     );
     return r.value;
@@ -136,7 +157,10 @@ export class SolanaRpc {
     return r.value;
   }
 
-  async getSignaturesForAddress(address: string, opts: { limit: number; before?: string }): Promise<SignatureInfo[]> {
+  async getSignaturesForAddress(
+    address: string,
+    opts: { limit: number; before?: string },
+  ): Promise<SignatureInfo[]> {
     return this.rpc.call(
       'getSignaturesForAddress',
       [address, { limit: opts.limit, before: opts.before, commitment: 'confirmed' }],
@@ -153,7 +177,11 @@ export class SolanaRpc {
   }
 
   async getBalance(address: string): Promise<number> {
-    const r = await this.rpc.call('getBalance', [address, { commitment: 'confirmed' }], withContext(z.number()));
+    const r = await this.rpc.call(
+      'getBalance',
+      [address, { commitment: 'confirmed' }],
+      withContext(z.number()),
+    );
     return r.value;
   }
 
@@ -166,8 +194,9 @@ export class SolanaRpc {
     let raw = 0n;
     let decimals = 0;
     for (const acc of r.value) {
-      const info = (acc.account.data as { parsed?: { info?: { tokenAmount?: { amount?: string; decimals?: number } } } })
-        .parsed?.info?.tokenAmount;
+      const info = (
+        acc.account.data as { parsed?: { info?: { tokenAmount?: { amount?: string; decimals?: number } } } }
+      ).parsed?.info?.tokenAmount;
       if (info?.amount) raw += BigInt(info.amount);
       if (typeof info?.decimals === 'number') decimals = info.decimals;
     }
@@ -177,16 +206,28 @@ export class SolanaRpc {
   async sendRawTransaction(base64Tx: string): Promise<string> {
     return this.rpc.call(
       'sendTransaction',
-      [base64Tx, { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 3 }],
+      [
+        base64Tx,
+        { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed', maxRetries: 3 },
+      ],
       z.string(),
     );
   }
 
-  async getSignatureStatus(signature: string): Promise<{ confirmationStatus: string | null; err: unknown } | null> {
+  async getSignatureStatus(
+    signature: string,
+  ): Promise<{ confirmationStatus: string | null; err: unknown } | null> {
     const r = await this.rpc.call(
       'getSignatureStatuses',
       [[signature], { searchTransactionHistory: false }],
-      withContext(z.array(z.object({ confirmationStatus: z.string().nullish(), err: z.unknown().nullish() }).passthrough().nullable())),
+      withContext(
+        z.array(
+          z
+            .object({ confirmationStatus: z.string().nullish(), err: z.unknown().nullish() })
+            .passthrough()
+            .nullable(),
+        ),
+      ),
     );
     const s = r.value[0];
     return s ? { confirmationStatus: s.confirmationStatus ?? null, err: s.err ?? null } : null;

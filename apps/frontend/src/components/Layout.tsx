@@ -37,7 +37,10 @@ function ConnectionDot() {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-ink-2" title="Real-time event stream">
       <span
-        className={clsx('inline-block h-2 w-2 rounded-full', connection === 'open' ? 'bg-good' : connection === 'connecting' ? 'bg-warning' : 'bg-critical')}
+        className={clsx(
+          'inline-block h-2 w-2 rounded-full',
+          connection === 'open' ? 'bg-good' : connection === 'connecting' ? 'bg-warning' : 'bg-critical',
+        )}
         aria-hidden
       />
       {label}
@@ -49,11 +52,21 @@ function Toasts() {
   const { toasts, dismissToast } = useLive();
   if (toasts.length === 0) return null;
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex w-[22rem] max-w-[calc(100vw-2rem)] flex-col gap-2" aria-live="assertive">
+    <div
+      className="fixed bottom-4 right-4 z-50 flex w-[22rem] max-w-[calc(100vw-2rem)] flex-col gap-2"
+      aria-live="assertive"
+    >
       {toasts.map((t) => (
         <div key={t.id} className="rounded-lg border border-border bg-surface-2 p-3 shadow-xl">
           <div className="flex items-start gap-2">
-            <ShieldAlert size={16} className={clsx('mt-0.5 shrink-0', t.severity === 'critical' ? 'text-critical' : 'text-series-1')} aria-hidden />
+            <ShieldAlert
+              size={16}
+              className={clsx(
+                'mt-0.5 shrink-0',
+                t.severity === 'critical' ? 'text-critical' : 'text-series-1',
+              )}
+              aria-hidden
+            />
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold text-ink">
                 {t.title}
@@ -61,7 +74,12 @@ function Toasts() {
               </div>
               <p className="mt-0.5 line-clamp-3 text-xs text-ink-2">{t.message}</p>
             </div>
-            <button type="button" onClick={() => dismissToast(t.id)} className="text-muted hover:text-ink" aria-label="Dismiss">
+            <button
+              type="button"
+              onClick={() => dismissToast(t.id)}
+              className="text-muted hover:text-ink"
+              aria-label="Dismiss"
+            >
               <X size={14} />
             </button>
           </div>
@@ -73,7 +91,11 @@ function Toasts() {
 
 export function Layout({ children }: { children: ReactNode }) {
   const status = useQuery({ queryKey: ['status'], queryFn: api.status, refetchInterval: 15_000 });
-  const alerts = useQuery({ queryKey: ['alerts', 'badge'], queryFn: () => api.alerts({ limit: 1, unacknowledged: true }), refetchInterval: 30_000 });
+  const alerts = useQuery({
+    queryKey: ['alerts', 'badge'],
+    queryFn: () => api.alerts({ limit: 1, unacknowledged: true }),
+    refetchInterval: 30_000,
+  });
   const s = status.data;
   const unread = alerts.data?.unacknowledged ?? 0;
 
@@ -87,7 +109,10 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="text-[11px] text-muted">Rug detection · risk-gated trading</div>
           </div>
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-2 pb-2 lg:flex-col lg:overflow-visible" aria-label="Main">
+        <nav
+          className="flex gap-1 overflow-x-auto px-2 pb-2 lg:flex-col lg:overflow-visible"
+          aria-label="Main"
+        >
           {NAV.map(({ to, label, Icon, end }) => (
             <NavLink
               key={to}
@@ -103,7 +128,9 @@ export function Layout({ children }: { children: ReactNode }) {
               <Icon size={16} aria-hidden />
               <span className="whitespace-nowrap">{label}</span>
               {to === '/alerts' && unread > 0 && (
-                <span className="tabular ml-auto rounded-full bg-critical px-1.5 text-[10px] font-semibold text-white">{unread > 99 ? '99+' : unread}</span>
+                <span className="tabular ml-auto rounded-full bg-critical px-1.5 text-[10px] font-semibold text-white">
+                  {unread > 99 ? '99+' : unread}
+                </span>
               )}
             </NavLink>
           ))}
@@ -124,8 +151,9 @@ export function Layout({ children }: { children: ReactNode }) {
           )}
           {s && (
             <span className="text-xs text-ink-2">
-              Engine: <span className="text-ink">{s.engineRunning ? 'running' : 'stopped'}</span> · auto-trade:{' '}
-              <span className="text-ink">{s.autoTrade ? 'on' : 'off'}</span> · queue {s.queue.pending}/{s.queue.inFlight}
+              Engine: <span className="text-ink">{s.engineRunning ? 'running' : 'stopped'}</span> ·
+              auto-trade: <span className="text-ink">{s.autoTrade ? 'on' : 'off'}</span> · queue{' '}
+              {s.queue.pending}/{s.queue.inFlight}
             </span>
           )}
           <span className="ml-auto">
@@ -133,13 +161,20 @@ export function Layout({ children }: { children: ReactNode }) {
           </span>
         </header>
         {s?.halted && (
-          <div className="flex items-center gap-2 border-b border-critical/40 bg-critical/15 px-4 py-2 text-sm text-ink lg:px-6" role="alert">
+          <div
+            className="flex items-center gap-2 border-b border-critical/40 bg-critical/15 px-4 py-2 text-sm text-ink lg:px-6"
+            role="alert"
+          >
             <ShieldAlert size={16} className="text-critical" aria-hidden />
-            Trading halted: {s.haltReason ?? 'risk limit reached'}. New entries are blocked; open positions are still protected.
+            Trading halted: {s.haltReason ?? 'risk limit reached'}. New entries are blocked; open positions
+            are still protected.
           </div>
         )}
         {status.isError && (
-          <div className="border-b border-critical/40 bg-critical/15 px-4 py-2 text-sm text-ink lg:px-6" role="alert">
+          <div
+            className="border-b border-critical/40 bg-critical/15 px-4 py-2 text-sm text-ink lg:px-6"
+            role="alert"
+          >
             Backend unreachable — is the API running?
           </div>
         )}

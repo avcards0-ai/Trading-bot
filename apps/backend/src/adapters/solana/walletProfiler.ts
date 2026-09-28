@@ -79,7 +79,9 @@ export class SolanaWalletProfiler implements WalletProfiler, DeveloperActivitySo
 
   constructor(
     private readonly rpc: SolanaRpc,
-    private readonly opts: { freshWalletAgeHours: number; maxDevTransactions?: number } = { freshWalletAgeHours: 72 },
+    private readonly opts: { freshWalletAgeHours: number; maxDevTransactions?: number } = {
+      freshWalletAgeHours: 72,
+    },
   ) {}
 
   supports(chain: Chain): boolean {
@@ -114,7 +116,12 @@ export class SolanaWalletProfiler implements WalletProfiler, DeveloperActivitySo
 
   async activity(
     _chain: Chain,
-    token: { address: string; totalSupply: number | null; decimals: number | null; pairAddress: string | null },
+    token: {
+      address: string;
+      totalSupply: number | null;
+      decimals: number | null;
+      pairAddress: string | null;
+    },
     devAddress: string,
     lookbackMinutes: number,
   ): Promise<DeveloperActivity> {
@@ -149,13 +156,23 @@ export class SolanaWalletProfiler implements WalletProfiler, DeveloperActivitySo
           counterparty: counterpartyFor(tx, devAddress, token.address),
         });
       } else {
-        events.push({ kind: 'transfer_in', signature: s.signature, timestamp, percentOfSupply: pctSupply, counterparty: null });
+        events.push({
+          kind: 'transfer_in',
+          signature: s.signature,
+          timestamp,
+          percentOfSupply: pctSupply,
+          counterparty: null,
+        });
       }
     }
 
     // Were tokens pushed to freshly created wallets (classic supply-splitting before a dump)?
     const recipients = [
-      ...new Set(events.filter((e) => e.kind === 'transfer_out' && e.counterparty).map((e) => e.counterparty as string)),
+      ...new Set(
+        events
+          .filter((e) => e.kind === 'transfer_out' && e.counterparty)
+          .map((e) => e.counterparty as string),
+      ),
     ].slice(0, 5);
     let fresh = 0;
     if (recipients.length > 0) {

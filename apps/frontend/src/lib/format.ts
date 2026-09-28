@@ -16,7 +16,9 @@ export function price(v: number | null | undefined): string {
   if (v >= 0.0001) return `$${v.toPrecision(4)}`;
   const exp = Math.floor(Math.log10(v));
   const zeros = -exp - 1;
-  const digits = Math.round(v * 10 ** (-exp + 3)).toString().replace(/0+$/, '');
+  const digits = Math.round(v * 10 ** (-exp + 3))
+    .toString()
+    .replace(/0+$/, '');
   const sub = String(zeros).replace(/\d/g, (d) => '₀₁₂₃₄₅₆₇₈₉'[Number(d)] as string);
   return `$0.0${sub}${digits}`;
 }
@@ -30,7 +32,9 @@ export function pct(v: number | null | undefined, opts: { sign?: boolean; digits
 
 export function num(v: number | null | undefined, digits = 0): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-  return Math.abs(v) >= 100_000 ? compact.format(v) : v.toLocaleString('en-US', { maximumFractionDigits: digits });
+  return Math.abs(v) >= 100_000
+    ? compact.format(v)
+    : v.toLocaleString('en-US', { maximumFractionDigits: digits });
 }
 
 export function ratio(v: number | null | undefined): string {
@@ -63,7 +67,12 @@ export function age(iso: string | null | undefined): string {
 
 export function dateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export const explorerUrl = (chain: string, address: string): string => {

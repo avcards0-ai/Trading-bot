@@ -26,7 +26,19 @@ export interface HistoricalBar {
 }
 
 export type SecuritySnapshot = Partial<
-  Pick<TokenSnapshot, 'contract' | 'holders' | 'liquidity' | 'honeypot' | 'deployer' | 'wallets' | 'developer' | 'warnings' | 'reportedRugged' | 'trades'>
+  Pick<
+    TokenSnapshot,
+    | 'contract'
+    | 'holders'
+    | 'liquidity'
+    | 'honeypot'
+    | 'deployer'
+    | 'wallets'
+    | 'developer'
+    | 'warnings'
+    | 'reportedRugged'
+    | 'trades'
+  >
 >;
 
 export interface HistoricalEvent {
@@ -104,7 +116,9 @@ export const datasetSchema = z.object({
         name: z.string().nullish(),
         pairCreatedAt: z.string(),
         security: z.record(z.string(), z.unknown()).nullish(),
-        riskTimeline: z.array(z.object({ ts: z.string(), report: z.record(z.string(), z.unknown()) })).optional(),
+        riskTimeline: z
+          .array(z.object({ ts: z.string(), report: z.record(z.string(), z.unknown()) }))
+          .optional(),
         bars: z.array(barSchema).min(1),
         events: z
           .array(
@@ -115,7 +129,9 @@ export const datasetSchema = z.object({
             }),
           )
           .optional(),
-        outcome: z.object({ rugged: z.boolean(), ruggedAt: z.string().nullish(), scenario: z.string().optional() }).nullish(),
+        outcome: z
+          .object({ rugged: z.boolean(), ruggedAt: z.string().nullish(), scenario: z.string().optional() })
+          .nullish(),
       }),
     )
     .min(1),

@@ -23,7 +23,8 @@ export async function openPositionSummaries(app: App): Promise<Map<number, Posit
         entryPriceUsd: m.position.entryPriceUsd,
         costBasisUsd: m.position.costBasisUsd,
         unrealizedPnlUsd: m.unrealizedPnlUsd,
-        unrealizedPnlPct: m.position.costBasisUsd > 0 ? (m.unrealizedPnlUsd / m.position.costBasisUsd) * 100 : null,
+        unrealizedPnlPct:
+          m.position.costBasisUsd > 0 ? (m.unrealizedPnlUsd / m.position.costBasisUsd) * 100 : null,
       },
     ]),
   );
@@ -37,15 +38,17 @@ export async function tokenItems(app: App, rows: TokenRow[]): Promise<TokenListI
 export async function tokenDetail(app: App, row: TokenRow): Promise<TokenDetail> {
   const [items] = await tokenItems(app, [row]);
   const since = new Date(Date.now() - 7 * 86_400_000);
-  const [risk, priceHistory, liquidityHistory, riskHistory, decisions, positions, alerts] = await Promise.all([
-    app.repos.risk.latest(row.id),
-    app.repos.history.prices(row.id, { since, limit: 2000 }),
-    app.repos.history.liquidity(row.id, { since, limit: 1000 }),
-    app.repos.risk.history(row.id, 200),
-    app.repos.decisions.listForToken(row.id, 25),
-    app.repos.positions.listByToken(row.id, 20),
-    app.repos.alerts.list({ limit: 25, offset: 0, tokenId: row.id }),
-  ]);
+  const [risk, priceHistory, liquidityHistory, riskHistory, decisions, positions, alerts] = await Promise.all(
+    [
+      app.repos.risk.latest(row.id),
+      app.repos.history.prices(row.id, { since, limit: 2000 }),
+      app.repos.history.liquidity(row.id, { since, limit: 1000 }),
+      app.repos.risk.history(row.id, 200),
+      app.repos.decisions.listForToken(row.id, 25),
+      app.repos.positions.listByToken(row.id, 20),
+      app.repos.alerts.list({ limit: 25, offset: 0, tokenId: row.id }),
+    ],
+  );
   return {
     token: items as TokenListItem,
     snapshot: row.latestSnapshot ?? null,
@@ -59,13 +62,21 @@ export async function tokenDetail(app: App, row: TokenRow): Promise<TokenDetail>
   };
 }
 
-export async function listPositions(app: App, status: 'open' | 'closed' | 'all', limit: number): Promise<Position[]> {
+export async function listPositions(
+  app: App,
+  status: 'open' | 'closed' | 'all',
+  limit: number,
+): Promise<Position[]> {
   const out: Position[] = [];
   if (status !== 'closed') {
     const state = await app.portfolio.state();
     for (const m of state.marks) {
       out.push(
-        toPosition(m.position, { chain: m.token.chain, address: m.token.address, symbol: m.token.symbol }, m.priceUsd),
+        toPosition(
+          m.position,
+          { chain: m.token.chain, address: m.token.address, symbol: m.token.symbol },
+          m.priceUsd,
+        ),
       );
     }
   }
@@ -100,7 +111,10 @@ export async function systemStatus(app: App): Promise<SystemStatus> {
     loops: app.engine.loopStatus(),
     providers: app.providers.registry.health(),
     notifiers: app.alerts.notifierStatus(app.notifierConfig),
-    queue: { pending: app.engine.queueStats().pending, inFlight: app.engine.queueStats().inFlight + app.pipeline.inFlight },
+    queue: {
+      pending: app.engine.queueStats().pending,
+      inFlight: app.engine.queueStats().inFlight + app.pipeline.inFlight,
+    },
     llmReviewer: { enabled: app.llm !== null, model: app.llm?.model ?? null },
     startedAt: app.startedAt.toISOString(),
   };

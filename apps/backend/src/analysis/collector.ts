@@ -47,7 +47,13 @@ export interface CollectOptions {
   chain: Chain;
   address: string;
   /** Hints from discovery (used when market data is unavailable). */
-  hint?: { name?: string | null; symbol?: string | null; pairAddress?: string | null; dexId?: string | null; pairCreatedAt?: Date | null };
+  hint?: {
+    name?: string | null;
+    symbol?: string | null;
+    pairAddress?: string | null;
+    dexId?: string | null;
+    pairCreatedAt?: Date | null;
+  };
   /** Previous snapshot: when security data is still fresh it is reused instead of re-fetched. */
   previous?: TokenSnapshot | null;
   refreshSecurity: boolean;
@@ -143,7 +149,8 @@ export class SnapshotCollector {
       ? prev.liquidity
         ? {
             ...prev.liquidity,
-            totalLiquidityUsd: quote?.totalLiquidityUsd ?? market?.liquidityUsd ?? prev.liquidity.totalLiquidityUsd,
+            totalLiquidityUsd:
+              quote?.totalLiquidityUsd ?? market?.liquidityUsd ?? prev.liquidity.totalLiquidityUsd,
           }
         : null
       : mergeLiquidity(contributions, quote);
@@ -178,7 +185,9 @@ export class SnapshotCollector {
         deployer = await this.enrichDeployer(chain, deployer, statuses);
       }
       if (deployer?.address) {
-        const ageMin = market?.pairCreatedAt ? (this.now().getTime() - Date.parse(market.pairCreatedAt)) / 60_000 : 1440;
+        const ageMin = market?.pairCreatedAt
+          ? (this.now().getTime() - Date.parse(market.pairCreatedAt)) / 60_000
+          : 1440;
         const lookback = Math.max(30, Math.min(1440, ageMin));
         const devSource = providers.developerSources.find((d) => d.supports(chain));
         if (devSource) {
@@ -188,7 +197,10 @@ export class SnapshotCollector {
               {
                 address,
                 totalSupply: holders?.totalSupply ?? null,
-                decimals: contributions.find((c) => typeof c.decimals === 'number')?.decimals ?? prev?.decimals ?? null,
+                decimals:
+                  contributions.find((c) => typeof c.decimals === 'number')?.decimals ??
+                  prev?.decimals ??
+                  null,
                 pairAddress: ctx.pairAddress,
               },
               deployer?.address as string,
@@ -238,7 +250,9 @@ export class SnapshotCollector {
     const cached = await this.deps.walletCache.get(chain, addresses);
     const missing = addresses.filter((a) => !cached.has(a));
     if (missing.length > 0) {
-      const fresh = await this.timed(`wallets:${profiler.name}`, statuses, () => profiler.profile(chain, missing));
+      const fresh = await this.timed(`wallets:${profiler.name}`, statuses, () =>
+        profiler.profile(chain, missing),
+      );
       if (fresh) {
         for (const [k, v] of fresh) cached.set(k, v);
         await this.deps.walletCache.put(chain, [...fresh.values()]).catch(() => undefined);
@@ -263,7 +277,8 @@ export class SnapshotCollector {
       const h = await this.timed(`deployer:${hist.name}`, statuses, () => hist.history(chain, address));
       if (h) {
         out.tokensCreated = Math.max(out.tokensCreated ?? 0, h.tokensCreated ?? 0);
-        if (h.walletCreatedAt) out.walletAgeDays = (this.now().getTime() - h.walletCreatedAt.getTime()) / 86_400_000;
+        if (h.walletCreatedAt)
+          out.walletAgeDays = (this.now().getTime() - h.walletCreatedAt.getTime()) / 86_400_000;
         out.sources.push(hist.name);
       }
     }
@@ -272,7 +287,9 @@ export class SnapshotCollector {
       let profile = cached.get(address);
       const profiler = this.deps.providers.walletProfilers.find((p) => p.supports(chain));
       if (!profile && profiler) {
-        const r = await this.timed(`deployer-age:${profiler.name}`, statuses, () => profiler.profile(chain, [address]));
+        const r = await this.timed(`deployer-age:${profiler.name}`, statuses, () =>
+          profiler.profile(chain, [address]),
+        );
         profile = r?.get(address);
         if (profile) await this.deps.walletCache.put(chain, [profile]).catch(() => undefined);
       }

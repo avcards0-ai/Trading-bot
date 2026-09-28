@@ -14,7 +14,7 @@ import type {
   Trade,
   TradingMode,
 } from '@memeguard/shared';
-import { analysisAlerts, type AlertCandidate } from '../alerts/rules';
+import { analysisAlerts, marketAlerts, type AlertCandidate } from '../alerts/rules';
 import type { AlertService } from '../alerts/alertService';
 import { circulatingHolders } from '../analysis/activity';
 import type { SnapshotCollector } from '../analysis/collector';
@@ -82,8 +82,16 @@ export interface PipelineDeps {
   now?: () => Date;
 }
 
-const LEVEL_STATUS: Record<RiskLevel, StageStatus> = { LOW: 'pass', MEDIUM: 'warn', HIGH: 'fail', CRITICAL: 'fail' };
-const worse = (a: RiskLevel, b: RiskLevel): RiskLevel => (['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].indexOf(a) >= ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].indexOf(b) ? a : b);
+const LEVEL_STATUS: Record<RiskLevel, StageStatus> = {
+  LOW: 'pass',
+  MEDIUM: 'warn',
+  HIGH: 'fail',
+  CRITICAL: 'fail',
+};
+const worse = (a: RiskLevel, b: RiskLevel): RiskLevel =>
+  ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].indexOf(a) >= ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].indexOf(b)
+    ? a
+    : b;
 const r = (v: number | null | undefined, d = 2): number | null =>
   v === null || v === undefined || !Number.isFinite(v) ? null : Math.round(v * 10 ** d) / 10 ** d;
 
@@ -135,16 +143,27 @@ export class DecisionPipeline {
     const mode = this.d.settings.mode;
     const now = this.now();
     const stages: StageResult[] = [];
-    const add = (stage: PipelineStage, status: StageStatus, summary: string, metrics: Record<string, Scalar>, ms: number) =>
-      stages.push({ stage, status, summary, metrics, durationMs: Math.round(ms) });
+    const add = (
+      stage: PipelineStage,
+      status: StageStatus,
+      summary: string,
+      metrics: Record<string, Scalar>,
+      ms: number,
+    ) => stages.push({ stage, status, summary, metrics, durationMs: Math.round(ms) });
 
     // DISCOVERY
-    add('DISCOVERY', 'pass', `Token ${token.symbol ?? token.address} via ${token.discoveredVia} (${req.trigger}).`, {
-      chain: token.chain,
-      address: token.address,
-      discoveredVia: token.discoveredVia,
-      trigger: req.trigger,
-    }, 0);
+    add(
+      'DISCOVERY',
+      'pass',
+      `Token ${token.symbol ?? token.address} via ${token.discoveredVia} (${req.trigger}).`,
+      {
+        chain: token.chain,
+        address: token.address,
+        discoveredVia: token.discoveredVia,
+        trigger: req.trigger,
+      },
+      0,
+    );
 
     // ON-CHAIN collection
     const t0 = Date.now();
@@ -158,7 +177,13 @@ export class DecisionPipeline {
     const snapshot = await this.d.collector.collect({
       chain: token.chain as TokenSnapshot['chain'],
       address: token.address,
-      hint: { name: token.name, symbol: token.symbol, pairAddress: token.pairAddress, dexId: token.dexId, pairCreatedAt: token.pairCreatedAt },
+      hint: {
+        name: token.name,
+        symbol: token.symbol,
+        pairAddress: token.pairAddress,
+        dexId: token.dexId,
+        pairCreatedAt: token.pairCreatedAt,
+      },
       previous,
       refreshSecurity,
     });
@@ -189,76 +214,109 @@ export class DecisionPipeline {
     const cat = report.categories;
 
     const c = snapshot.contract;
-    add('CONTRACT', c ? LEVEL_STATUS[worse(report.contractRisk, report.honeypotRisk)] : 'fail', c ? `Contract ${report.contractRisk}, honeypot ${report.honeypotRisk}.` : `No contract data available (unverifiable); contract ${report.contractRisk}, honeypot ${report.honeypotRisk}.`, {
-      tokenProgram: c?.tokenProgram ?? null,
-      verified: c?.isVerified ?? null,
-      proxy: c?.isProxy ?? null,
-      mintable: c?.mintable ?? null,
-      freezable: c?.freezable ?? null,
-      ownershipRenounced: c?.ownershipRenounced ?? null,
-      buyTaxPct: r(Math.max(c?.buyTaxPct ?? -1, snapshot.honeypot?.buyTaxPct ?? -1)),
-      sellTaxPct: r(Math.max(c?.sellTaxPct ?? -1, snapshot.honeypot?.sellTaxPct ?? -1)),
-      honeypot: snapshot.honeypot?.isHoneypot ?? null,
-      sellRouteFound: snapshot.honeypot?.sellRouteFound ?? null,
-      suspiciousFunctions: c?.suspiciousFunctions.length ?? 0,
-      contractScore: cat.contract.score,
-      honeypotScore: cat.honeypot.score,
-    }, 0);
+    add(
+      'CONTRACT',
+      c ? LEVEL_STATUS[worse(report.contractRisk, report.honeypotRisk)] : 'fail',
+      c
+        ? `Contract ${report.contractRisk}, honeypot ${report.honeypotRisk}.`
+        : `No contract data available (unverifiable); contract ${report.contractRisk}, honeypot ${report.honeypotRisk}.`,
+      {
+        tokenProgram: c?.tokenProgram ?? null,
+        verified: c?.isVerified ?? null,
+        proxy: c?.isProxy ?? null,
+        mintable: c?.mintable ?? null,
+        freezable: c?.freezable ?? null,
+        ownershipRenounced: c?.ownershipRenounced ?? null,
+        buyTaxPct: r(Math.max(c?.buyTaxPct ?? -1, snapshot.honeypot?.buyTaxPct ?? -1)),
+        sellTaxPct: r(Math.max(c?.sellTaxPct ?? -1, snapshot.honeypot?.sellTaxPct ?? -1)),
+        honeypot: snapshot.honeypot?.isHoneypot ?? null,
+        sellRouteFound: snapshot.honeypot?.sellRouteFound ?? null,
+        suspiciousFunctions: c?.suspiciousFunctions.length ?? 0,
+        contractScore: cat.contract.score,
+        honeypotScore: cat.honeypot.score,
+      },
+      0,
+    );
 
     const circ = snapshot.holders ? circulatingHolders(snapshot.holders.topHolders, snapshot.chain) : [];
-    add('WALLET', snapshot.holders ? LEVEL_STATUS[worse(report.walletConcentrationRisk, report.developerRisk)] : 'fail', `${snapshot.holders ? '' : 'Holder data unavailable. '}Concentration ${report.walletConcentrationRisk}, developer ${report.developerRisk}.`, {
-      holderCount: snapshot.holders?.holderCount ?? null,
-      topHolderPct: r(circ[0]?.percent),
-      top10Pct: r(circ.slice(0, 10).reduce((a, h) => a + h.percent, 0)),
-      largestClusterPct: r(snapshot.wallets?.largestClusterPercent),
-      freshWalletShare: r(snapshot.wallets?.newWalletShare, 3),
-      deployer: snapshot.deployer?.address ?? null,
-      deployerHoldsPct: r(snapshot.deployer?.holdsPercent),
-      devSells: snapshot.developer?.sells ?? null,
-      devSupplyMovedPct: r(snapshot.developer?.percentOfSupplyMoved),
-      concentrationScore: cat.concentration.score,
-      developerScore: cat.developer.score,
-    }, 0);
+    add(
+      'WALLET',
+      snapshot.holders ? LEVEL_STATUS[worse(report.walletConcentrationRisk, report.developerRisk)] : 'fail',
+      `${snapshot.holders ? '' : 'Holder data unavailable. '}Concentration ${report.walletConcentrationRisk}, developer ${report.developerRisk}.`,
+      {
+        holderCount: snapshot.holders?.holderCount ?? null,
+        topHolderPct: r(circ[0]?.percent),
+        top10Pct: r(circ.slice(0, 10).reduce((a, h) => a + h.percent, 0)),
+        largestClusterPct: r(snapshot.wallets?.largestClusterPercent),
+        freshWalletShare: r(snapshot.wallets?.newWalletShare, 3),
+        deployer: snapshot.deployer?.address ?? null,
+        deployerHoldsPct: r(snapshot.deployer?.holdsPercent),
+        devSells: snapshot.developer?.sells ?? null,
+        devSupplyMovedPct: r(snapshot.developer?.percentOfSupplyMoved),
+        concentrationScore: cat.concentration.score,
+        developerScore: cat.developer.score,
+      },
+      0,
+    );
 
     const liq = snapshot.liquidity;
     const mcap = snapshot.market?.marketCapUsd ?? snapshot.market?.fdvUsd ?? null;
-    add('LIQUIDITY', LEVEL_STATUS[report.liquidityRisk], `Liquidity ${report.liquidityRisk}.`, {
-      liquidityUsd: r(liq?.totalLiquidityUsd ?? snapshot.market?.liquidityUsd, 0),
-      lpLockedPct: r(liq?.lpLockedPercent),
-      lpBurnedPct: r(liq?.lpBurnedPercent),
-      programControlled: liq?.programControlled ?? null,
-      pools: liq?.poolCount ?? null,
-      liquidityToMcap: mcap && liq?.totalLiquidityUsd ? r(liq.totalLiquidityUsd / mcap, 4) : null,
-      liquidityScore: cat.liquidity.score,
-    }, 0);
+    add(
+      'LIQUIDITY',
+      LEVEL_STATUS[report.liquidityRisk],
+      `Liquidity ${report.liquidityRisk}.`,
+      {
+        liquidityUsd: r(liq?.totalLiquidityUsd ?? snapshot.market?.liquidityUsd, 0),
+        lpLockedPct: r(liq?.lpLockedPercent),
+        lpBurnedPct: r(liq?.lpBurnedPercent),
+        programControlled: liq?.programControlled ?? null,
+        pools: liq?.poolCount ?? null,
+        liquidityToMcap: mcap && liq?.totalLiquidityUsd ? r(liq.totalLiquidityUsd / mcap, 4) : null,
+        liquidityScore: cat.liquidity.score,
+      },
+      0,
+    );
 
     const m = snapshot.market;
     const tr = snapshot.trades;
-    add('MARKET', LEVEL_STATUS[report.marketIntegrityRisk], `Market integrity ${report.marketIntegrityRisk}.`, {
-      priceUsd: m?.priceUsd ?? null,
-      marketCapUsd: r(mcap, 0),
-      volume1hUsd: r(m?.volumeUsd.h1, 0),
-      volume24hUsd: r(m?.volumeUsd.h24, 0),
-      priceChange5mPct: r(m?.priceChangePct.m5),
-      priceChange1hPct: r(m?.priceChangePct.h1),
-      buys1h: m?.txns.h1?.buys ?? null,
-      sells1h: m?.txns.h1?.sells ?? null,
-      tradesSampled: tr?.tradeCount ?? null,
-      uniqueTraders: tr?.uniqueTraders ?? null,
-      roundTripVolumeShare: r(tr?.roundTripVolumeShare, 3),
-      marketScore: cat.market.score,
-    }, 0);
+    add(
+      'MARKET',
+      LEVEL_STATUS[report.marketIntegrityRisk],
+      `Market integrity ${report.marketIntegrityRisk}.`,
+      {
+        priceUsd: m?.priceUsd ?? null,
+        marketCapUsd: r(mcap, 0),
+        volume1hUsd: r(m?.volumeUsd.h1, 0),
+        volume24hUsd: r(m?.volumeUsd.h24, 0),
+        priceChange5mPct: r(m?.priceChangePct.m5),
+        priceChange1hPct: r(m?.priceChangePct.h1),
+        buys1h: m?.txns.h1?.buys ?? null,
+        sells1h: m?.txns.h1?.sells ?? null,
+        tradesSampled: tr?.tradeCount ?? null,
+        uniqueTraders: tr?.uniqueTraders ?? null,
+        roundTripVolumeShare: r(tr?.roundTripVolumeShare, 3),
+        marketScore: cat.market.score,
+      },
+      0,
+    );
 
-    const highRugRisk = report.isLikelyScam || report.overallRisk === 'CRITICAL' || report.rugScore > cfg.limits.maxRugScore;
-    add('RUG_RISK', highRugRisk ? 'fail' : LEVEL_STATUS[report.overallRisk], `RUG_SCORE ${report.rugScore}, OVERALL ${report.overallRisk}${report.isLikelyScam ? ' — LIKELY SCAM' : ''}.`, {
-      rugScore: report.rugScore,
-      overallRisk: report.overallRisk,
-      likelyScam: report.isLikelyScam,
-      criticalFlags: report.criticalFlags.length,
-      dataCompleteness: report.dataCompleteness,
-      maxRugScore: cfg.limits.maxRugScore,
-      llmEscalated: llmReview?.escalate ?? null,
-    }, rugMs);
+    const highRugRisk =
+      report.isLikelyScam || report.overallRisk === 'CRITICAL' || report.rugScore > cfg.limits.maxRugScore;
+    add(
+      'RUG_RISK',
+      highRugRisk ? 'fail' : LEVEL_STATUS[report.overallRisk],
+      `RUG_SCORE ${report.rugScore}, OVERALL ${report.overallRisk}${report.isLikelyScam ? ' — LIKELY SCAM' : ''}.`,
+      {
+        rugScore: report.rugScore,
+        overallRisk: report.overallRisk,
+        likelyScam: report.isLikelyScam,
+        criticalFlags: report.criticalFlags.length,
+        dataCompleteness: report.dataCompleteness,
+        maxRugScore: cfg.limits.maxRugScore,
+        llmEscalated: llmReview?.escalate ?? null,
+      },
+      rugMs,
+    );
 
     const factors: Record<string, number | null> = {
       rugScore: report.rugScore,
@@ -280,7 +338,8 @@ export class DecisionPipeline {
     let strategyScore: number | null = null;
     let sizing: Decision['sizing'] = null;
     let riskChecks: Decision['riskChecks'] = [];
-    let execute: (() => Promise<{ trade: Trade | null; position: Position | null; error: string | null }>) | null = null;
+    let execute:
+      (() => Promise<{ trade: Trade | null; position: Position | null; error: string | null }>) | null = null;
 
     const openPosition = await repos.positions.openForToken(mode, token.id);
 
@@ -302,13 +361,27 @@ export class DecisionPipeline {
         cfg.strategy,
         now,
       );
-      Object.assign(factors, Object.fromEntries(Object.entries(exit.metrics).map(([k, v]) => [`position_${k}`, v === null ? null : r(v, 6)])));
-      add('STRATEGY', exit.action === 'SELL' ? 'fail' : 'pass', exit.reasons.join(' '), { ...exit.metrics, positionId: openPosition.id }, 0);
+      Object.assign(
+        factors,
+        Object.fromEntries(
+          Object.entries(exit.metrics).map(([k, v]) => [`position_${k}`, v === null ? null : r(v, 6)]),
+        ),
+      );
+      add(
+        'STRATEGY',
+        exit.action === 'SELL' ? 'fail' : 'pass',
+        exit.reasons.join(' '),
+        { ...exit.metrics, positionId: openPosition.id },
+        0,
+      );
       add('RISK_CHECK', 'skipped', 'Exits are protective and are not blocked by entry risk checks.', {}, 0);
       if (exit.action === 'SELL') {
         action = 'SELL';
         reasonCode = exit.reasonCode;
-        label = exit.reason === 'rug_risk_escalation' ? 'SELL — HIGH RUG RISK' : `SELL — ${(exit.reason ?? 'exit').replace(/_/g, ' ').toUpperCase()}`;
+        label =
+          exit.reason === 'rug_risk_escalation'
+            ? 'SELL — HIGH RUG RISK'
+            : `SELL — ${(exit.reason ?? 'exit').replace(/_/g, ' ').toUpperCase()}`;
         confidence = 0.9;
         reasons.push(...exit.reasons);
         const mayExecute = req.trigger !== 'manual' || req.allowTrade;
@@ -320,7 +393,11 @@ export class DecisionPipeline {
               detail: exit.reasons.join(' '),
               market: m,
             });
-            return { trade: res?.trade ?? null, position: res?.position ?? null, error: res?.position ? null : (res?.trade?.error ?? 'exit not completed') };
+            return {
+              trade: res?.trade ?? null,
+              position: res?.position ?? null,
+              error: res?.position ? null : (res?.trade?.error ?? 'exit not completed'),
+            };
           };
         }
       } else {
@@ -333,7 +410,11 @@ export class DecisionPipeline {
     } else if (highRugRisk) {
       action = 'SKIP';
       label = 'SKIP — HIGH RUG RISK';
-      reasonCode = report.isLikelyScam ? 'LIKELY_SCAM' : report.overallRisk === 'CRITICAL' ? 'CRITICAL_RISK' : 'RUG_SCORE_ABOVE_LIMIT';
+      reasonCode = report.isLikelyScam
+        ? 'LIKELY_SCAM'
+        : report.overallRisk === 'CRITICAL'
+          ? 'CRITICAL_RISK'
+          : 'RUG_SCORE_ABOVE_LIMIT';
       confidence = report.isLikelyScam ? 0.95 : 0.8;
       reasons.push(
         report.isLikelyScam
@@ -347,24 +428,42 @@ export class DecisionPipeline {
       const entry = evaluateEntry(snapshot, report, cfg.strategy, cfg.limits, now);
       strategyScore = entry.score;
       for (const [k, v] of Object.entries(entry.components)) factors[`strategy_${k}`] = r(v);
-      for (const [k, v] of Object.entries(entry.signals)) factors[`signal_${k}`] = typeof v === 'number' ? r(v, 4) : null;
+      for (const [k, v] of Object.entries(entry.signals))
+        factors[`signal_${k}`] = typeof v === 'number' ? r(v, 4) : null;
       factors.strategyScore = entry.score;
-      add('STRATEGY', entry.action === 'BUY' ? 'pass' : entry.action === 'HOLD' ? 'warn' : 'fail', entry.reasons.join(' '), {
-        score: entry.score,
-        action: entry.action,
-        minScore: cfg.strategy.minStrategyScore,
-        ...entry.components,
-      }, 0);
+      add(
+        'STRATEGY',
+        entry.action === 'BUY' ? 'pass' : entry.action === 'HOLD' ? 'warn' : 'fail',
+        entry.reasons.join(' '),
+        {
+          score: entry.score,
+          action: entry.action,
+          minScore: cfg.strategy.minStrategyScore,
+          ...entry.components,
+        },
+        0,
+      );
       reasons.push(...entry.reasons);
 
-      const manualOverride = entry.action !== 'BUY' && req.manual === true && req.bypassStrategy === true && entry.reasonCode !== 'NO_MARKET_DATA';
+      const manualOverride =
+        entry.action !== 'BUY' &&
+        req.manual === true &&
+        req.bypassStrategy === true &&
+        entry.reasonCode !== 'NO_MARKET_DATA';
       if (manualOverride) {
-        reasons.push(`Manual request: strategy signal was ${entry.action} (${entry.reasonCode}); proceeding to risk checks as requested.`);
+        reasons.push(
+          `Manual request: strategy signal was ${entry.action} (${entry.reasonCode}); proceeding to risk checks as requested.`,
+        );
       }
       if (entry.action !== 'BUY' && !manualOverride) {
         action = entry.action;
         reasonCode = entry.reasonCode;
-        label = entry.action === 'HOLD' ? 'HOLD — WATCHING' : entry.reasonCode === 'NO_MARKET_DATA' ? 'SKIP — NO MARKET DATA' : 'SKIP — STRATEGY CRITERIA NOT MET';
+        label =
+          entry.action === 'HOLD'
+            ? 'HOLD — WATCHING'
+            : entry.reasonCode === 'NO_MARKET_DATA'
+              ? 'SKIP — NO MARKET DATA'
+              : 'SKIP — STRATEGY CRITERIA NOT MET';
         confidence = entry.confidence;
         add('RISK_CHECK', 'skipped', 'Not evaluated: no entry signal.', {}, 0);
       } else {
@@ -402,14 +501,28 @@ export class DecisionPipeline {
           limits: cfg.limits,
           strategy: cfg.strategy,
           networkFeeUsd: fee,
-          llm: { required: this.d.llmRequired, failed: this.d.llmRequired && (llmReview === null || llmReview.error !== null), error: llmReview?.error ?? (this.d.llm ? null : 'LLM reviewer not configured') },
+          llm: {
+            required: this.d.llmRequired,
+            failed: this.d.llmRequired && (llmReview === null || llmReview.error !== null),
+            error: llmReview?.error ?? (this.d.llm ? null : 'LLM reviewer not configured'),
+          },
           now,
         });
         riskChecks = evaluation.checks;
-        add('RISK_CHECK', evaluation.approved ? 'pass' : 'fail',
-          evaluation.approved ? `All ${evaluation.checks.length} risk checks passed.` : `${evaluation.failed.length} risk check(s) failed: ${evaluation.failed.map((f) => f.check).join(', ')}.`,
-          { passed: evaluation.checks.length - evaluation.failed.length, failed: evaluation.failed.length, sizeUsd: sizing.sizeUsd, limitingFactor: sizing.limitingFactor },
-          Date.now() - t2);
+        add(
+          'RISK_CHECK',
+          evaluation.approved ? 'pass' : 'fail',
+          evaluation.approved
+            ? `All ${evaluation.checks.length} risk checks passed.`
+            : `${evaluation.failed.length} risk check(s) failed: ${evaluation.failed.map((f) => f.check).join(', ')}.`,
+          {
+            passed: evaluation.checks.length - evaluation.failed.length,
+            failed: evaluation.failed.length,
+            sizeUsd: sizing.sizeUsd,
+            limitingFactor: sizing.limitingFactor,
+          },
+          Date.now() - t2,
+        );
         if (!evaluation.approved) {
           action = 'SKIP';
           label = 'SKIP — RISK CHECK FAILED';
@@ -421,7 +534,9 @@ export class DecisionPipeline {
           reasonCode = 'ENTRY_APPROVED';
           confidence = entry.confidence;
           label = req.allowTrade ? 'BUY' : 'BUY — ANALYSIS ONLY';
-          reasons.push(`Position size $${sizing.sizeUsd.toFixed(2)} (limited by ${sizing.limitingFactor}); expected impact ${sizing.expectedSlippagePct}%.`);
+          reasons.push(
+            `Position size $${sizing.sizeUsd.toFixed(2)} (limited by ${sizing.limitingFactor}); expected impact ${sizing.expectedSlippagePct}%.`,
+          );
           if (req.allowTrade) {
             const approvedSizing = sizing;
             execute = async () => {
@@ -435,7 +550,11 @@ export class DecisionPipeline {
                 decisionId: decisionId as number,
                 reason: `Strategy entry (score ${entry.score}, rug ${report.rugScore})`,
               });
-              return { trade: res.trade, position: res.position, error: res.position ? null : res.trade.error };
+              return {
+                trade: res.trade,
+                position: res.position,
+                error: res.position ? null : res.trade.error,
+              };
             };
           }
         }
@@ -466,7 +585,13 @@ export class DecisionPipeline {
       createdAt: now.toISOString(),
     };
     if (!execute) {
-      add('EXECUTION', 'skipped', action === 'BUY' ? 'Analysis only: trading not requested.' : `No order: decision is ${label}.`, {}, 0);
+      add(
+        'EXECUTION',
+        'skipped',
+        action === 'BUY' ? 'Analysis only: trading not requested.' : `No order: decision is ${label}.`,
+        {},
+        0,
+      );
     }
     const decisionId: number = await repos.decisions.insert(token.id, decision);
     decision.id = decisionId;
@@ -482,13 +607,21 @@ export class DecisionPipeline {
         const ok = res.error === null && trade?.status === 'filled';
         decision.executed = ok;
         decision.tradeId = trade?.id ?? null;
-        add('EXECUTION', ok ? 'pass' : 'error', ok ? `${mode.toUpperCase()} ${trade?.side} filled: $${trade?.filledUsd?.toFixed(2)} @ ${trade?.priceUsd}.` : `Execution failed: ${res.error}`, {
-          tradeId: trade?.id ?? null,
-          status: trade?.status ?? null,
-          filledUsd: trade?.filledUsd ?? null,
-          slippagePct: r(trade?.slippagePct ?? null),
-          feeUsd: r(trade?.feeUsd ?? null),
-        }, Date.now() - t3);
+        add(
+          'EXECUTION',
+          ok ? 'pass' : 'error',
+          ok
+            ? `${mode.toUpperCase()} ${trade?.side} filled: $${trade?.filledUsd?.toFixed(2)} @ ${trade?.priceUsd}.`
+            : `Execution failed: ${res.error}`,
+          {
+            tradeId: trade?.id ?? null,
+            status: trade?.status ?? null,
+            filledUsd: trade?.filledUsd ?? null,
+            slippagePct: r(trade?.slippagePct ?? null),
+            feeUsd: r(trade?.feeUsd ?? null),
+          },
+          Date.now() - t3,
+        );
         if (!ok) {
           decision.label = `${action} — EXECUTION FAILED`;
           decision.reasons.push(`Execution failed: ${res.error}`);
@@ -510,27 +643,58 @@ export class DecisionPipeline {
     // Persist token state, history, wallets.
     const updated = await repos.tokens.applyAnalysis(token.id, snapshot, report, decision, refreshSecurity);
     if (snapshot.market) await repos.history.recordMarket(token.id, snapshot.market);
-    if (refreshSecurity && snapshot.liquidity && (snapshot.liquidity.lpLockedPercent !== null || snapshot.liquidity.lpBurnedPercent !== null)) {
+    if (
+      refreshSecurity &&
+      snapshot.liquidity &&
+      (snapshot.liquidity.lpLockedPercent !== null || snapshot.liquidity.lpBurnedPercent !== null)
+    ) {
       await repos.history.recordLiquidity(token.id, snapshot.liquidity, now);
     }
     await this.persistWallets(token.id, snapshot).catch((err) =>
       this.d.logger.warn({ err: errorMessage(err) }, 'wallet persistence failed'),
     );
     if (action === 'SKIP') {
-      await repos.events.log('info', 'skipped', `${label}: ${reasons[0] ?? ''}`.slice(0, 500), { reasonCode, trigger: req.trigger }, token.id);
+      await repos.events.log(
+        'info',
+        'skipped',
+        `${label}: ${reasons[0] ?? ''}`.slice(0, 500),
+        { reasonCode, trigger: req.trigger },
+        token.id,
+      );
     }
 
     // Alerts + realtime events
-    await this.raiseAlerts(updated, snapshot, report, decision, previous, previousReport, openPosition !== null).catch((err) =>
-      this.d.logger.warn({ err: errorMessage(err) }, 'alert generation failed'),
-    );
-    const openSummary = position && position.status === 'open'
-      ? { id: position.id, quantity: position.quantity, entryPriceUsd: position.entryPriceUsd, costBasisUsd: position.costBasisUsd, unrealizedPnlUsd: position.unrealizedPnlUsd, unrealizedPnlPct: position.unrealizedPnlPct }
-      : null;
+    await this.raiseAlerts(
+      updated,
+      snapshot,
+      report,
+      decision,
+      previous,
+      previousReport,
+      openPosition !== null,
+    ).catch((err) => this.d.logger.warn({ err: errorMessage(err) }, 'alert generation failed'));
+    const openSummary =
+      position && position.status === 'open'
+        ? {
+            id: position.id,
+            quantity: position.quantity,
+            entryPriceUsd: position.entryPriceUsd,
+            costBasisUsd: position.costBasisUsd,
+            unrealizedPnlUsd: position.unrealizedPnlUsd,
+            unrealizedPnlPct: position.unrealizedPnlPct,
+          }
+        : null;
     this.d.bus.publish({ type: 'token.analyzed', data: { token: toTokenListItem(updated, openSummary) } });
     this.d.bus.publish({ type: 'decision', data: decision });
     this.d.logger.info(
-      { token: `${snapshot.chain}:${snapshot.address}`, symbol: snapshot.symbol, action: decision.action, label: decision.label, rugScore: report.rugScore, trigger: req.trigger },
+      {
+        token: `${snapshot.chain}:${snapshot.address}`,
+        symbol: snapshot.symbol,
+        action: decision.action,
+        label: decision.label,
+        rugScore: report.rugScore,
+        trigger: req.trigger,
+      },
       'decision',
     );
     return { decision, report, snapshot, trade, position };
@@ -542,11 +706,19 @@ export class DecisionPipeline {
     const clusterOf = new Map<string, string>();
     for (const cl of s.wallets?.clusters ?? []) for (const w of cl.wallets) clusterOf.set(w, cl.funder);
     for (const h of holders) {
-      const w = await repos.wallets.upsert({ chain: s.chain, address: h.address, label: h.isInsider ? 'insider' : 'top_holder' });
+      const w = await repos.wallets.upsert({
+        chain: s.chain,
+        address: h.address,
+        label: h.isInsider ? 'insider' : 'top_holder',
+      });
       await repos.wallets.link(tokenId, w.id, 'top_holder', h.percent, clusterOf.get(h.address) ?? null);
     }
     if (s.deployer?.address) {
-      const w = await repos.wallets.upsert({ chain: s.chain, address: s.deployer.address, label: 'deployer' });
+      const w = await repos.wallets.upsert({
+        chain: s.chain,
+        address: s.deployer.address,
+        label: 'deployer',
+      });
       await repos.wallets.link(tokenId, w.id, 'deployer', s.deployer.holdsPercent, null);
     }
     const events = s.developer?.events.filter((e) => e.signature) ?? [];
@@ -604,16 +776,27 @@ export class DecisionPipeline {
         severity: 'info',
         title: decision.executed ? 'Trade opportunity executed' : 'Trading opportunity',
         message: `${decision.label}: strategy score ${decision.strategyScore}, rug score ${report.rugScore}. ${decision.reasons.slice(-1)[0] ?? ''}`,
-        data: { strategyScore: decision.strategyScore, rugScore: report.rugScore, executed: decision.executed },
+        data: {
+          strategyScore: decision.strategyScore,
+          rugScore: report.rugScore,
+          executed: decision.executed,
+        },
         key: String(decision.id),
       });
     }
     // Change-based alerts: always for held tokens; otherwise only when the token did not already
     // look like a scam (avoids alert spam from tokens we already rejected).
     if (previous && (held || !previousReport?.isLikelyScam)) {
-      for (const c of analysisAlerts({ market: previous.market, snapshot: previous, report: previousReport }, { market: snapshot.market, snapshot, report })) {
-        await raise(c);
-      }
+      // Market rules share dedupe keys with the position monitor, so a liquidity pull detected by
+      // either path alerts exactly once.
+      const candidates = [
+        ...marketAlerts(previous.market, snapshot.market),
+        ...analysisAlerts(
+          { market: previous.market, snapshot: previous, report: previousReport },
+          { market: snapshot.market, snapshot, report },
+        ),
+      ];
+      for (const c of candidates) await raise(c);
     }
   }
 }

@@ -13,13 +13,7 @@ export type TradingMode = 'paper' | 'live';
 
 /** Internal risk categories. The first four map 1:1 to the required public risk outputs. */
 export type RiskCategory =
-  | 'honeypot'
-  | 'liquidity'
-  | 'contract'
-  | 'concentration'
-  | 'developer'
-  | 'market'
-  | 'data';
+  'honeypot' | 'liquidity' | 'contract' | 'concentration' | 'developer' | 'market' | 'data';
 
 export type Scalar = string | number | boolean | null;
 

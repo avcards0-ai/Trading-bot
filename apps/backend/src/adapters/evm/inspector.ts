@@ -62,7 +62,14 @@ export class EvmInspector implements SecuritySource {
       return {
         source: this.name,
         contract: { tokenProgram: 'evm', isVerified: false },
-        warnings: [{ source: this.name, code: 'no_code', level: 'danger', message: 'No contract code at token address' }],
+        warnings: [
+          {
+            source: this.name,
+            code: 'no_code',
+            level: 'danger',
+            message: 'No contract code at token address',
+          },
+        ],
       };
     }
     const own = analyzeBytecode(code);

@@ -53,7 +53,10 @@ export class LiveSolanaExecutor implements TradeExecutor {
   }
 
   async walletCashUsd(): Promise<number> {
-    const [lamports, price] = await Promise.all([this.deps.rpc.getBalance(this.walletAddress), this.solUsd()]);
+    const [lamports, price] = await Promise.all([
+      this.deps.rpc.getBalance(this.walletAddress),
+      this.solUsd(),
+    ]);
     return Math.max(0, lamports / LAMPORTS - SOL_RESERVE) * price;
   }
 
@@ -62,13 +65,26 @@ export class LiveSolanaExecutor implements TradeExecutor {
     try {
       return req.side === 'buy' ? await this.buy(req) : await this.sell(req);
     } catch (err) {
-      this.deps.logger.error({ err: errorMessage(err), side: req.side, token: req.address }, 'live execution error');
+      this.deps.logger.error(
+        { err: errorMessage(err), side: req.side, token: req.address },
+        'live execution error',
+      );
       return this.failed(errorMessage(err), 0);
     }
   }
 
   private failed(error: string, feeUsd: number, txHash: string | null = null): ExecutionResult {
-    return { status: 'failed', filledUsd: 0, quantity: 0, rawQuantity: null, avgPriceUsd: null, slippagePct: null, feeUsd, txHash, error };
+    return {
+      status: 'failed',
+      filledUsd: 0,
+      quantity: 0,
+      rawQuantity: null,
+      avgPriceUsd: null,
+      slippagePct: null,
+      feeUsd,
+      txHash,
+      error,
+    };
   }
 
   private async buy(req: ExecutionRequest): Promise<ExecutionResult> {
@@ -76,11 +92,19 @@ export class LiveSolanaExecutor implements TradeExecutor {
     const solPrice = await this.solUsd();
     const lamports = BigInt(Math.floor((usd / solPrice) * LAMPORTS));
     if (lamports <= 0n) return this.failed('buy amount too small', 0);
-    const quote = await this.deps.jupiter.quote(SOL_MINT, req.address, lamports, Math.round(req.maxSlippagePct * 100));
+    const quote = await this.deps.jupiter.quote(
+      SOL_MINT,
+      req.address,
+      lamports,
+      Math.round(req.maxSlippagePct * 100),
+    );
     if (!quote) return this.failed('no swap route available', 0);
     const impact = (toNum(quote.priceImpactPct) ?? 0) * 100;
     if (impact > req.maxSlippagePct) {
-      return this.failed(`quoted price impact ${impact.toFixed(2)}% exceeds ${req.maxSlippagePct}% (no transaction sent)`, 0);
+      return this.failed(
+        `quoted price impact ${impact.toFixed(2)}% exceeds ${req.maxSlippagePct}% (no transaction sent)`,
+        0,
+      );
     }
     const outcome = await this.swapAndConfirm(quote);
     if (!outcome.ok) return this.failed(outcome.error, outcome.feeUsd, outcome.signature);
@@ -90,9 +114,15 @@ export class LiveSolanaExecutor implements TradeExecutor {
     const solDelta = tx ? lamportDelta(tx, this.walletAddress) : null;
     // Actual SOL spent (swap + fees + token-account rent) when the tx is readable, else the quote.
     const spentUsd =
-      solDelta !== null ? (-solDelta / LAMPORTS) * solPrice : (Number(lamports) / LAMPORTS) * solPrice + outcome.feeUsd;
+      solDelta !== null
+        ? (-solDelta / LAMPORTS) * solPrice
+        : (Number(lamports) / LAMPORTS) * solPrice + outcome.feeUsd;
     if (received <= 0) {
-      return this.failed('transaction confirmed but no tokens received — reconcile manually', outcome.feeUsd, outcome.signature);
+      return this.failed(
+        'transaction confirmed but no tokens received — reconcile manually',
+        outcome.feeUsd,
+        outcome.signature,
+      );
     }
     const mid = req.market.priceUsd ?? spentUsd / received;
     return {
@@ -111,14 +141,24 @@ export class LiveSolanaExecutor implements TradeExecutor {
 
   private async sell(req: ExecutionRequest): Promise<ExecutionResult> {
     const onChain = await this.deps.rpc.getTokenBalanceForOwner(this.walletAddress, req.address);
-    let raw = req.rawQuantity ? BigInt(req.rawQuantity) : BigInt(Math.floor((req.quantity ?? 0) * 10 ** onChain.decimals));
+    let raw = req.rawQuantity
+      ? BigInt(req.rawQuantity)
+      : BigInt(Math.floor((req.quantity ?? 0) * 10 ** onChain.decimals));
     if (raw > onChain.raw) raw = onChain.raw; // never try to sell more than we hold
     if (raw <= 0n) return this.failed('no token balance to sell', 0);
-    const quote = await this.deps.jupiter.quote(req.address, SOL_MINT, raw, Math.round(req.maxSlippagePct * 100));
+    const quote = await this.deps.jupiter.quote(
+      req.address,
+      SOL_MINT,
+      raw,
+      Math.round(req.maxSlippagePct * 100),
+    );
     if (!quote) return this.failed('no route to sell token', 0);
     const impact = (toNum(quote.priceImpactPct) ?? 0) * 100;
     if (impact > req.maxSlippagePct) {
-      return this.failed(`quoted price impact ${impact.toFixed(2)}% exceeds exit limit ${req.maxSlippagePct}%`, 0);
+      return this.failed(
+        `quoted price impact ${impact.toFixed(2)}% exceeds exit limit ${req.maxSlippagePct}%`,
+        0,
+      );
     }
     const solPrice = await this.solUsd();
     const outcome = await this.swapAndConfirm(quote);
@@ -147,7 +187,10 @@ export class LiveSolanaExecutor implements TradeExecutor {
 
   private async swapAndConfirm(
     quote: Awaited<ReturnType<JupiterAdapter['quote']>> & object,
-  ): Promise<{ ok: true; signature: string; feeUsd: number } | { ok: false; signature: string | null; error: string; feeUsd: number }> {
+  ): Promise<
+    | { ok: true; signature: string; feeUsd: number }
+    | { ok: false; signature: string | null; error: string; feeUsd: number }
+  > {
     const swap = await this.deps.jupiter.buildSwap(quote, this.walletAddress);
     const { signedBase64, signature } = signSerializedTransaction(swap.swapTransaction, this.deps.signer);
     const feeUsd = this.networkFeeUsd();
@@ -157,7 +200,13 @@ export class LiveSolanaExecutor implements TradeExecutor {
     while (Date.now() < deadline) {
       await sleep(2_000);
       const status = await this.deps.rpc.getSignatureStatus(signature).catch(() => null);
-      if (status?.err) return { ok: false, signature, error: `transaction failed on-chain: ${JSON.stringify(status.err)}`, feeUsd };
+      if (status?.err)
+        return {
+          ok: false,
+          signature,
+          error: `transaction failed on-chain: ${JSON.stringify(status.err)}`,
+          feeUsd,
+        };
       if (status?.confirmationStatus === 'confirmed' || status?.confirmationStatus === 'finalized') {
         return { ok: true, signature, feeUsd };
       }
@@ -166,6 +215,11 @@ export class LiveSolanaExecutor implements TradeExecutor {
         return { ok: false, signature, error: 'transaction expired (blockhash no longer valid)', feeUsd: 0 };
       }
     }
-    return { ok: false, signature, error: 'confirmation status unknown after 120s — reconcile manually', feeUsd };
+    return {
+      ok: false,
+      signature,
+      error: 'confirmation status unknown after 120s — reconcile manually',
+      feeUsd,
+    };
   }
 }

@@ -226,7 +226,13 @@ export class HttpClient {
     this.stats.lastErrorAt = new Date();
     // Validation errors are data problems, not availability problems: don't trip the breaker.
     if (err instanceof ProviderResponseError) return;
-    if (err instanceof ProviderError && err.status !== null && err.status >= 400 && err.status < 500 && err.status !== 429) {
+    if (
+      err instanceof ProviderError &&
+      err.status !== null &&
+      err.status >= 400 &&
+      err.status < 500 &&
+      err.status !== 429
+    ) {
       return;
     }
     this.stats.consecutiveFailures += 1;

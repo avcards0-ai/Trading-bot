@@ -16,22 +16,47 @@ const SUPPORTED: Partial<Record<Chain, number>> = { ethereum: 1, bsc: 56, base: 
 const numLike = z.union([z.number(), z.string()]).nullish();
 const response = z
   .object({
-    token: z.object({ name: z.string().nullish(), symbol: z.string().nullish(), decimals: z.number().nullish(), totalHolders: z.number().nullish() }).nullish(),
+    token: z
+      .object({
+        name: z.string().nullish(),
+        symbol: z.string().nullish(),
+        decimals: z.number().nullish(),
+        totalHolders: z.number().nullish(),
+      })
+      .nullish(),
     summary: z
       .object({
         risk: z.string().nullish(),
         riskLevel: z.number().nullish(),
         flags: z
-          .array(z.object({ flag: z.string().nullish(), description: z.string().nullish(), severity: z.string().nullish() }).passthrough())
+          .array(
+            z
+              .object({
+                flag: z.string().nullish(),
+                description: z.string().nullish(),
+                severity: z.string().nullish(),
+              })
+              .passthrough(),
+          )
           .nullish(),
       })
       .nullish(),
     simulationSuccess: z.boolean().nullish(),
     simulationError: z.string().nullish(),
-    honeypotResult: z.object({ isHoneypot: z.boolean().nullish(), honeypotReason: z.string().nullish() }).nullish(),
-    simulationResult: z.object({ buyTax: numLike, sellTax: numLike, transferTax: numLike }).partial().nullish(),
+    honeypotResult: z
+      .object({ isHoneypot: z.boolean().nullish(), honeypotReason: z.string().nullish() })
+      .nullish(),
+    simulationResult: z
+      .object({ buyTax: numLike, sellTax: numLike, transferTax: numLike })
+      .partial()
+      .nullish(),
     contractCode: z
-      .object({ openSource: z.boolean().nullish(), rootOpenSource: z.boolean().nullish(), isProxy: z.boolean().nullish(), hasProxyCalls: z.boolean().nullish() })
+      .object({
+        openSource: z.boolean().nullish(),
+        rootOpenSource: z.boolean().nullish(),
+        isProxy: z.boolean().nullish(),
+        hasProxyCalls: z.boolean().nullish(),
+      })
       .partial()
       .nullish(),
   })
@@ -64,7 +89,12 @@ export function parseHoneypotIs(r: z.infer<typeof response>): SnapshotContributi
   const warnings: ProviderWarning[] = (r.summary?.flags ?? []).map((f) => ({
     source: 'honeypot.is',
     code: f.flag ?? 'flag',
-    level: f.severity === 'critical' || f.severity === 'high' ? 'danger' : f.severity === 'medium' ? 'warn' : 'info',
+    level:
+      f.severity === 'critical' || f.severity === 'high'
+        ? 'danger'
+        : f.severity === 'medium'
+          ? 'warn'
+          : 'info',
     message: f.description ?? f.flag ?? 'flag',
   }));
   return {
@@ -85,7 +115,8 @@ export function parseHoneypotIs(r: z.infer<typeof response>): SnapshotContributi
       sellTaxPct: simulated ? toNum(r.simulationResult?.sellTax) : null,
       transferTaxPct: simulated ? toNum(r.simulationResult?.transferTax) : null,
       sellRouteFound: null,
-      reason: r.honeypotResult?.honeypotReason ?? (simulated ? null : (r.simulationError ?? 'simulation failed')),
+      reason:
+        r.honeypotResult?.honeypotReason ?? (simulated ? null : (r.simulationError ?? 'simulation failed')),
     },
     warnings,
   };

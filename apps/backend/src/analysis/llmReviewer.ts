@@ -44,7 +44,9 @@ export interface LlmReviewerOptions {
 
 /** Compact, bounded view of the analysis for the prompt (no raw provider payloads). */
 export function buildReviewInput(snapshot: TokenSnapshot, report: RiskReport): Record<string, unknown> {
-  const holders = snapshot.holders ? circulatingHolders(snapshot.holders.topHolders, snapshot.chain).slice(0, 10) : [];
+  const holders = snapshot.holders
+    ? circulatingHolders(snapshot.holders.topHolders, snapshot.chain).slice(0, 10)
+    : [];
   return {
     token: {
       chain: snapshot.chain,
@@ -83,7 +85,10 @@ export function buildReviewInput(snapshot: TokenSnapshot, report: RiskReport): R
           pairCreatedAt: snapshot.market.pairCreatedAt,
         }
       : null,
-    topHolders: holders.map((h) => ({ percent: Math.round(h.percent * 100) / 100, insider: h.isInsider ?? null })),
+    topHolders: holders.map((h) => ({
+      percent: Math.round(h.percent * 100) / 100,
+      insider: h.isInsider ?? null,
+    })),
     walletClusters: snapshot.wallets?.clusters.slice(0, 3) ?? [],
     developer: snapshot.developer
       ? {
@@ -93,7 +98,9 @@ export function buildReviewInput(snapshot: TokenSnapshot, report: RiskReport): R
           transfersToFreshWallets: snapshot.developer.transfersToFreshWallets,
         }
       : null,
-    providerWarnings: snapshot.warnings.slice(0, 10).map((w) => ({ source: w.source, level: w.level, text: w.message.slice(0, 200) })),
+    providerWarnings: snapshot.warnings
+      .slice(0, 10)
+      .map((w) => ({ source: w.source, level: w.level, text: w.message.slice(0, 200) })),
   };
 }
 
@@ -144,8 +151,10 @@ export class LlmReviewer {
     } catch (err) {
       let reason: string;
       if (err instanceof Anthropic.RateLimitError) reason = 'rate limited';
-      else if (err instanceof Anthropic.AuthenticationError) reason = 'authentication failed (check ANTHROPIC_API_KEY)';
-      else if (err instanceof Anthropic.APIConnectionTimeoutError) reason = `timed out after ${this.opts.timeoutMs}ms`;
+      else if (err instanceof Anthropic.AuthenticationError)
+        reason = 'authentication failed (check ANTHROPIC_API_KEY)';
+      else if (err instanceof Anthropic.APIConnectionTimeoutError)
+        reason = `timed out after ${this.opts.timeoutMs}ms`;
       else if (err instanceof Anthropic.APIError) reason = `API error ${err.status ?? ''}`.trim();
       else reason = errorMessage(err).slice(0, 200);
       this.opts.logger.warn({ reason }, 'LLM review failed');

@@ -20,7 +20,12 @@ export class WorkQueue<T> {
 
   constructor(
     private readonly worker: (item: QueueItem<T>) => Promise<void>,
-    private readonly opts: { concurrency: number; maxSize: number; logger: Logger; onDrop?: (item: QueueItem<T>) => void },
+    private readonly opts: {
+      concurrency: number;
+      maxSize: number;
+      logger: Logger;
+      onDrop?: (item: QueueItem<T>) => void;
+    },
   ) {}
 
   get pending(): number {
@@ -72,7 +77,9 @@ export class WorkQueue<T> {
       const item = this.items.shift() as QueueItem<T>;
       this.active.add(item.key);
       void this.worker(item)
-        .catch((err) => this.opts.logger.error({ key: item.key, err: errorMessage(err) }, 'queue worker failed'))
+        .catch((err) =>
+          this.opts.logger.error({ key: item.key, err: errorMessage(err) }, 'queue worker failed'),
+        )
         .finally(() => {
           this.active.delete(item.key);
           this.pump();

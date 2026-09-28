@@ -19,6 +19,7 @@ import type {
   DeveloperActivitySource,
   DiscoveryProvider,
   MarketDataProvider,
+  MarketFallbackProvider,
   OhlcvProvider,
   SecuritySource,
   TradeFeedProvider,
@@ -29,7 +30,7 @@ export interface Providers {
   registry: ProviderRegistry;
   discovery: DiscoveryProvider[];
   market: MarketDataProvider;
-  marketFallback: GeckoTerminalAdapter;
+  marketFallback: MarketFallbackProvider;
   trades: TradeFeedProvider;
   ohlcv: OhlcvProvider;
   security: SecuritySource[];
@@ -52,12 +53,19 @@ export function createProviders({ config, logger, registerSecret, fetchImpl }: P
   const rpm = config.providers.rpm;
   const common = { logger, fetchImpl, timeoutMs: config.engine.sourceTimeoutMs };
 
-  const http = (name: string, baseUrl: string, ratePerMinute: number, extra: Partial<ConstructorParameters<typeof HttpClient>[0]> = {}) =>
-    registry.register(new HttpClient({ name, baseUrl, ratePerMinute, ...common, ...extra }));
+  const http = (
+    name: string,
+    baseUrl: string,
+    ratePerMinute: number,
+    extra: Partial<ConstructorParameters<typeof HttpClient>[0]> = {},
+  ) => registry.register(new HttpClient({ name, baseUrl, ratePerMinute, ...common, ...extra }));
 
   const dexscreener = new DexScreenerAdapter(http('dexscreener', DEXSCREENER_BASE_URL, rpm.dexscreener));
   const gecko = new GeckoTerminalAdapter(
-    http('geckoterminal', GECKOTERMINAL_BASE_URL, rpm.geckoterminal, { headers: GECKOTERMINAL_HEADERS, burst: 2 }),
+    http('geckoterminal', GECKOTERMINAL_BASE_URL, rpm.geckoterminal, {
+      headers: GECKOTERMINAL_HEADERS,
+      burst: 2,
+    }),
   );
   const goplus = new GoPlusAdapter(
     http('goplus', GOPLUS_BASE_URL, rpm.goplus, { burst: 2 }),
@@ -71,7 +79,9 @@ export function createProviders({ config, logger, registerSecret, fetchImpl }: P
   );
   const rugcheck = new RugCheckAdapter(
     http('rugcheck', RUGCHECK_BASE_URL, rpm.rugcheck, {
-      headers: config.providers.rugcheckApiKey ? { authorization: `Bearer ${config.providers.rugcheckApiKey}` } : {},
+      headers: config.providers.rugcheckApiKey
+        ? { authorization: `Bearer ${config.providers.rugcheckApiKey}` }
+        : {},
     }),
   );
   const jupiter = new JupiterAdapter(
@@ -88,9 +98,13 @@ export function createProviders({ config, logger, registerSecret, fetchImpl }: P
 
   let solanaRpc: SolanaRpc | null = null;
   if (config.rpc.solana) {
-    solanaRpc = new SolanaRpc(new JsonRpcClient(http('solana-rpc', config.rpc.solana, rpm.solanaRpc, { burst: 10 })));
+    solanaRpc = new SolanaRpc(
+      new JsonRpcClient(http('solana-rpc', config.rpc.solana, rpm.solanaRpc, { burst: 10 })),
+    );
     security.push(new SolanaInspector(solanaRpc));
-    const profiler = new SolanaWalletProfiler(solanaRpc, { freshWalletAgeHours: config.engine.freshWalletAgeHours });
+    const profiler = new SolanaWalletProfiler(solanaRpc, {
+      freshWalletAgeHours: config.engine.freshWalletAgeHours,
+    });
     walletProfilers.push(profiler);
     developerSources.push(profiler);
   } else {

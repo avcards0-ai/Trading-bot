@@ -53,6 +53,12 @@ export interface MarketDataProvider {
   getMarkets(chain: Chain, addresses: string[]): Promise<Map<string, MarketQuote>>;
 }
 
+/** Fallback market lookup (deepest pool for a token) when the primary provider has no data. */
+export interface MarketFallbackProvider {
+  readonly name: string;
+  getTokenPools(chain: Chain, address: string): Promise<MarketData | null>;
+}
+
 export interface RawTrade {
   txHash: string;
   wallet: string;
@@ -132,7 +138,12 @@ export interface DeveloperActivitySource {
   supports(chain: Chain): boolean;
   activity(
     chain: Chain,
-    token: { address: string; totalSupply: number | null; decimals: number | null; pairAddress: string | null },
+    token: {
+      address: string;
+      totalSupply: number | null;
+      decimals: number | null;
+      pairAddress: string | null;
+    },
     devAddress: string,
     lookbackMinutes: number,
   ): Promise<DeveloperActivity>;
@@ -141,7 +152,10 @@ export interface DeveloperActivitySource {
 export interface DeployerHistorySource {
   readonly name: string;
   supports(chain: Chain): boolean;
-  history(chain: Chain, deployer: string): Promise<{ tokensCreated: number | null; walletCreatedAt: Date | null }>;
+  history(
+    chain: Chain,
+    deployer: string,
+  ): Promise<{ tokensCreated: number | null; walletCreatedAt: Date | null }>;
 }
 
 export type { TradeActivity, WalletAnalysis };

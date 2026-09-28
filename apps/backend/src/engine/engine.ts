@@ -84,7 +84,13 @@ export class TradingEngine {
         maxSize: s.maxQueueSize,
         logger: d.logger,
         onDrop: (item) => {
-          void this.d.repos.events.log('warn', 'skipped', 'analysis queue full: opportunity dropped', { trigger: item.payload.trigger }, item.key);
+          void this.d.repos.events.log(
+            'warn',
+            'skipped',
+            'analysis queue full: opportunity dropped',
+            { trigger: item.payload.trigger },
+            item.key,
+          );
         },
       },
     );
@@ -138,7 +144,9 @@ export class TradingEngine {
     this.running = false;
     for (const l of this.tradingLoops) l.stop();
     // Awaited: closing the database with a write in flight must never happen.
-    await this.d.repos.events.log('info', 'engine', 'engine stopped (position protection remains active)').catch(() => undefined);
+    await this.d.repos.events
+      .log('info', 'engine', 'engine stopped (position protection remains active)')
+      .catch(() => undefined);
     this.d.bus.publish({ type: 'status', data: { engineRunning: false, halted: false, haltReason: null } });
     this.d.logger.info('trading engine stopped; position protection remains active');
   }
@@ -164,7 +172,11 @@ export class TradingEngine {
 
   /** Test/ops hook: run a loop iteration immediately. */
   async runOnce(name: 'discovery' | 'position-monitor' | 'watchlist' | 'metrics'): Promise<void> {
-    await [...this.protectiveLoops, ...this.tradingLoops].find((l) => l.name === name)?.tick();
+    const loop = [...this.protectiveLoops, ...this.tradingLoops].find((l) => l.name === name);
+    if (!loop) return;
+    // If an iteration is already running (e.g. just started), wait for it, then run a fresh one.
+    await loop.idle(60_000);
+    await loop.tick();
   }
 
   // -------------------------------------------------------------------------
@@ -180,7 +192,11 @@ export class TradingEngine {
           pairs = await provider.discover(chain);
         } catch (err) {
           this.d.logger.warn({ provider: provider.name, chain, err: errorMessage(err) }, 'discovery failed');
-          await this.d.repos.events.log('warn', 'discovery', `${provider.name}/${chain}: ${errorMessage(err)}`);
+          await this.d.repos.events.log(
+            'warn',
+            'discovery',
+            `${provider.name}/${chain}: ${errorMessage(err)}`,
+          );
           continue;
         }
         for (const p of pairs) {
@@ -219,7 +235,13 @@ export class TradingEngine {
     });
     for (const t of due) {
       // Confirmed scams are re-checked rarely; everything else on the normal cadence.
-      if (t.rugScore !== null && t.rugScore >= 90 && t.lastAnalyzedAt && Date.now() - t.lastAnalyzedAt.getTime() < s.securityRefreshMs * 3) continue;
+      if (
+        t.rugScore !== null &&
+        t.rugScore >= 90 &&
+        t.lastAnalyzedAt &&
+        Date.now() - t.lastAnalyzedAt.getTime() < s.securityRefreshMs * 3
+      )
+        continue;
       this.enqueue(t.id, 'watchlist');
     }
   }
@@ -238,7 +260,10 @@ export class TradingEngine {
     for (const [chain, list] of byChain) {
       let quotes: Map<string, MarketQuote>;
       try {
-        quotes = await this.d.providers.market.getMarkets(chain, list.map((o) => o.token.address));
+        quotes = await this.d.providers.market.getMarkets(
+          chain,
+          list.map((o) => o.token.address),
+        );
       } catch (err) {
         this.d.logger.warn({ chain, err: errorMessage(err) }, 'monitor market refresh failed');
         continue;
@@ -260,7 +285,13 @@ export class TradingEngine {
           }
           const ref = { chain: token.chain, address: token.address, symbol: token.symbol };
           for (const c of marketAlerts(prev, market)) {
-            await this.d.alerts.raise({ ...c, tokenId: token.id, token: ref, dedupeKey: `${c.type}:${token.id}`, cooldownSeconds: 300 });
+            await this.d.alerts.raise({
+              ...c,
+              tokenId: token.id,
+              token: ref,
+              dedupeKey: `${c.type}:${token.id}`,
+              cooldownSeconds: 300,
+            });
           }
           this.d.bus.publish({ type: 'position', data: toPosition(position, ref, price) });
         }
@@ -284,7 +315,12 @@ export class TradingEngine {
         );
         if (exit.action === 'SELL' && exit.reason) {
           this.d.logger.info({ positionId: position.id, reason: exit.reason }, 'exit rule triggered');
-          await this.d.tradeService.closePosition({ positionId: position.id, reason: exit.reason, detail: exit.reasons.join(' '), market });
+          await this.d.tradeService.closePosition({
+            positionId: position.id,
+            reason: exit.reason,
+            detail: exit.reasons.join(' '),
+            market,
+          });
           continue;
         }
         // Periodic full re-analysis (security + rug score) of held tokens.
@@ -303,7 +339,10 @@ export class TradingEngine {
     const stats = await this.d.repos.positions.closedStats(this.d.portfolio.mode);
     await this.d.portfolio.recordMetrics(state, stats.closed > 0 ? stats.wins / stats.closed : null);
     if (state.halted) {
-      this.d.bus.publish({ type: 'status', data: { engineRunning: this.running, halted: true, haltReason: state.haltReason } });
+      this.d.bus.publish({
+        type: 'status',
+        data: { engineRunning: this.running, halted: true, haltReason: state.haltReason },
+      });
     }
   }
 }

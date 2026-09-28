@@ -50,7 +50,10 @@ export function AlertList({ items, onAck }: { items: Alert[]; onAck?: (a: Alert)
               <div className="flex flex-wrap items-center gap-x-2 text-sm">
                 <span className="font-medium text-ink">{a.title}</span>
                 {a.address && (
-                  <Link to={tokenHref({ chain: a.chain ?? 'solana', address: a.address })} className="text-series-1 hover:underline">
+                  <Link
+                    to={tokenHref({ chain: a.chain ?? 'solana', address: a.address })}
+                    className="text-series-1 hover:underline"
+                  >
                     {a.symbol ?? a.address.slice(0, 8)}
                   </Link>
                 )}
@@ -63,7 +66,12 @@ export function AlertList({ items, onAck }: { items: Alert[]; onAck?: (a: Alert)
               </div>
             </div>
             {onAck && !a.acknowledged && (
-              <button type="button" onClick={() => onAck(a)} className="self-start rounded-md border border-border px-2 py-1 text-xs text-ink-2 hover:bg-surface-2" title="Acknowledge">
+              <button
+                type="button"
+                onClick={() => onAck(a)}
+                className="self-start rounded-md border border-border px-2 py-1 text-xs text-ink-2 hover:bg-surface-2"
+                title="Acknowledge"
+              >
                 <Check size={13} aria-label="Acknowledge" />
               </button>
             )}
@@ -82,11 +90,24 @@ export function AlertsPage() {
   const [page, setPage] = useState(0);
   const q = useQuery({
     queryKey: ['alerts', severity, type, unackOnly, page],
-    queryFn: () => api.alerts({ limit: 50, offset: page * 50, severity: severity || undefined, type: type || undefined, unacknowledged: unackOnly || undefined }),
+    queryFn: () =>
+      api.alerts({
+        limit: 50,
+        offset: page * 50,
+        severity: severity || undefined,
+        type: type || undefined,
+        unacknowledged: unackOnly || undefined,
+      }),
     refetchInterval: 30_000,
   });
-  const ack = useMutation({ mutationFn: (id: number) => api.ackAlert(id), onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }) });
-  const ackAll = useMutation({ mutationFn: api.ackAll, onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }) });
+  const ack = useMutation({
+    mutationFn: (id: number) => api.ackAlert(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
+  });
+  const ackAll = useMutation({
+    mutationFn: api.ackAll,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
+  });
 
   return (
     <div className="space-y-4">
@@ -94,7 +115,14 @@ export function AlertsPage() {
         <h1 className="mr-auto text-lg font-semibold">Alert center</h1>
         <label className="text-xs text-muted">
           Severity
-          <select value={severity} onChange={(e) => { setSeverity(e.target.value); setPage(0); }} className="ml-2 rounded-md border border-border bg-surface-2 px-2 py-1 text-sm text-ink">
+          <select
+            value={severity}
+            onChange={(e) => {
+              setSeverity(e.target.value);
+              setPage(0);
+            }}
+            className="ml-2 rounded-md border border-border bg-surface-2 px-2 py-1 text-sm text-ink"
+          >
             <option value="">All</option>
             <option value="critical">Critical</option>
             <option value="warning">Warning</option>
@@ -103,7 +131,14 @@ export function AlertsPage() {
         </label>
         <label className="text-xs text-muted">
           Type
-          <select value={type} onChange={(e) => { setType(e.target.value); setPage(0); }} className="ml-2 rounded-md border border-border bg-surface-2 px-2 py-1 text-sm text-ink">
+          <select
+            value={type}
+            onChange={(e) => {
+              setType(e.target.value);
+              setPage(0);
+            }}
+            className="ml-2 rounded-md border border-border bg-surface-2 px-2 py-1 text-sm text-ink"
+          >
             <option value="">All</option>
             {TYPES.map((t) => (
               <option key={t} value={t}>
@@ -113,19 +148,35 @@ export function AlertsPage() {
           </select>
         </label>
         <label className="flex items-center gap-2 text-xs text-muted">
-          <input type="checkbox" checked={unackOnly} onChange={(e) => setUnackOnly(e.target.checked)} /> Unacknowledged only
+          <input type="checkbox" checked={unackOnly} onChange={(e) => setUnackOnly(e.target.checked)} />{' '}
+          Unacknowledged only
         </label>
         <Button onClick={() => ackAll.mutate()} disabled={ackAll.isPending}>
           Acknowledge all
         </Button>
       </div>
       {(ack.error || ackAll.error) && <ErrorBox error={ack.error ?? ackAll.error} />}
-      <Card padded={false} title={q.data ? `${q.data.total} alerts · ${q.data.unacknowledged} unacknowledged` : 'Alerts'}>
-        {q.isLoading ? <Spinner /> : q.error ? <div className="p-4"><ErrorBox error={q.error} /></div> : <AlertList items={q.data?.items ?? []} onAck={(a) => ack.mutate(a.id)} />}
+      <Card
+        padded={false}
+        title={q.data ? `${q.data.total} alerts · ${q.data.unacknowledged} unacknowledged` : 'Alerts'}
+      >
+        {q.isLoading ? (
+          <Spinner />
+        ) : q.error ? (
+          <div className="p-4">
+            <ErrorBox error={q.error} />
+          </div>
+        ) : (
+          <AlertList items={q.data?.items ?? []} onAck={(a) => ack.mutate(a.id)} />
+        )}
       </Card>
       <div className="flex justify-end gap-2">
-        <Button disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-        <Button disabled={!q.data || (page + 1) * 50 >= q.data.total} onClick={() => setPage((p) => p + 1)}>Next</Button>
+        <Button disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+          Previous
+        </Button>
+        <Button disabled={!q.data || (page + 1) * 50 >= q.data.total} onClick={() => setPage((p) => p + 1)}>
+          Next
+        </Button>
       </div>
     </div>
   );

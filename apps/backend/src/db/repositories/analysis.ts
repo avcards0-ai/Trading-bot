@@ -15,7 +15,10 @@ import { aiDecisions, liquidityHistory, priceHistory, riskScores, tokens } from 
 
 export type DecisionRow = typeof aiDecisions.$inferSelect;
 
-export function toDecision(row: DecisionRow, token: { chain: string; address: string; symbol: string | null }): Decision {
+export function toDecision(
+  row: DecisionRow,
+  token: { chain: string; address: string; symbol: string | null },
+): Decision {
   return {
     id: row.id,
     chain: token.chain as Chain,
@@ -129,7 +132,10 @@ export class DecisionsRepository {
     return row.id;
   }
 
-  async update(id: number, patch: Partial<Pick<Decision, 'executed' | 'tradeId' | 'stages' | 'reasons'>>): Promise<void> {
+  async update(
+    id: number,
+    patch: Partial<Pick<Decision, 'executed' | 'tradeId' | 'stages' | 'reasons'>>,
+  ): Promise<void> {
     await this.db.update(aiDecisions).set(patch).where(eq(aiDecisions.id, id));
   }
 
@@ -180,7 +186,9 @@ export class HistoryRepository {
       source: m.source,
     });
     if (m.liquidityUsd !== null) {
-      await this.db.insert(liquidityHistory).values({ tokenId, ts, liquidityUsd: m.liquidityUsd, source: m.source });
+      await this.db
+        .insert(liquidityHistory)
+        .values({ tokenId, ts, liquidityUsd: m.liquidityUsd, source: m.source });
     }
   }
 
@@ -237,7 +245,11 @@ export class HistoryRepository {
 
   /** Full raw rows for backtest replay. */
   async rawPrices(tokenId: number): Promise<(typeof priceHistory.$inferSelect)[]> {
-    return this.db.select().from(priceHistory).where(eq(priceHistory.tokenId, tokenId)).orderBy(priceHistory.ts);
+    return this.db
+      .select()
+      .from(priceHistory)
+      .where(eq(priceHistory.tokenId, tokenId))
+      .orderBy(priceHistory.ts);
   }
 
   async rawLiquidity(tokenId: number): Promise<(typeof liquidityHistory.$inferSelect)[]> {

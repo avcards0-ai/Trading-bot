@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 import type { Chain, RiskReport } from '@memeguard/shared';
 import type { Repositories } from '../db/repositories';
-import { datasetSchema, type BacktestDataset, type HistoricalBar, type HistoricalToken, type SecuritySnapshot } from './types';
+import {
+  datasetSchema,
+  type BacktestDataset,
+  type HistoricalBar,
+  type HistoricalToken,
+  type SecuritySnapshot,
+} from './types';
 
 /** Load a dataset from a JSON file (schema: see backtest/types.ts and README). */
 export function loadDatasetFromFile(path: string): BacktestDataset {
@@ -30,7 +36,13 @@ export async function loadDatasetFromDatabase(
   repos: Repositories,
   opts: { limit: number; minPoints: number },
 ): Promise<BacktestDataset> {
-  const { rows } = await repos.tokens.list({ limit: opts.limit, offset: 0, sort: 'firstSeenAt', order: 'desc', analyzedOnly: true });
+  const { rows } = await repos.tokens.list({
+    limit: opts.limit,
+    offset: 0,
+    sort: 'firstSeenAt',
+    order: 'desc',
+    analyzedOnly: true,
+  });
   const tokens: HistoricalToken[] = [];
   for (const t of rows) {
     const prices = await repos.history.rawPrices(t.id);

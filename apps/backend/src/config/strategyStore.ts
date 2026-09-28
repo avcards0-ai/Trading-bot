@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import type { EffectiveConfig, RiskLimits, StrategyParams, StrategyUpdateRequest, TradingMode } from '@memeguard/shared';
+import type {
+  EffectiveConfig,
+  RiskLimits,
+  StrategyParams,
+  StrategyUpdateRequest,
+  TradingMode,
+} from '@memeguard/shared';
 import type { StrategyConfigRepository } from '../db/repositories';
 import { SUPPORTED_CHAINS } from './env';
 
@@ -36,7 +42,10 @@ const strategySchema = z
     stopLossPercent: z.number().min(0.5).max(95),
     takeProfitPercent: z.number().min(0.5).max(10_000),
     trailingStopPercent: z.number().min(0.5).max(95).nullable(),
-    maxHoldMinutes: z.number().min(1).max(60 * 24 * 30),
+    maxHoldMinutes: z
+      .number()
+      .min(1)
+      .max(60 * 24 * 30),
     riskPerTradePercent: z.number().positive().max(100),
     minStrategyScore: z.number().min(0).max(100),
     minBuySellRatio: z.number().min(0).max(100),
@@ -77,8 +86,10 @@ export function looserThanHard(limits: Partial<RiskLimits>, hard: RiskLimits): s
     const v = limits[k];
     if (v === undefined) continue;
     const h = hard[k];
-    if (dir === 'lower' && (v as number) > (h as number)) out.push(`${k}=${v} is looser than hard limit ${h} (must be <=)`);
-    if (dir === 'higher' && (v as number) < (h as number)) out.push(`${k}=${v} is looser than hard limit ${h} (must be >=)`);
+    if (dir === 'lower' && (v as number) > (h as number))
+      out.push(`${k}=${v} is looser than hard limit ${h} (must be <=)`);
+    if (dir === 'higher' && (v as number) < (h as number))
+      out.push(`${k}=${v} is looser than hard limit ${h} (must be >=)`);
     if (dir === 'true' && h === true && v === false) out.push(`${k} cannot be disabled (hard limit)`);
   }
   return out;
@@ -153,7 +164,9 @@ export class StrategyStore {
   async update(body: unknown): Promise<EffectiveConfig> {
     const parsed = strategyUpdateSchema.safeParse(body);
     if (!parsed.success) {
-      throw new StrategyValidationError(parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`));
+      throw new StrategyValidationError(
+        parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`),
+      );
     }
     const req = parsed.data as StrategyUpdateRequest;
     const issues: string[] = [];

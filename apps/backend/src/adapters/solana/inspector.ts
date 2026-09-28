@@ -20,12 +20,20 @@ interface MintInfo {
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
 
-export function parseMintAccount(account: { owner: string; data: unknown }): { program: TokenProgram; info: MintInfo } | null {
+export function parseMintAccount(account: {
+  owner: string;
+  data: unknown;
+}): { program: TokenProgram; info: MintInfo } | null {
   const data = account.data as { program?: string; parsed?: { type?: string; info?: Dict } };
-  if (!data || typeof data !== 'object' || !data.parsed || data.parsed.type !== 'mint' || !data.parsed.info) return null;
+  if (!data || typeof data !== 'object' || !data.parsed || data.parsed.type !== 'mint' || !data.parsed.info)
+    return null;
   const info = data.parsed.info;
   const program: TokenProgram =
-    account.owner === TOKEN_PROGRAM ? 'spl-token' : account.owner === TOKEN_2022_PROGRAM ? 'spl-token-2022' : 'unknown';
+    account.owner === TOKEN_PROGRAM
+      ? 'spl-token'
+      : account.owner === TOKEN_2022_PROGRAM
+        ? 'spl-token-2022'
+        : 'unknown';
   return {
     program,
     info: {
@@ -33,13 +41,18 @@ export function parseMintAccount(account: { owner: string; data: unknown }): { p
       supply: String(info.supply ?? '0'),
       mintAuthority: str(info.mintAuthority),
       freezeAuthority: str(info.freezeAuthority),
-      extensions: Array.isArray(info.extensions) ? (info.extensions as { extension: string; state?: Dict }[]) : [],
+      extensions: Array.isArray(info.extensions)
+        ? (info.extensions as { extension: string; state?: Dict }[])
+        : [],
     },
   };
 }
 
 /** Translate mint authorities + Token-2022 extensions into contract risk fields. */
-export function contractFromMint(program: TokenProgram, info: MintInfo): {
+export function contractFromMint(
+  program: TokenProgram,
+  info: MintInfo,
+): {
   contract: Partial<ContractData>;
   warnings: ProviderWarning[];
 } {
@@ -71,7 +84,8 @@ export function contractFromMint(program: TokenProgram, info: MintInfo): {
         contract.transferTaxPct = bps / 100;
         contract.transferFeeAuthority = str(s.transferFeeConfigAuthority);
         contract.taxModifiable = contract.transferFeeAuthority !== null;
-        if (contract.taxModifiable) suspicious.push('transferFeeConfig (fee authority can raise transfer tax)');
+        if (contract.taxModifiable)
+          suspicious.push('transferFeeConfig (fee authority can raise transfer tax)');
         break;
       }
       case 'permanentDelegate':
@@ -83,7 +97,8 @@ export function contractFromMint(program: TokenProgram, info: MintInfo): {
         break;
       case 'transferHook':
         contract.transferHook = str(s.programId) !== null;
-        if (contract.transferHook) suspicious.push('transferHook (custom program runs on every transfer; can block sells)');
+        if (contract.transferHook)
+          suspicious.push('transferHook (custom program runs on every transfer; can block sells)');
         break;
       case 'nonTransferable':
         contract.nonTransferable = true;
@@ -91,7 +106,8 @@ export function contractFromMint(program: TokenProgram, info: MintInfo): {
         break;
       case 'defaultAccountState':
         contract.defaultAccountStateFrozen = String(s.accountState ?? '').toLowerCase() === 'frozen';
-        if (contract.defaultAccountStateFrozen) suspicious.push('defaultAccountState=frozen (new holders are frozen)');
+        if (contract.defaultAccountStateFrozen)
+          suspicious.push('defaultAccountState=frozen (new holders are frozen)');
         break;
       case 'mintCloseAuthority':
         if (str(s.closeAuthority)) suspicious.push('mintCloseAuthority');
@@ -102,7 +118,12 @@ export function contractFromMint(program: TokenProgram, info: MintInfo): {
         if (contract.transferPausable) suspicious.push('pausable (authority can halt all transfers)');
         break;
       case 'confidentialTransferMint':
-        warnings.push({ source: 'solana-rpc', code: 'confidential_transfers', level: 'info', message: 'Confidential transfers hide amounts' });
+        warnings.push({
+          source: 'solana-rpc',
+          code: 'confidential_transfers',
+          level: 'info',
+          message: 'Confidential transfers hide amounts',
+        });
         break;
       case 'tokenMetadata':
         contract.metadataMutable = str(s.updateAuthority) !== null;
@@ -113,7 +134,12 @@ export function contractFromMint(program: TokenProgram, info: MintInfo): {
   }
   contract.suspiciousFunctions = suspicious;
   if (program === 'unknown') {
-    warnings.push({ source: 'solana-rpc', code: 'unknown_token_program', level: 'danger', message: 'Mint is not owned by an SPL token program' });
+    warnings.push({
+      source: 'solana-rpc',
+      code: 'unknown_token_program',
+      level: 'danger',
+      message: 'Mint is not owned by an SPL token program',
+    });
   }
   contract.codeHash = createHash('sha256')
     .update(
@@ -142,7 +168,14 @@ export class SolanaInspector implements SecuritySource {
     if (!account) {
       return {
         source: this.name,
-        warnings: [{ source: this.name, code: 'mint_not_found', level: 'danger', message: 'Mint account does not exist' }],
+        warnings: [
+          {
+            source: this.name,
+            code: 'mint_not_found',
+            level: 'danger',
+            message: 'Mint account does not exist',
+          },
+        ],
       };
     }
     const mint = parseMintAccount(account);
@@ -150,7 +183,14 @@ export class SolanaInspector implements SecuritySource {
       return {
         source: this.name,
         contract: { tokenProgram: 'unknown' },
-        warnings: [{ source: this.name, code: 'not_a_mint', level: 'danger', message: 'Address is not an SPL mint account' }],
+        warnings: [
+          {
+            source: this.name,
+            code: 'not_a_mint',
+            level: 'danger',
+            message: 'Address is not an SPL mint account',
+          },
+        ],
       };
     }
     const { contract, warnings } = contractFromMint(mint.program, mint.info);
@@ -196,7 +236,11 @@ export class SolanaInspector implements SecuritySource {
           percent,
           amount: Number(raw) / 10 ** info.decimals,
           isContract: pda,
-          tag: isLiquidityPool ? 'liquidity pool / bonding curve' : pda ? 'program-owned account (PDA)' : null,
+          tag: isLiquidityPool
+            ? 'liquidity pool / bonding curve'
+            : pda
+              ? 'program-owned account (PDA)'
+              : null,
           isLiquidityPool,
           isBurn: isBurnAddress('solana', owner),
         };

@@ -67,7 +67,10 @@ export class GoPlusAdapter implements SecuritySource {
 
   constructor(
     private readonly http: HttpClient,
-    private readonly creds: { appKey: string | null; appSecret: string | null } = { appKey: null, appSecret: null },
+    private readonly creds: { appKey: string | null; appSecret: string | null } = {
+      appKey: null,
+      appSecret: null,
+    },
     private readonly onSecret: (s: string) => void = () => undefined,
   ) {}
 
@@ -81,11 +84,21 @@ export class GoPlusAdapter implements SecuritySource {
       return { authorization: this.accessToken.value };
     }
     const time = Math.floor(Date.now() / 1000);
-    const sign = createHash('sha1').update(`${this.creds.appKey}${time}${this.creds.appSecret}`).digest('hex');
-    const res = await this.http.post('/api/v1/token', { app_key: this.creds.appKey, time, sign }, { schema: tokenResponse });
-    if (res.code !== 1 || !res.result) throw new ProviderError(this.name, `auth failed: ${res.message ?? res.code}`);
+    const sign = createHash('sha1')
+      .update(`${this.creds.appKey}${time}${this.creds.appSecret}`)
+      .digest('hex');
+    const res = await this.http.post(
+      '/api/v1/token',
+      { app_key: this.creds.appKey, time, sign },
+      { schema: tokenResponse },
+    );
+    if (res.code !== 1 || !res.result)
+      throw new ProviderError(this.name, `auth failed: ${res.message ?? res.code}`);
     this.onSecret(res.result.access_token);
-    this.accessToken = { value: res.result.access_token, expiresAt: Date.now() + res.result.expires_in * 1000 };
+    this.accessToken = {
+      value: res.result.access_token,
+      expiresAt: Date.now() + res.result.expires_in * 1000,
+    };
     return { authorization: res.result.access_token };
   }
 
@@ -95,10 +108,15 @@ export class GoPlusAdapter implements SecuritySource {
       ctx.chain === 'solana'
         ? '/api/v1/solana/token_security'
         : `/api/v1/token_security/${EVM_CHAIN_IDS[ctx.chain as keyof typeof EVM_CHAIN_IDS]}`;
-    const res = await this.http.get(path, { query: { contract_addresses: ctx.address }, headers, schema: envelope });
+    const res = await this.http.get(path, {
+      query: { contract_addresses: ctx.address },
+      headers,
+      schema: envelope,
+    });
     // code 1 = OK, 2 = partial data. Anything else is an error (4029 = rate limit).
     if (res.code === 4029) throw new ProviderError(this.name, 'rate limited (4029)', 429, true);
-    if (res.code !== 1 && res.code !== 2) throw new ProviderResponseError(this.name, `code ${res.code}: ${res.message}`);
+    if (res.code !== 1 && res.code !== 2)
+      throw new ProviderResponseError(this.name, `code ${res.code}: ${res.message}`);
     const result = res.result ?? {};
     const key = Object.keys(result).find((k) => sameAddress(ctx.chain, k, ctx.address));
     if (!key) return null;
@@ -109,7 +127,8 @@ export class GoPlusAdapter implements SecuritySource {
 
 export function parseEvm(ctx: TokenContext, d: Dict): SnapshotContribution {
   const owner = typeof d.owner_address === 'string' ? d.owner_address : null;
-  const creator = typeof d.creator_address === 'string' && d.creator_address !== '' ? d.creator_address : null;
+  const creator =
+    typeof d.creator_address === 'string' && d.creator_address !== '' ? d.creator_address : null;
   const dexes = Array.isArray(d.dex) ? (d.dex as Dict[]) : [];
   const pairAddresses = new Set(
     dexes.map((x) => (typeof x.pair === 'string' ? x.pair.toLowerCase() : '')).filter(Boolean),
@@ -141,7 +160,10 @@ export function parseEvm(ctx: TokenContext, d: Dict): SnapshotContribution {
     const addr = String(lp.address ?? '');
     if (isBurnAddress(ctx.chain, addr)) burned += pct;
     else if (flag(lp.is_locked)) locked += pct;
-    if ((creator && sameAddress(ctx.chain, addr, creator)) || (owner && sameAddress(ctx.chain, addr, owner))) {
+    if (
+      (creator && sameAddress(ctx.chain, addr, creator)) ||
+      (owner && sameAddress(ctx.chain, addr, owner))
+    ) {
       creatorLp += pct;
     }
   }
@@ -149,10 +171,20 @@ export function parseEvm(ctx: TokenContext, d: Dict): SnapshotContribution {
 
   const warnings: ProviderWarning[] = [];
   if (flag(d.is_airdrop_scam)) {
-    warnings.push({ source: 'goplus', code: 'airdrop_scam', level: 'danger', message: 'Flagged as airdrop scam token' });
+    warnings.push({
+      source: 'goplus',
+      code: 'airdrop_scam',
+      level: 'danger',
+      message: 'Flagged as airdrop scam token',
+    });
   }
   if (d.fake_token && typeof d.fake_token === 'object' && flag((d.fake_token as Dict).value)) {
-    warnings.push({ source: 'goplus', code: 'fake_token', level: 'danger', message: 'Impersonates another token (fake token)' });
+    warnings.push({
+      source: 'goplus',
+      code: 'fake_token',
+      level: 'danger',
+      message: 'Impersonates another token (fake token)',
+    });
   }
 
   const ownerAddr = owner === '' ? null : owner;
@@ -231,10 +263,20 @@ export function parseSolana(ctx: TokenContext, d: Dict): SnapshotContribution {
 
   const warnings: ProviderWarning[] = [];
   if (statusFlag(d.closable)) {
-    warnings.push({ source: 'goplus', code: 'closable', level: 'warn', message: 'Mint account can be closed by an authority' });
+    warnings.push({
+      source: 'goplus',
+      code: 'closable',
+      level: 'warn',
+      message: 'Mint account can be closed by an authority',
+    });
   }
   if (maliciousCreator) {
-    warnings.push({ source: 'goplus', code: 'malicious_creator', level: 'danger', message: 'Creator address flagged as malicious' });
+    warnings.push({
+      source: 'goplus',
+      code: 'malicious_creator',
+      level: 'danger',
+      message: 'Creator address flagged as malicious',
+    });
   }
 
   return {
@@ -246,7 +288,8 @@ export function parseSolana(ctx: TokenContext, d: Dict): SnapshotContribution {
       freezeAuthority: firstAuthority(d.freezable),
       ownerCanChangeBalance: statusFlag(d.balance_mutable_authority),
       nonTransferable: flag(d.non_transferable),
-      defaultAccountStateFrozen: d.default_account_state === undefined ? null : flag(d.default_account_state) === true,
+      defaultAccountStateFrozen:
+        d.default_account_state === undefined ? null : flag(d.default_account_state) === true,
       transferHook: transferHookList.length > 0 ? true : d.transfer_hook === undefined ? null : false,
       metadataMutable: statusFlag(d.metadata_mutable),
       taxModifiable: statusFlag(d.transfer_fee_upgradable),

@@ -20,14 +20,23 @@ import type { MarketQuote, SnapshotContribution } from '../adapters/types';
  *  - identifiers: first non-null by source priority
  */
 
-const SOURCE_PRIORITY = ['solana-rpc', 'evm-rpc', 'etherscan', 'goplus', 'rugcheck', 'honeypot.is', 'jupiter'];
+const SOURCE_PRIORITY = [
+  'solana-rpc',
+  'evm-rpc',
+  'etherscan',
+  'goplus',
+  'rugcheck',
+  'honeypot.is',
+  'jupiter',
+];
 
 export const sourceRank = (source: string): number => {
   const i = SOURCE_PRIORITY.findIndex((p) => source === p || source.startsWith(`${p}:`));
   return i < 0 ? SOURCE_PRIORITY.length : i;
 };
 
-const byPriority = (cs: SnapshotContribution[]) => [...cs].sort((a, b) => sourceRank(a.source) - sourceRank(b.source));
+const byPriority = (cs: SnapshotContribution[]) =>
+  [...cs].sort((a, b) => sourceRank(a.source) - sourceRank(b.source));
 
 const RISKY_FLAGS = [
   'isProxy',
@@ -56,7 +65,11 @@ const RISKY_FLAGS = [
 
 const SAFETY_FLAGS = ['isVerified', 'ownershipRenounced'] as const satisfies readonly (keyof ContractData)[];
 
-const MAX_NUMBERS = ['buyTaxPct', 'sellTaxPct', 'transferTaxPct'] as const satisfies readonly (keyof ContractData)[];
+const MAX_NUMBERS = [
+  'buyTaxPct',
+  'sellTaxPct',
+  'transferTaxPct',
+] as const satisfies readonly (keyof ContractData)[];
 
 const FIRST_STRINGS = [
   'proxyImplementation',
@@ -167,8 +180,12 @@ export function mergeHolders(chain: Chain, contribs: SnapshotContribution[]): Ho
     }
   }
   base.sort((a, b) => b.percent - a.percent);
-  const counts = withHolders.map((c) => c.holders?.holderCount).filter((n): n is number => typeof n === 'number');
-  const supply = withHolders.map((c) => c.holders?.totalSupply).find((n): n is number => typeof n === 'number');
+  const counts = withHolders
+    .map((c) => c.holders?.holderCount)
+    .filter((n): n is number => typeof n === 'number');
+  const supply = withHolders
+    .map((c) => c.holders?.totalSupply)
+    .find((n): n is number => typeof n === 'number');
   return {
     sources: withHolders.map((c) => c.source),
     holderCount: counts.length > 0 ? Math.max(...counts) : null,
@@ -211,7 +228,7 @@ export function mergeHoneypot(contribs: SnapshotContribution[]): HoneypotSimulat
   if (sims.length === 0) return null;
   const confirmed = sims.find((s) => s.isHoneypot === true);
   const simulated = sims.filter((s) => s.simulated && s.isHoneypot !== null);
-  const pick = confirmed ?? simulated[0] ?? sims[0] as HoneypotSimulation;
+  const pick = confirmed ?? simulated[0] ?? (sims[0] as HoneypotSimulation);
   const maxOf = (k: 'buyTaxPct' | 'sellTaxPct' | 'transferTaxPct') => {
     const vals = sims.map((s) => s[k]).filter((v): v is number => typeof v === 'number');
     return vals.length > 0 ? Math.max(...vals) : null;
@@ -246,7 +263,8 @@ export function mergeDeployer(chain: Chain, contribs: SnapshotContribution[]): D
     const d = deployer as Partial<DeployerProfile>;
     if (!out.address && d.address) out.address = chain === 'solana' ? d.address : d.address.toLowerCase();
     for (const k of ['walletAgeDays'] as const) {
-      if (typeof d[k] === 'number') out[k] = out[k] === null ? (d[k] as number) : Math.min(out[k] as number, d[k] as number);
+      if (typeof d[k] === 'number')
+        out[k] = out[k] === null ? (d[k] as number) : Math.min(out[k] as number, d[k] as number);
     }
     for (const k of ['tokensCreated', 'knownRugs', 'holdsPercent'] as const) {
       if (typeof d[k] === 'number') out[k] = Math.max(out[k] ?? 0, d[k] as number);

@@ -29,7 +29,12 @@ const reportSchema = z
       .passthrough()
       .nullish(),
     tokenMeta: z
-      .object({ name: z.string().nullish(), symbol: z.string().nullish(), mutable: z.boolean().nullish(), updateAuthority: z.string().nullish() })
+      .object({
+        name: z.string().nullish(),
+        symbol: z.string().nullish(),
+        mutable: z.boolean().nullish(),
+        updateAuthority: z.string().nullish(),
+      })
       .passthrough()
       .nullish(),
     topHolders: z
@@ -48,7 +53,13 @@ const reportSchema = z
     risks: z
       .array(
         z
-          .object({ name: z.string(), description: z.string().nullish(), level: z.string().nullish(), score: numLike, value: z.unknown().optional() })
+          .object({
+            name: z.string(),
+            description: z.string().nullish(),
+            level: z.string().nullish(),
+            score: numLike,
+            value: z.unknown().optional(),
+          })
           .passthrough(),
       )
       .nullish(),
@@ -71,7 +82,9 @@ const reportSchema = z
     totalHolders: numLike,
     rugged: z.boolean().nullish(),
     transferFee: z.object({ pct: numLike, authority: z.string().nullish() }).passthrough().nullish(),
-    knownAccounts: z.record(z.string(), z.object({ name: z.string().nullish(), type: z.string().nullish() }).passthrough()).nullish(),
+    knownAccounts: z
+      .record(z.string(), z.object({ name: z.string().nullish(), type: z.string().nullish() }).passthrough())
+      .nullish(),
     graphInsidersDetected: numLike,
     creatorTokens: z.array(z.unknown()).nullish(),
   })
@@ -168,9 +181,13 @@ export function parseRugCheck(ctx: TokenContext, r: RugCheckReport): SnapshotCon
     holders: {
       topHolders: holders,
       holderCount: toNum(r.totalHolders),
-      totalSupply: r.token && toNum(r.token.supply) !== null && r.token.decimals !== null && r.token.decimals !== undefined
-        ? (toNum(r.token.supply) as number) / 10 ** r.token.decimals
-        : null,
+      totalSupply:
+        r.token &&
+        toNum(r.token.supply) !== null &&
+        r.token.decimals !== null &&
+        r.token.decimals !== undefined
+          ? (toNum(r.token.supply) as number) / 10 ** r.token.decimals
+          : null,
     },
     liquidity: {
       totalLiquidityUsd: toNum(r.totalMarketLiquidity),

@@ -12,7 +12,11 @@ export class SecretRedactor {
 
   add(secret: string | null | undefined): void {
     if (!secret || secret.length < 6) return;
-    const variants = new Set<string>([secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret)]);
+    const variants = new Set<string>([
+      secret,
+      JSON.stringify(secret).slice(1, -1),
+      encodeURIComponent(secret),
+    ]);
     for (const v of variants) {
       if (v.length >= 6 && !this.secrets.includes(v)) this.secrets.push(v);
     }

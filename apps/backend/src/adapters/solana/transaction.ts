@@ -67,7 +67,10 @@ export function parseWireTransaction(tx: Uint8Array): ParsedWireTransaction {
  * (base58, which is also the transaction id). Refuses to sign if our key is not a required signer
  * or if other signatures would still be missing.
  */
-export function signSerializedTransaction(txBase64: string, signer: Signer): { signedBase64: string; signature: string } {
+export function signSerializedTransaction(
+  txBase64: string,
+  signer: Signer,
+): { signedBase64: string; signature: string } {
   const tx = Uint8Array.from(Buffer.from(txBase64, 'base64'));
   const parsed = parseWireTransaction(tx);
   const index = parsed.staticKeys.slice(0, parsed.requiredSignatures).indexOf(signer.publicKey);
@@ -76,7 +79,8 @@ export function signSerializedTransaction(txBase64: string, signer: Signer): { s
   for (let i = 0; i < parsed.signatureCount; i++) {
     if (i === index) continue;
     const slot = tx.slice(parsed.signaturesOffset + i * 64, parsed.signaturesOffset + (i + 1) * 64);
-    if (slot.every((b) => b === 0)) throw new Error('transaction requires additional signers; refusing to send');
+    if (slot.every((b) => b === 0))
+      throw new Error('transaction requires additional signers; refusing to send');
   }
   const message = tx.slice(parsed.messageOffset);
   const sig = signer.sign(message);

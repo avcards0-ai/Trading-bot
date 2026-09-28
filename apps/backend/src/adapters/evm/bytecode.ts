@@ -2,19 +2,13 @@ import { keccak_256 } from '@noble/hashes/sha3.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 
 /** 4-byte function selector for a canonical signature, e.g. "blacklist(address)". */
-export const selector = (signature: string): string => bytesToHex(keccak_256(utf8ToBytes(signature)).slice(0, 4));
+export const selector = (signature: string): string =>
+  bytesToHex(keccak_256(utf8ToBytes(signature)).slice(0, 4));
 
 export const keccakHex = (bytes: Uint8Array): string => `0x${bytesToHex(keccak_256(bytes))}`;
 
 export type SuspiciousCategory =
-  | 'blacklist'
-  | 'fee_control'
-  | 'mint'
-  | 'pause'
-  | 'tx_limits'
-  | 'balance_control'
-  | 'upgrade'
-  | 'cooldown';
+  'blacklist' | 'fee_control' | 'mint' | 'pause' | 'tx_limits' | 'balance_control' | 'upgrade' | 'cooldown';
 
 /** Function signatures commonly used to restrict sells, change taxes, or alter balances. */
 export const SUSPICIOUS_SIGNATURES: Record<SuspiciousCategory, string[]> = {
@@ -50,7 +44,12 @@ export const SUSPICIOUS_SIGNATURES: Record<SuspiciousCategory, string[]> = {
   ],
   mint: ['mint(address,uint256)', 'mint(uint256)', 'mintTo(address,uint256)'],
   pause: ['pause()', 'setPaused(bool)', 'setTradingEnabled(bool)', 'setTrading(bool)', 'enableTrading(bool)'],
-  tx_limits: ['setMaxTxAmount(uint256)', 'setMaxWalletSize(uint256)', 'setMaxTxPercent(uint256)', 'setMaxWallet(uint256)'],
+  tx_limits: [
+    'setMaxTxAmount(uint256)',
+    'setMaxWalletSize(uint256)',
+    'setMaxTxPercent(uint256)',
+    'setMaxWallet(uint256)',
+  ],
   balance_control: ['setBalance(address,uint256)', 'burn(address,uint256)', 'rebase(uint256,int256)'],
   upgrade: ['upgradeTo(address)', 'upgradeToAndCall(address,bytes)'],
   cooldown: ['setCooldownEnabled(bool)', 'setCooldown(uint256)'],

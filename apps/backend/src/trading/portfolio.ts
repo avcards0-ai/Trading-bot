@@ -91,7 +91,9 @@ export class Portfolio {
   async state(): Promise<PortfolioState> {
     const account = (await this.deps.repos.accounts.get(this.deps.mode)) ?? (await this.init());
     const open = await this.deps.repos.positions.listOpen(this.deps.mode);
-    const tokens = new Map((await this.deps.repos.tokens.getMany(open.map((o) => o.position.tokenId))).map((t) => [t.id, t]));
+    const tokens = new Map(
+      (await this.deps.repos.tokens.getMany(open.map((o) => o.position.tokenId))).map((t) => [t.id, t]),
+    );
     let cash: number;
     try {
       cash = await this.cashUsd(account);
@@ -105,8 +107,13 @@ export class Portfolio {
       const price = position.lastPriceUsd ?? token?.priceUsd ?? null;
       const mark = price !== null ? position.quantity * price : position.costBasisUsd;
       const exit =
-        estimateExitValueUsd(position.quantity, price, token?.liquidityUsd ?? null, this.deps.dexFeePct, sellTaxOf(token?.latestSnapshot)) ??
-        0;
+        estimateExitValueUsd(
+          position.quantity,
+          price,
+          token?.liquidityUsd ?? null,
+          this.deps.dexFeePct,
+          sellTaxOf(token?.latestSnapshot),
+        ) ?? 0;
       return {
         position,
         token,
@@ -188,7 +195,9 @@ export class Portfolio {
       account = await this.deps.repos.accounts.update(this.deps.mode, {
         day: today,
         dayStartEquityUsd: s.equityUsd,
-        ...(account.halted && account.haltClearsOnNewDay ? { halted: false, haltReason: null, haltedAt: null, haltClearsOnNewDay: false } : {}),
+        ...(account.halted && account.haltClearsOnNewDay
+          ? { halted: false, haltReason: null, haltedAt: null, haltClearsOnNewDay: false }
+          : {}),
       });
       s = await this.state();
     }
@@ -201,7 +210,10 @@ export class Portfolio {
     if (!s.halted) {
       const floor = -(account.dayStartEquityUsd * limits.maxDailyLossPercent) / 100;
       if (s.dailyPnlUsd <= floor) {
-        await this.halt(`daily loss limit reached (${s.dailyPnlUsd.toFixed(2)} USD <= ${floor.toFixed(2)} USD)`, true);
+        await this.halt(
+          `daily loss limit reached (${s.dailyPnlUsd.toFixed(2)} USD <= ${floor.toFixed(2)} USD)`,
+          true,
+        );
         await this.deps.alerts.raise({
           type: 'DAILY_LOSS_LIMIT',
           severity: 'critical',
@@ -211,7 +223,10 @@ export class Portfolio {
           dedupeKey: `DAILY_LOSS_LIMIT:${today}`,
         });
       } else if (s.drawdownPct >= limits.maxDrawdownPercent) {
-        await this.halt(`max drawdown reached (${s.drawdownPct.toFixed(2)}% >= ${limits.maxDrawdownPercent}%)`, false);
+        await this.halt(
+          `max drawdown reached (${s.drawdownPct.toFixed(2)}% >= ${limits.maxDrawdownPercent}%)`,
+          false,
+        );
         await this.deps.alerts.raise({
           type: 'MAX_DRAWDOWN',
           severity: 'critical',
@@ -242,7 +257,12 @@ export class Portfolio {
     });
     this.deps.bus.publish({
       type: 'performance',
-      data: { equityUsd: s.markEquityUsd, dailyPnlUsd: s.dailyPnlUsd, drawdownPct: s.drawdownPct, halted: s.halted },
+      data: {
+        equityUsd: s.markEquityUsd,
+        dailyPnlUsd: s.dailyPnlUsd,
+        drawdownPct: s.drawdownPct,
+        halted: s.halted,
+      },
     });
   }
 

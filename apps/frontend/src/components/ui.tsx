@@ -2,7 +2,14 @@ import { clsx } from 'clsx';
 import { AlertTriangle, Loader2, Table2, LineChart as ChartIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
-export function Card({ title, subtitle, actions, children, className, padded = true }: {
+export function Card({
+  title,
+  subtitle,
+  actions,
+  children,
+  className,
+  padded = true,
+}: {
   title?: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
@@ -27,7 +34,13 @@ export function Card({ title, subtitle, actions, children, className, padded = t
 }
 
 /** Chart card with a table-view toggle (the accessible alternative to every chart). */
-export function ChartCard({ title, subtitle, chart, table, actions }: {
+export function ChartCard({
+  title,
+  subtitle,
+  chart,
+  table,
+  actions,
+}: {
   title: ReactNode;
   subtitle?: ReactNode;
   chart: ReactNode;
@@ -59,7 +72,13 @@ export function ChartCard({ title, subtitle, chart, table, actions }: {
   );
 }
 
-export function StatTile({ label, value, delta, deltaGood, hint }: {
+export function StatTile({
+  label,
+  value,
+  delta,
+  deltaGood,
+  hint,
+}: {
   label: string;
   value: ReactNode;
   delta?: ReactNode;
@@ -86,7 +105,14 @@ export function StatTile({ label, value, delta, deltaGood, hint }: {
   );
 }
 
-export function Button({ children, onClick, variant = 'default', disabled, type = 'button', title }: {
+export function Button({
+  children,
+  onClick,
+  variant = 'default',
+  disabled,
+  type = 'button',
+  title,
+}: {
   children: ReactNode;
   onClick?: () => void;
   variant?: 'default' | 'primary' | 'danger' | 'ghost';
@@ -124,7 +150,10 @@ export function Spinner({ label = 'Loading' }: { label?: string }) {
 export function ErrorBox({ error }: { error: unknown }) {
   const msg = error instanceof Error ? error.message : String(error);
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-critical/40 bg-critical/10 p-3 text-sm text-ink" role="alert">
+    <div
+      className="flex items-start gap-2 rounded-lg border border-critical/40 bg-critical/10 p-3 text-sm text-ink"
+      role="alert"
+    >
       <AlertTriangle size={16} className="mt-0.5 shrink-0 text-critical" aria-hidden />
       <span>{msg}</span>
     </div>
@@ -135,7 +164,15 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="p-6 text-center text-sm text-muted">{children}</div>;
 }
 
-export function Th({ children, className, align = 'left' }: { children?: ReactNode; className?: string; align?: 'left' | 'right' | 'center' }) {
+export function Th({
+  children,
+  className,
+  align = 'left',
+}: {
+  children?: ReactNode;
+  className?: string;
+  align?: 'left' | 'right' | 'center';
+}) {
   return (
     <th
       scope="col"
@@ -150,7 +187,15 @@ export function Th({ children, className, align = 'left' }: { children?: ReactNo
   );
 }
 
-export function Td({ children, className, align = 'left' }: { children?: ReactNode; className?: string; align?: 'left' | 'right' | 'center' }) {
+export function Td({
+  children,
+  className,
+  align = 'left',
+}: {
+  children?: ReactNode;
+  className?: string;
+  align?: 'left' | 'right' | 'center';
+}) {
   return (
     <td
       className={clsx(
@@ -164,7 +209,13 @@ export function Td({ children, className, align = 'left' }: { children?: ReactNo
   );
 }
 
-export function Pill({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'blue' | 'good' | 'warning' | 'critical' }) {
+export function Pill({
+  children,
+  tone = 'neutral',
+}: {
+  children: ReactNode;
+  tone?: 'neutral' | 'blue' | 'good' | 'warning' | 'critical';
+}) {
   return (
     <span
       className={clsx(
@@ -183,7 +234,8 @@ export function Pill({ children, tone = 'neutral' }: { children: ReactNode; tone
 
 /** A signed value with an arrow glyph so direction is never conveyed by color alone. */
 export function Signed({ value, children }: { value: number | null | undefined; children: ReactNode }) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return <span className="text-muted">—</span>;
+  if (value === null || value === undefined || !Number.isFinite(value))
+    return <span className="text-muted">—</span>;
   return (
     <span className={clsx('tabular', value > 0 ? 'text-good' : value < 0 ? 'text-critical' : 'text-ink-2')}>
       {value > 0 ? '▲ ' : value < 0 ? '▼ ' : ''}

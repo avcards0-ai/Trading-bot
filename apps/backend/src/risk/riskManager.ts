@@ -64,7 +64,13 @@ export class RiskManager {
         const r = fn();
         checks.push({ check, passed: r.passed === true, value: r.value, limit: r.limit, message: r.message });
       } catch (err) {
-        checks.push({ check, passed: false, value: null, limit: null, message: `check error (fail-closed): ${errorMessage(err)}` });
+        checks.push({
+          check,
+          passed: false,
+          value: null,
+          limit: null,
+          message: `check error (fail-closed): ${errorMessage(err)}`,
+        });
       }
     };
     const L = i.limits;
@@ -91,7 +97,9 @@ export class RiskManager {
       passed: !i.account.halted,
       value: i.account.halted,
       limit: false,
-      message: i.account.halted ? `Trading halted: ${i.account.haltReason ?? 'unknown reason'}.` : 'Not halted.',
+      message: i.account.halted
+        ? `Trading halted: ${i.account.haltReason ?? 'unknown reason'}.`
+        : 'Not halted.',
     }));
     run('MAX_DAILY_LOSS', () => {
       const start = i.account.dayStartEquityUsd;
@@ -130,11 +138,19 @@ export class RiskManager {
       passed: !i.hasOpenPositionForToken,
       value: i.hasOpenPositionForToken,
       limit: false,
-      message: i.hasOpenPositionForToken ? 'A position in this token is already open.' : 'No existing position.',
+      message: i.hasOpenPositionForToken
+        ? 'A position in this token is already open.'
+        : 'No existing position.',
     }));
     run('MIN_LIQUIDITY', () => {
       const liq = m?.liquidityUsd ?? null;
-      if (liq === null) return { passed: false, value: null, limit: L.minLiquidityUsd, message: 'Liquidity unknown (fail-closed).' };
+      if (liq === null)
+        return {
+          passed: false,
+          value: null,
+          limit: L.minLiquidityUsd,
+          message: 'Liquidity unknown (fail-closed).',
+        };
       return {
         passed: liq >= L.minLiquidityUsd,
         value: Math.round(liq),
@@ -180,7 +196,13 @@ export class RiskManager {
       };
     });
     run('MIN_TOKEN_AGE', () => {
-      if (!m?.pairCreatedAt) return { passed: false, value: null, limit: L.minTokenAgeMinutes, message: 'Token age unknown (fail-closed).' };
+      if (!m?.pairCreatedAt)
+        return {
+          passed: false,
+          value: null,
+          limit: L.minTokenAgeMinutes,
+          message: 'Token age unknown (fail-closed).',
+        };
       const age = minutesBetween(m.pairCreatedAt, i.now);
       return {
         passed: age >= L.minTokenAgeMinutes,
@@ -203,7 +225,10 @@ export class RiskManager {
       passed: size !== null && size >= L.minPositionUsd,
       value: size,
       limit: L.minPositionUsd,
-      message: size === null ? 'No position size computed.' : `Position size $${r2(size)} (min $${L.minPositionUsd}; limited by ${i.sizing?.limitingFactor}).`,
+      message:
+        size === null
+          ? 'No position size computed.'
+          : `Position size $${r2(size)} (min $${L.minPositionUsd}; limited by ${i.sizing?.limitingFactor}).`,
     }));
     run('MAX_POSITION_PERCENT', () => {
       if (size === null) throw new Error('no size');
@@ -250,7 +275,9 @@ export class RiskManager {
         passed: !i.llm.failed,
         value: !i.llm.failed,
         limit: true,
-        message: i.llm.failed ? `Required LLM review unavailable: ${i.llm.error ?? 'unknown'}.` : 'LLM review completed.',
+        message: i.llm.failed
+          ? `Required LLM review unavailable: ${i.llm.error ?? 'unknown'}.`
+          : 'LLM review completed.',
       }));
     }
 

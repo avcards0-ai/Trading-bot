@@ -89,10 +89,15 @@ export class AlertService {
     });
     const alert = toAlert(
       row,
-      input.token ? { chain: String(input.token.chain), address: input.token.address, symbol: input.token.symbol } : null,
+      input.token
+        ? { chain: String(input.token.chain), address: input.token.address, symbol: input.token.symbol }
+        : null,
     );
     this.bus.publish({ type: 'alert', data: alert });
-    this.logger.info({ alert: { type: alert.type, severity: alert.severity, title: alert.title, token: alert.address } }, 'alert raised');
+    this.logger.info(
+      { alert: { type: alert.type, severity: alert.severity, title: alert.title, token: alert.address } },
+      'alert raised',
+    );
 
     if (this.shouldNotify(alert, now)) {
       const p = this.deliver(alert).finally(() => this.pending.delete(p));
@@ -103,7 +108,8 @@ export class AlertService {
 
   private shouldNotify(alert: Alert, now: Date): boolean {
     if (this.notifiers.length === 0) return false;
-    const eligible = ALWAYS_NOTIFY.has(alert.type) || SEVERITY_RANK[alert.severity] >= SEVERITY_RANK[this.opts.minSeverity];
+    const eligible =
+      ALWAYS_NOTIFY.has(alert.type) || SEVERITY_RANK[alert.severity] >= SEVERITY_RANK[this.opts.minSeverity];
     if (!eligible) return false;
     const hourAgo = now.getTime() - 3_600_000;
     const times = (this.hourly.get(alert.type) ?? []).filter((t) => t > hourAgo);

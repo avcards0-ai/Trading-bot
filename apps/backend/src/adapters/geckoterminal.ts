@@ -7,6 +7,7 @@ import { GECKO_NETWORKS, sameAddress } from './chains';
 import type {
   DiscoveredPair,
   DiscoveryProvider,
+  MarketFallbackProvider,
   OhlcvBar,
   OhlcvProvider,
   RawTrade,
@@ -24,7 +25,12 @@ export const GECKOTERMINAL_HEADERS = { accept: 'application/json;version=2023030
 
 const numLike = z.union([z.number(), z.string()]).nullish();
 const txWindow = z
-  .object({ buys: z.number().nullish(), sells: z.number().nullish(), buyers: z.number().nullish(), sellers: z.number().nullish() })
+  .object({
+    buys: z.number().nullish(),
+    sells: z.number().nullish(),
+    buyers: z.number().nullish(),
+    sellers: z.number().nullish(),
+  })
   .nullish();
 
 const poolSchema = z.object({
@@ -56,12 +62,16 @@ export type GeckoPool = z.infer<typeof poolSchema>;
 const includedToken = z.object({
   id: z.string(),
   type: z.string(),
-  attributes: z.object({ address: z.string(), name: z.string().nullish(), symbol: z.string().nullish() }).passthrough(),
+  attributes: z
+    .object({ address: z.string(), name: z.string().nullish(), symbol: z.string().nullish() })
+    .passthrough(),
 });
 
 const poolsResponse = z.object({
   data: z.array(poolSchema),
-  included: z.array(z.union([includedToken, z.object({ id: z.string(), type: z.string() }).passthrough()])).nullish(),
+  included: z
+    .array(z.union([includedToken, z.object({ id: z.string(), type: z.string() }).passthrough()]))
+    .nullish(),
 });
 
 const tradesResponse = z.object({
@@ -116,7 +126,9 @@ export function poolToMarket(p: GeckoPool, fetchedAt: Date): MarketData {
   };
 }
 
-export class GeckoTerminalAdapter implements DiscoveryProvider, TradeFeedProvider, OhlcvProvider {
+export class GeckoTerminalAdapter
+  implements DiscoveryProvider, TradeFeedProvider, OhlcvProvider, MarketFallbackProvider
+{
   readonly name = 'geckoterminal';
 
   constructor(private readonly http: HttpClient) {}
@@ -163,9 +175,12 @@ export class GeckoTerminalAdapter implements DiscoveryProvider, TradeFeedProvide
 
   /** Last ~300 trades of a pool (GeckoTerminal returns trades from the past 24h). */
   async getRecentTrades(chain: Chain, pairAddress: string): Promise<RawTrade[]> {
-    const res = await this.http.get(`/networks/${GECKO_NETWORKS[chain]}/pools/${encodeURIComponent(pairAddress)}/trades`, {
-      schema: tradesResponse,
-    });
+    const res = await this.http.get(
+      `/networks/${GECKO_NETWORKS[chain]}/pools/${encodeURIComponent(pairAddress)}/trades`,
+      {
+        schema: tradesResponse,
+      },
+    );
     const out: RawTrade[] = [];
     for (const t of res.data) {
       const a = t.attributes;
@@ -218,7 +233,9 @@ export class GeckoTerminalAdapter implements DiscoveryProvider, TradeFeedProvide
     const own = res.data.filter((p) =>
       sameAddress(chain, stripNetworkPrefix(p.relationships?.base_token?.data?.id ?? ''), address),
     );
-    const best = own.sort((a, b) => (toNum(b.attributes.reserve_in_usd) ?? 0) - (toNum(a.attributes.reserve_in_usd) ?? 0))[0];
+    const best = own.sort(
+      (a, b) => (toNum(b.attributes.reserve_in_usd) ?? 0) - (toNum(a.attributes.reserve_in_usd) ?? 0),
+    )[0];
     return best ? poolToMarket(best, new Date()) : null;
   }
 }

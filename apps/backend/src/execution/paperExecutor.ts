@@ -76,13 +76,16 @@ export class PaperExecutor implements TradeExecutor {
     if (req.side === 'buy') {
       const usd = req.amountUsd ?? 0;
       if (!(usd > 0)) return fail('invalid buy amount');
-      if (usd > quoteReserve * maxShare) return fail('insufficient liquidity for order size (would exceed pool reserve share)');
+      if (usd > quoteReserve * maxShare)
+        return fail('insufficient liquidity for order size (would exceed pool reserve share)');
       const execMid = mid * (1 + drift / 100);
       const sim = simulateBuy(usd, execMid, liq, this.opts.dexFeePct, req.taxes.buyPct);
       const slippagePct = ((sim.avgPriceUsd - mid) / mid) * 100;
       const slippageExTax = sim.priceImpactPct + drift;
       if (slippageExTax > req.maxSlippagePct) {
-        return fail(`slippage tolerance exceeded: ${slippageExTax.toFixed(2)}% > ${req.maxSlippagePct}% (transaction reverted)`);
+        return fail(
+          `slippage tolerance exceeded: ${slippageExTax.toFixed(2)}% > ${req.maxSlippagePct}% (transaction reverted)`,
+        );
       }
       return {
         status: 'filled',
@@ -94,7 +97,12 @@ export class PaperExecutor implements TradeExecutor {
         feeUsd: sim.dexFeeUsd + fee,
         txHash,
         error: null,
-        raw: { priceImpactPct: sim.priceImpactPct, driftPct: drift, midPriceUsd: mid, buyTaxPct: req.taxes.buyPct },
+        raw: {
+          priceImpactPct: sim.priceImpactPct,
+          driftPct: drift,
+          midPriceUsd: mid,
+          buyTaxPct: req.taxes.buyPct,
+        },
       };
     }
 
@@ -104,7 +112,9 @@ export class PaperExecutor implements TradeExecutor {
     const sim = simulateSell(qty, execMid, liq, this.opts.dexFeePct, req.taxes.sellPct);
     const slippageExTax = sim.priceImpactPct + drift;
     if (slippageExTax > req.maxSlippagePct) {
-      return fail(`slippage tolerance exceeded: ${slippageExTax.toFixed(2)}% > ${req.maxSlippagePct}% (transaction reverted)`);
+      return fail(
+        `slippage tolerance exceeded: ${slippageExTax.toFixed(2)}% > ${req.maxSlippagePct}% (transaction reverted)`,
+      );
     }
     const net = sim.usdOut - fee;
     return {

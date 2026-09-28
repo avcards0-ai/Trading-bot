@@ -34,10 +34,24 @@ export function evaluateEntry(
   const base = { signals: s, components: {} as Record<string, number> };
 
   if (!params.chains.includes(snapshot.chain)) {
-    return { ...base, action: 'SKIP', reasonCode: 'CHAIN_DISABLED', score: null, confidence: 1, reasons: [`Strategy is not enabled for ${snapshot.chain}.`] };
+    return {
+      ...base,
+      action: 'SKIP',
+      reasonCode: 'CHAIN_DISABLED',
+      score: null,
+      confidence: 1,
+      reasons: [`Strategy is not enabled for ${snapshot.chain}.`],
+    };
   }
   if (s.priceUsd === null || s.liquidityUsd === null) {
-    return { ...base, action: 'SKIP', reasonCode: 'NO_MARKET_DATA', score: null, confidence: 1, reasons: ['No usable price/liquidity data.'] };
+    return {
+      ...base,
+      action: 'SKIP',
+      reasonCode: 'NO_MARKET_DATA',
+      score: null,
+      confidence: 1,
+      reasons: ['No usable price/liquidity data.'],
+    };
   }
   if (s.ageMinutes !== null && s.ageMinutes > params.maxTokenAgeMinutes) {
     return {
@@ -46,7 +60,9 @@ export function evaluateEntry(
       reasonCode: 'OUTSIDE_AGE_WINDOW',
       score: null,
       confidence: 1,
-      reasons: [`Token is ${Math.round(s.ageMinutes)} min old; strategy targets tokens younger than ${params.maxTokenAgeMinutes} min.`],
+      reasons: [
+        `Token is ${Math.round(s.ageMinutes)} min old; strategy targets tokens younger than ${params.maxTokenAgeMinutes} min.`,
+      ],
     };
   }
 
@@ -55,12 +71,17 @@ export function evaluateEntry(
   let turnover = 0;
   if (s.turnover1h !== null) {
     const t = s.turnover1h;
-    turnover = t < 0.05 ? 0 : t < 0.2 ? scale01(t, 0.05, 0.2) : t <= 2 ? 1 : t <= 5 ? 1 - scale01(t, 2, 5) : 0;
+    turnover =
+      t < 0.05 ? 0 : t < 0.2 ? scale01(t, 0.05, 0.2) : t <= 2 ? 1 : t <= 5 ? 1 - scale01(t, 2, 5) : 0;
   }
   const pc1h = s.priceChange1hPct;
   const momentum =
-    pc1h === null ? 0 : scale01(pc1h, params.minPriceChange1hPercent, params.minPriceChange1hPercent + 50) * (pc1h > 200 ? 0.5 : 1);
-  const notExtended = s.priceChange5mPct === null ? 0.5 : 1 - scale01(s.priceChange5mPct, 0, params.maxPriceChange5mPercent);
+    pc1h === null
+      ? 0
+      : scale01(pc1h, params.minPriceChange1hPercent, params.minPriceChange1hPercent + 50) *
+        (pc1h > 200 ? 0.5 : 1);
+  const notExtended =
+    s.priceChange5mPct === null ? 0.5 : 1 - scale01(s.priceChange5mPct, 0, params.maxPriceChange5mPercent);
   const breadth = s.uniqueTraders === null ? 0.5 : scale01(s.uniqueTraders, 20, 150);
   const safety = clamp(1 - report.rugScore / Math.max(1, limits.maxRugScore), 0, 1);
   const components = {
@@ -82,7 +103,9 @@ export function evaluateEntry(
     failed.push(`1h volume $${Math.round(s.volume1hUsd ?? 0)} < $${params.minVolume1hUsd}`);
   }
   if (s.priceChange5mPct !== null && s.priceChange5mPct > params.maxPriceChange5mPercent) {
-    failed.push(`5m price change ${s.priceChange5mPct.toFixed(1)}% > ${params.maxPriceChange5mPercent}% (not chasing)`);
+    failed.push(
+      `5m price change ${s.priceChange5mPct.toFixed(1)}% > ${params.maxPriceChange5mPercent}% (not chasing)`,
+    );
   }
   if (pc1h === null || pc1h < params.minPriceChange1hPercent) {
     failed.push(`1h price change ${pc1h?.toFixed(1) ?? 'n/a'}% < ${params.minPriceChange1hPercent}%`);
@@ -104,7 +127,15 @@ export function evaluateEntry(
       };
     }
     reasons.push(`Strategy score ${score} >= ${params.minStrategyScore}; all entry gates passed.`);
-    return { signals: s, components, action: 'BUY', reasonCode: 'STRATEGY_ENTRY', score, confidence: score / 100, reasons };
+    return {
+      signals: s,
+      components,
+      action: 'BUY',
+      reasonCode: 'STRATEGY_ENTRY',
+      score,
+      confidence: score / 100,
+      reasons,
+    };
   }
   if (failed.length === 0) {
     const near = score >= params.minStrategyScore - 15;
@@ -162,8 +193,16 @@ export function evaluateExit(
   const pnlPct = price !== null ? ((price - pos.entryPriceUsd) / pos.entryPriceUsd) * 100 : null;
   const heldMin = (now.getTime() - pos.openedAt.getTime()) / 60_000;
   const liqDrop =
-    pos.entryLiquidityUsd && liquidityUsd !== null ? ((pos.entryLiquidityUsd - liquidityUsd) / pos.entryLiquidityUsd) * 100 : null;
-  const metrics = { price, pnlPct, heldMinutes: heldMin, liquidityDropPct: liqDrop, rugScore: report?.rugScore ?? null };
+    pos.entryLiquidityUsd && liquidityUsd !== null
+      ? ((pos.entryLiquidityUsd - liquidityUsd) / pos.entryLiquidityUsd) * 100
+      : null;
+  const metrics = {
+    price,
+    pnlPct,
+    heldMinutes: heldMin,
+    liquidityDropPct: liqDrop,
+    rugScore: report?.rugScore ?? null,
+  };
   const sell = (reason: CloseReason, code: string, why: string): ExitEvaluation => ({
     action: 'SELL',
     reason,
@@ -173,13 +212,27 @@ export function evaluateExit(
   });
 
   if (report && (report.isLikelyScam || report.rugScore >= params.exitOnRugScoreAbove)) {
-    return sell('rug_risk_escalation', 'EXIT_RUG_RISK', `Rug score ${report.rugScore} reached exit threshold ${params.exitOnRugScoreAbove}${report.isLikelyScam ? ' (likely scam)' : ''}.`);
+    return sell(
+      'rug_risk_escalation',
+      'EXIT_RUG_RISK',
+      `Rug score ${report.rugScore} reached exit threshold ${params.exitOnRugScoreAbove}${report.isLikelyScam ? ' (likely scam)' : ''}.`,
+    );
   }
   if (liqDrop !== null && liqDrop >= params.exitOnLiquidityDropPercent) {
-    return sell('liquidity_drop', 'EXIT_LIQUIDITY_DROP', `Liquidity fell ${liqDrop.toFixed(1)}% since entry (limit ${params.exitOnLiquidityDropPercent}%).`);
+    return sell(
+      'liquidity_drop',
+      'EXIT_LIQUIDITY_DROP',
+      `Liquidity fell ${liqDrop.toFixed(1)}% since entry (limit ${params.exitOnLiquidityDropPercent}%).`,
+    );
   }
   if (price === null) {
-    return { action: 'HOLD', reason: null, reasonCode: 'NO_PRICE', reasons: ['No current price; holding until data returns.'], metrics };
+    return {
+      action: 'HOLD',
+      reason: null,
+      reasonCode: 'NO_PRICE',
+      reasons: ['No current price; holding until data returns.'],
+      metrics,
+    };
   }
   if (price <= pos.stopLossPriceUsd) {
     return sell('stop_loss', 'EXIT_STOP_LOSS', `Price ${price} <= stop loss ${pos.stopLossPriceUsd}.`);
@@ -187,20 +240,34 @@ export function evaluateExit(
   if (pos.trailingStopPercent && pos.highestPriceUsd > pos.entryPriceUsd) {
     const trail = pos.highestPriceUsd * (1 - pos.trailingStopPercent / 100);
     if (price <= trail) {
-      return sell('trailing_stop', 'EXIT_TRAILING_STOP', `Price ${price} fell ${pos.trailingStopPercent}% from high ${pos.highestPriceUsd}.`);
+      return sell(
+        'trailing_stop',
+        'EXIT_TRAILING_STOP',
+        `Price ${price} fell ${pos.trailingStopPercent}% from high ${pos.highestPriceUsd}.`,
+      );
     }
   }
   if (price >= pos.takeProfitPriceUsd) {
-    return sell('take_profit', 'EXIT_TAKE_PROFIT', `Price ${price} >= take profit ${pos.takeProfitPriceUsd}.`);
+    return sell(
+      'take_profit',
+      'EXIT_TAKE_PROFIT',
+      `Price ${price} >= take profit ${pos.takeProfitPriceUsd}.`,
+    );
   }
   if (heldMin >= params.maxHoldMinutes) {
-    return sell('max_hold_time', 'EXIT_MAX_HOLD', `Held ${Math.round(heldMin)} min >= max ${params.maxHoldMinutes} min.`);
+    return sell(
+      'max_hold_time',
+      'EXIT_MAX_HOLD',
+      `Held ${Math.round(heldMin)} min >= max ${params.maxHoldMinutes} min.`,
+    );
   }
   return {
     action: 'HOLD',
     reason: null,
     reasonCode: 'HOLD_POSITION',
-    reasons: [`Holding: P/L ${pnlPct?.toFixed(2)}%, stop ${pos.stopLossPriceUsd}, target ${pos.takeProfitPriceUsd}.`],
+    reasons: [
+      `Holding: P/L ${pnlPct?.toFixed(2)}%, stop ${pos.stopLossPriceUsd}, target ${pos.takeProfitPriceUsd}.`,
+    ],
     metrics,
   };
 }

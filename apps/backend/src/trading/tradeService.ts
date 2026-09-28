@@ -102,7 +102,13 @@ export class TradeService {
       await this.deps.portfolio.applyCash(-result.feeUsd, -result.feeUsd);
       const trade = toTrade(tradeRow, tokenRef);
       this.deps.bus.publish({ type: 'trade', data: trade });
-      await this.deps.repos.events.log('warn', 'execution', `buy failed: ${result.error}`, { tradeId: trade.id }, token.id);
+      await this.deps.repos.events.log(
+        'warn',
+        'execution',
+        `buy failed: ${result.error}`,
+        { tradeId: trade.id },
+        token.id,
+      );
       if (result.txHash && /reconcile/i.test(result.error ?? '')) {
         await this.deps.alerts.raise({
           type: 'SYSTEM_ERROR',
@@ -149,7 +155,12 @@ export class TradeService {
       message: `Bought ${result.quantity.toPrecision(6)} ${token.symbol ?? ''} for $${result.filledUsd.toFixed(2)} at $${entry.toPrecision(6)}. Stop $${positionRow.stopLossPriceUsd.toPrecision(6)}, target $${positionRow.takeProfitPriceUsd.toPrecision(6)}. Rug score ${args.report.rugScore}.`,
       tokenId: token.id,
       token: tokenRef,
-      data: { positionId: positionRow.id, sizeUsd: result.filledUsd, rugScore: args.report.rugScore, mode: this.deps.mode },
+      data: {
+        positionId: positionRow.id,
+        sizeUsd: result.filledUsd,
+        rugScore: args.report.rugScore,
+        mode: this.deps.mode,
+      },
       dedupeKey: `POSITION_OPENED:${positionRow.id}`,
     });
     return { trade, position };
@@ -176,11 +187,20 @@ export class TradeService {
         try {
           market = (await this.deps.market.getMarket(token.chain as never, token.address))?.market ?? market;
         } catch (err) {
-          this.deps.logger.warn({ err: errorMessage(err) }, 'fresh market data unavailable for exit; using last known');
+          this.deps.logger.warn(
+            { err: errorMessage(err) },
+            'fresh market data unavailable for exit; using last known',
+          );
         }
       }
       if (!market) {
-        await this.deps.repos.events.log('error', 'execution', 'cannot exit: no market data', { positionId: position.id }, token.id);
+        await this.deps.repos.events.log(
+          'error',
+          'execution',
+          'cannot exit: no market data',
+          { positionId: position.id },
+          token.id,
+        );
         return null;
       }
       const result = await this.deps.executor.execute({
@@ -217,7 +237,13 @@ export class TradeService {
 
       if (result.status !== 'filled') {
         await this.deps.portfolio.applyCash(-result.feeUsd, -result.feeUsd);
-        await this.deps.repos.events.log('error', 'execution', `exit failed: ${result.error}`, { positionId: position.id, reason: args.reason }, token.id);
+        await this.deps.repos.events.log(
+          'error',
+          'execution',
+          `exit failed: ${result.error}`,
+          { positionId: position.id, reason: args.reason },
+          token.id,
+        );
         await this.deps.alerts.raise({
           type: 'SYSTEM_ERROR',
           severity: 'critical',
@@ -248,7 +274,10 @@ export class TradeService {
       const pnlPct = (realized / position.costBasisUsd) * 100;
       await this.deps.alerts.raise({
         type: special?.type ?? 'POSITION_CLOSED',
-        severity: realized < 0 && (args.reason === 'rug_risk_escalation' || args.reason === 'liquidity_drop') ? 'critical' : 'info',
+        severity:
+          realized < 0 && (args.reason === 'rug_risk_escalation' || args.reason === 'liquidity_drop')
+            ? 'critical'
+            : 'info',
         title: `${special?.title ?? 'Position closed'} (${this.deps.mode})`,
         message: `Sold ${token.symbol ?? token.address}: ${args.detail} Realized P/L ${realized >= 0 ? '+' : ''}$${realized.toFixed(2)} (${pnlPct.toFixed(1)}%).`,
         tokenId: token.id,

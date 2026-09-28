@@ -6,12 +6,15 @@ import { age, dateTime, num, pct, price, ratio, shortAddr, timeAgo, usd } from '
 import { DecisionBadge, RiskBadge, RugScore } from './RiskBadge';
 import { Empty, Pill, Signed, Td, Th } from './ui';
 
-export const tokenHref = (t: { chain: string; address: string }) => `/tokens/${encodeURIComponent(t.address)}?chain=${t.chain}`;
+export const tokenHref = (t: { chain: string; address: string }) =>
+  `/tokens/${encodeURIComponent(t.address)}?chain=${t.chain}`;
 
 export function TokenName({ t }: { t: Pick<TokenListItem, 'chain' | 'address' | 'symbol' | 'name'> }) {
   return (
     <Link to={tokenHref(t)} className="group flex min-w-0 flex-col">
-      <span className="truncate font-medium text-ink group-hover:text-series-1">{t.symbol ?? shortAddr(t.address)}</span>
+      <span className="truncate font-medium text-ink group-hover:text-series-1">
+        {t.symbol ?? shortAddr(t.address)}
+      </span>
       <span className="truncate text-xs text-muted">
         {t.chain} · {t.name ? t.name.slice(0, 22) : shortAddr(t.address)}
       </span>
@@ -20,7 +23,8 @@ export function TokenName({ t }: { t: Pick<TokenListItem, 'chain' | 'address' | 
 }
 
 export function TokenTable({ items, compact = false }: { items: TokenListItem[]; compact?: boolean }) {
-  if (items.length === 0) return <Empty>No tokens yet. Discovery runs every minute; or scan a token from Settings.</Empty>;
+  if (items.length === 0)
+    return <Empty>No tokens yet. Discovery runs every minute; or scan a token from Settings.</Empty>;
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[900px] border-collapse">
@@ -69,7 +73,9 @@ export function TokenTable({ items, compact = false }: { items: TokenListItem[];
                   {t.openPosition ? (
                     <span className="text-xs">
                       <Pill tone="blue">open</Pill>{' '}
-                      <Signed value={t.openPosition.unrealizedPnlUsd}>{usd(t.openPosition.unrealizedPnlUsd, { sign: true })}</Signed>
+                      <Signed value={t.openPosition.unrealizedPnlUsd}>
+                        {usd(t.openPosition.unrealizedPnlUsd, { sign: true })}
+                      </Signed>
                     </span>
                   ) : (
                     <span className="text-xs text-muted">—</span>
@@ -88,7 +94,15 @@ export function TokenTable({ items, compact = false }: { items: TokenListItem[];
   );
 }
 
-export function PositionsTable({ items, onClose, busyId }: { items: Position[]; onClose?: (p: Position) => void; busyId?: number | null }) {
+export function PositionsTable({
+  items,
+  onClose,
+  busyId,
+}: {
+  items: Position[];
+  onClose?: (p: Position) => void;
+  busyId?: number | null;
+}) {
   if (items.length === 0) return <Empty>No positions.</Empty>;
   return (
     <div className="overflow-x-auto">
@@ -110,7 +124,12 @@ export function PositionsTable({ items, onClose, busyId }: { items: Position[]; 
         <tbody>
           {items.map((p) => {
             const pnl = p.status === 'open' ? p.unrealizedPnlUsd : p.realizedPnlUsd;
-            const pnlPct = p.status === 'open' ? p.unrealizedPnlPct : p.realizedPnlUsd !== null ? (p.realizedPnlUsd / p.costBasisUsd) * 100 : null;
+            const pnlPct =
+              p.status === 'open'
+                ? p.unrealizedPnlPct
+                : p.realizedPnlUsd !== null
+                  ? (p.realizedPnlUsd / p.costBasisUsd) * 100
+                  : null;
             return (
               <tr key={p.id} className="hover:bg-surface-2/60">
                 <Td>
@@ -208,7 +227,10 @@ export function TradesTable({ items }: { items: Trade[] }) {
               <Td align="right">{pct(t.slippagePct, { digits: 2 })}</Td>
               <Td align="right">{usd(t.feeUsd)}</Td>
               <Td className="max-w-[18rem]">
-                <span className={clsx('block truncate text-xs', t.error ? 'text-ink' : 'text-muted')} title={t.error ?? t.txHash ?? ''}>
+                <span
+                  className={clsx('block truncate text-xs', t.error ? 'text-ink' : 'text-muted')}
+                  title={t.error ?? t.txHash ?? ''}
+                >
                   {t.error ?? shortAddr(t.txHash, 6)}
                 </span>
               </Td>
@@ -273,10 +295,18 @@ export function DecisionView({ d }: { d: Decision }) {
           <h4 className="mb-1.5 text-sm font-semibold text-ink">Risk checks</h4>
           <ul className="grid gap-1 sm:grid-cols-2">
             {d.riskChecks.map((c) => (
-              <li key={c.check} className="flex items-start gap-2 rounded-md bg-surface-2/60 px-2 py-1.5 text-xs">
-                {c.passed ? <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-good" aria-label="passed" /> : <XCircle size={13} className="mt-0.5 shrink-0 text-critical" aria-label="failed" />}
+              <li
+                key={c.check}
+                className="flex items-start gap-2 rounded-md bg-surface-2/60 px-2 py-1.5 text-xs"
+              >
+                {c.passed ? (
+                  <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-good" aria-label="passed" />
+                ) : (
+                  <XCircle size={13} className="mt-0.5 shrink-0 text-critical" aria-label="failed" />
+                )}
                 <span>
-                  <span className="font-mono text-ink">{c.check}</span> <span className="text-ink-2">{c.message}</span>
+                  <span className="font-mono text-ink">{c.check}</span>{' '}
+                  <span className="text-ink-2">{c.message}</span>
                 </span>
               </li>
             ))}
@@ -285,7 +315,9 @@ export function DecisionView({ d }: { d: Decision }) {
       )}
       {Object.keys(d.factors).length > 0 && (
         <details className="text-xs">
-          <summary className="cursor-pointer text-muted hover:text-ink">Numerical factors ({Object.keys(d.factors).length})</summary>
+          <summary className="cursor-pointer text-muted hover:text-ink">
+            Numerical factors ({Object.keys(d.factors).length})
+          </summary>
           <div className="mt-2 grid gap-x-4 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3">
             {Object.entries(d.factors).map(([k, v]) => (
               <div key={k} className="flex justify-between gap-2 border-b border-border/50 py-0.5">

@@ -33,7 +33,10 @@ const swapSchema = z.object({
   prioritizationFeeLamports: z.number().nullish(),
 });
 
-const priceSchema = z.record(z.string(), z.object({ usdPrice: z.number(), decimals: z.number().nullish() }).passthrough());
+const priceSchema = z.record(
+  z.string(),
+  z.object({ usdPrice: z.number(), decimals: z.number().nullish() }).passthrough(),
+);
 
 /** Jupiter answers 400 with codes like COULD_NOT_FIND_ANY_ROUTE / TOKEN_NOT_TRADABLE when no route exists. */
 export function isNoRouteError(err: unknown): boolean {
@@ -53,7 +56,12 @@ export class JupiterAdapter implements SecuritySource {
     return chain === 'solana';
   }
 
-  async quote(inputMint: string, outputMint: string, amountRaw: bigint, slippageBps: number): Promise<JupiterQuote | null> {
+  async quote(
+    inputMint: string,
+    outputMint: string,
+    amountRaw: bigint,
+    slippageBps: number,
+  ): Promise<JupiterQuote | null> {
     try {
       return await this.http.get('/swap/v1/quote', {
         query: {
@@ -82,7 +90,9 @@ export class JupiterAdapter implements SecuritySource {
         wrapAndUnwrapSol: true,
         dynamicComputeUnitLimit: true,
         dynamicSlippage: false,
-        prioritizationFeeLamports: { priorityLevelWithMaxLamports: { maxLamports: 2_000_000, priorityLevel: 'high' } },
+        prioritizationFeeLamports: {
+          priorityLevelWithMaxLamports: { maxLamports: 2_000_000, priorityLevel: 'high' },
+        },
       },
       { schema: swapSchema, retries: 1 },
     );
@@ -150,9 +160,7 @@ export class JupiterAdapter implements SecuritySource {
         transferTaxPct: null,
         sellRouteFound: true,
         reason:
-          roundTripLossPct >= 90
-            ? `round trip returns only ${(back * 100).toFixed(1)}% of the input`
-            : null,
+          roundTripLossPct >= 90 ? `round trip returns only ${(back * 100).toFixed(1)}% of the input` : null,
       },
     };
   }

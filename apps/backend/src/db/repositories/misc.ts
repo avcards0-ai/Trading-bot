@@ -66,7 +66,11 @@ export class AlertsRepository {
   }
 
   async acknowledge(id: number): Promise<boolean> {
-    const res = await this.db.update(alerts).set({ acknowledged: true }).where(eq(alerts.id, id)).returning({ id: alerts.id });
+    const res = await this.db
+      .update(alerts)
+      .set({ acknowledged: true })
+      .where(eq(alerts.id, id))
+      .returning({ id: alerts.id });
     return res.length > 0;
   }
 
@@ -114,14 +118,21 @@ export class AlertsRepository {
 export class StrategyConfigRepository {
   constructor(private readonly db: Database) {}
 
-  async active(): Promise<{ version: number; limits: RiskLimits; strategy: StrategyParams; createdAt: Date } | null> {
+  async active(): Promise<{
+    version: number;
+    limits: RiskLimits;
+    strategy: StrategyParams;
+    createdAt: Date;
+  } | null> {
     const [row] = await this.db
       .select()
       .from(strategyConfigs)
       .where(eq(strategyConfigs.active, true))
       .orderBy(desc(strategyConfigs.version))
       .limit(1);
-    return row ? { version: row.version, limits: row.limits, strategy: row.strategy, createdAt: row.createdAt } : null;
+    return row
+      ? { version: row.version, limits: row.limits, strategy: row.strategy, createdAt: row.createdAt }
+      : null;
   }
 
   async save(limits: RiskLimits, strategy: StrategyParams): Promise<{ version: number; createdAt: Date }> {
@@ -259,7 +270,13 @@ export class WalletsRepository {
     return row;
   }
 
-  async link(tokenId: number, walletId: number, role: string, percent: number | null, clusterFunder: string | null) {
+  async link(
+    tokenId: number,
+    walletId: number,
+    role: string,
+    percent: number | null,
+    clusterFunder: string | null,
+  ) {
     await this.db
       .insert(tokenWallets)
       .values({ tokenId, walletId, role, percent, clusterFunder })

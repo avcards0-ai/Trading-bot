@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { Writable } from 'node:stream';
 import pino from 'pino';
-import { REDACT_PATHS, SecretRedactor } from './redact';
+import { REDACT_PATHS, type SecretRedactor } from './redact';
 
 export type Logger = pino.Logger;
 
@@ -40,7 +40,7 @@ export function createLogger(opts: LoggerOptions): Logger {
     streams.push({ level: opts.level as pino.Level, stream: scrubbing(opts.sink) });
   } else if (opts.pretty) {
     // pino-pretty is a dev dependency; load lazily and fall back to JSON when absent.
-    let prettyStream: NodeJS.WritableStream | null = null;
+    let prettyStream: NodeJS.WritableStream | null;
     try {
       const req = createRequire(import.meta.url);
       const pretty = req('pino-pretty') as (o: object) => NodeJS.WritableStream;

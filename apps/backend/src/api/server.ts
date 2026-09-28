@@ -3,13 +3,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyBaseLogger, type FastifyInstance, type FastifyReply } from 'fastify';
 import { z } from 'zod';
-import type {
-  Chain,
-  Decision,
-  PaperTradeResponse,
-  ScanResponse,
-  ServerEvent,
-} from '@memeguard/shared';
+import type { Chain, Decision, PaperTradeResponse, ScanResponse, ServerEvent } from '@memeguard/shared';
 import { isValidSolanaAddress } from '../adapters/solana/keys';
 import type { App } from '../app';
 import { runBacktest } from '../backtest/engine';
@@ -46,7 +40,11 @@ class HttpError extends Error {
 function parse<T>(schema: z.ZodType<T>, data: unknown): T {
   const r = schema.safeParse(data);
   if (!r.success) {
-    throw new HttpError(400, 'invalid_request', r.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; '));
+    throw new HttpError(
+      400,
+      'invalid_request',
+      r.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; '),
+    );
   }
   return r.data;
 }
@@ -55,11 +53,13 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
   const { config } = app;
   const server = Fastify({
     loggerInstance: app.logger as unknown as FastifyBaseLogger,
-    disableRequestLogging: false,
     trustProxy: true,
     bodyLimit: 1_000_000,
   });
-  const { requireAdmin, requireRead } = makeAuthGuards(config.server.apiKey, config.server.requireAuthForReads);
+  const { requireAdmin, requireRead } = makeAuthGuards(
+    config.server.apiKey,
+    config.server.requireAuthForReads,
+  );
 
   await server.register(helmet, { contentSecurityPolicy: false });
   await server.register(cors, {
@@ -70,10 +70,13 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
   await server.register(rateLimit, { global: true, max: 600, timeWindow: '1 minute' });
 
   server.setErrorHandler((err, req, reply) => {
-    if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.code, message: err.message });
-    if (err instanceof StrategyValidationError) return reply.code(400).send({ error: 'invalid_strategy', message: err.message, issues: err.issues });
+    if (err instanceof HttpError)
+      return reply.code(err.statusCode).send({ error: err.code, message: err.message });
+    if (err instanceof StrategyValidationError)
+      return reply.code(400).send({ error: 'invalid_strategy', message: err.message, issues: err.issues });
     const status = (err as { statusCode?: number }).statusCode;
-    if (status && status >= 400 && status < 500) return reply.code(status).send({ error: 'bad_request', message: errorMessage(err) });
+    if (status && status >= 400 && status < 500)
+      return reply.code(status).send({ error: 'bad_request', message: errorMessage(err) });
     req.log.error({ err: errorMessage(err) }, 'request failed');
     return reply.code(500).send({ error: 'internal_error', message: 'Internal server error' });
   });
@@ -85,14 +88,27 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
   // ---------------------------------------------------------------- health / status
   server.get('/health', async () => ({ status: 'ok', mode: config.trading.mode }));
   server.get('/status', read, async () => systemStatus(app));
-  server.get('/config', read, async () => ({ effective: app.strategyStore.get(), system: safeConfigView(config) }));
+  server.get('/config', read, async () => ({
+    effective: app.strategyStore.get(),
+    system: safeConfigView(config),
+  }));
 
   // ---------------------------------------------------------------- tokens
   server.get('/tokens', read, async (req) => {
     const q = parse(
       z.object({
         ...pageQuery,
-        sort: z.enum(['rugScore', 'lastAnalyzedAt', 'firstSeenAt', 'liquidityUsd', 'volume24hUsd', 'marketCapUsd', 'pairCreatedAt']).default('lastAnalyzedAt'),
+        sort: z
+          .enum([
+            'rugScore',
+            'lastAnalyzedAt',
+            'firstSeenAt',
+            'liquidityUsd',
+            'volume24hUsd',
+            'marketCapUsd',
+            'pairCreatedAt',
+          ])
+          .default('lastAnalyzedAt'),
         order: z.enum(['asc', 'desc']).default('desc'),
         chain: chainEnum.optional(),
         risk: riskEnum.optional(),
@@ -146,20 +162,33 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
 
   // ---------------------------------------------------------------- trading read models
   server.get('/positions', read, async (req) => {
-    const q = parse(z.object({ status: z.enum(['open', 'closed', 'all']).default('all'), limit: z.coerce.number().int().min(1).max(500).default(100) }), req.query);
+    const q = parse(
+      z.object({
+        status: z.enum(['open', 'closed', 'all']).default('all'),
+        limit: z.coerce.number().int().min(1).max(500).default(100),
+      }),
+      req.query,
+    );
     return { items: await listPositions(app, q.status, q.limit) };
   });
 
   server.get('/trades', read, async (req) => {
     const q = parse(z.object(pageQuery), req.query);
-    const { rows, total } = await app.repos.trades.list({ mode: config.trading.mode, limit: q.limit, offset: q.offset });
+    const { rows, total } = await app.repos.trades.list({
+      mode: config.trading.mode,
+      limit: q.limit,
+      offset: q.offset,
+    });
     return { items: rows.map((r) => toTrade(r.trade, r.token)), total, limit: q.limit, offset: q.offset };
   });
 
   server.get('/performance', read, async () => app.portfolio.summary());
 
   server.get('/decisions', read, async (req) => {
-    const q = parse(z.object({ ...pageQuery, action: z.enum(['BUY', 'SELL', 'HOLD', 'SKIP']).optional() }), req.query);
+    const q = parse(
+      z.object({ ...pageQuery, action: z.enum(['BUY', 'SELL', 'HOLD', 'SKIP']).optional() }),
+      req.query,
+    );
     return { items: await app.repos.decisions.list(q) };
   });
 
@@ -174,11 +203,23 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
       req.query,
     );
     const res = await app.repos.alerts.list({ ...q, type: q.type as never });
-    return { ...res, unacknowledged: await app.repos.alerts.countUnacknowledged(), limit: q.limit, offset: q.offset };
+    return {
+      ...res,
+      unacknowledged: await app.repos.alerts.countUnacknowledged(),
+      limit: q.limit,
+      offset: q.offset,
+    };
   });
 
   server.get('/logs', read, async (req) => {
-    const q = parse(z.object({ limit: z.coerce.number().int().min(1).max(500).default(100), category: z.string().max(40).optional(), level: z.enum(['debug', 'info', 'warn', 'error']).optional() }), req.query);
+    const q = parse(
+      z.object({
+        limit: z.coerce.number().int().min(1).max(500).default(100),
+        category: z.string().max(40).optional(),
+        level: z.enum(['debug', 'info', 'warn', 'error']).optional(),
+      }),
+      req.query,
+    );
     return { items: await app.repos.events.list(q) };
   });
 
@@ -201,7 +242,9 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
       connection: 'keep-alive',
       'x-accel-buffering': 'no',
       // The response is hijacked, so the CORS plugin cannot add this header for us.
-      ...(origin && config.server.corsOrigins.includes(origin) ? { 'access-control-allow-origin': origin, vary: 'Origin' } : {}),
+      ...(origin && config.server.corsOrigins.includes(origin)
+        ? { 'access-control-allow-origin': origin, vary: 'Origin' }
+        : {}),
     });
     const send = (e: ServerEvent) => res.write(`event: ${e.type}\ndata: ${JSON.stringify(e.data)}\n\n`);
     res.write(`retry: 3000\n\n`);
@@ -218,7 +261,11 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
     const body = parse(
       z.union([
         z.object({ discover: z.literal(true) }),
-        z.object({ chain: chainEnum, address: z.string().min(20).max(64), allowTrade: z.boolean().optional() }),
+        z.object({
+          chain: chainEnum,
+          address: z.string().min(20).max(64),
+          allowTrade: z.boolean().optional(),
+        }),
       ]),
       req.body,
     );
@@ -226,8 +273,13 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
       void app.engine.runOnce('discovery');
       return { queued: true };
     }
-    if (!isValidAddress(body.chain, body.address)) throw new HttpError(400, 'invalid_address', `Not a valid ${body.chain} token address.`);
-    const { row } = await app.repos.tokens.upsertDiscovered({ chain: body.chain, address: normalizeAddress(body.chain, body.address), discoveredVia: 'manual' });
+    if (!isValidAddress(body.chain, body.address))
+      throw new HttpError(400, 'invalid_address', `Not a valid ${body.chain} token address.`);
+    const { row } = await app.repos.tokens.upsertDiscovered({
+      chain: body.chain,
+      address: normalizeAddress(body.chain, body.address),
+      discoveredVia: 'manual',
+    });
     const result = await app.pipeline.analyze({
       tokenId: row.id,
       trigger: 'manual',
@@ -252,8 +304,13 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
       }),
       req.body,
     );
-    if (!isValidAddress(body.chain, body.address)) throw new HttpError(400, 'invalid_address', `Not a valid ${body.chain} token address.`);
-    const { row } = await app.repos.tokens.upsertDiscovered({ chain: body.chain, address: normalizeAddress(body.chain, body.address), discoveredVia: 'manual' });
+    if (!isValidAddress(body.chain, body.address))
+      throw new HttpError(400, 'invalid_address', `Not a valid ${body.chain} token address.`);
+    const { row } = await app.repos.tokens.upsertDiscovered({
+      chain: body.chain,
+      address: normalizeAddress(body.chain, body.address),
+      discoveredVia: 'manual',
+    });
 
     if (body.side === 'buy') {
       const r = await app.pipeline.analyze({
@@ -271,8 +328,13 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
     const open = body.positionId
       ? (await app.repos.positions.get(body.positionId))?.position
       : await app.repos.positions.openForToken('paper', row.id);
-    if (!open || open.status !== 'open' || open.tokenId !== row.id) throw new HttpError(404, 'no_open_position', 'No open paper position for this token.');
-    const res = await app.tradeService.closePosition({ positionId: open.id, reason: 'manual', detail: 'Manual paper sell via API.' });
+    if (!open || open.status !== 'open' || open.tokenId !== row.id)
+      throw new HttpError(404, 'no_open_position', 'No open paper position for this token.');
+    const res = await app.tradeService.closePosition({
+      positionId: open.id,
+      reason: 'manual',
+      detail: 'Manual paper sell via API.',
+    });
     const decision: Decision = {
       id: null,
       chain: body.chain,
@@ -285,7 +347,15 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
       reasons: ['Manual paper sell requested via API.', ...(res?.trade?.error ? [res.trade.error] : [])],
       factors: {},
       stages: [
-        { stage: 'EXECUTION', status: res?.position ? 'pass' : 'error', summary: res?.position ? 'Paper sell filled.' : `Sell failed: ${res?.trade?.error ?? 'position busy'}`, metrics: { tradeId: res?.trade?.id ?? null }, durationMs: 0 },
+        {
+          stage: 'EXECUTION',
+          status: res?.position ? 'pass' : 'error',
+          summary: res?.position
+            ? 'Paper sell filled.'
+            : `Sell failed: ${res?.trade?.error ?? 'position busy'}`,
+          metrics: { tradeId: res?.trade?.id ?? null },
+          durationMs: 0,
+        },
       ],
       riskChecks: [],
       sizing: null,
@@ -297,20 +367,36 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
       createdAt: new Date().toISOString(),
     };
     decision.id = await app.repos.decisions.insert(row.id, decision);
-    return { accepted: decision.executed, decision, trade: res?.trade ?? null, position: res?.position ?? null };
+    return {
+      accepted: decision.executed,
+      decision,
+      trade: res?.trade ?? null,
+      position: res?.position ?? null,
+    };
   });
 
   server.post('/positions/:id/close', admin, async (req) => {
     const { id } = parse(z.object({ id: z.coerce.number().int().positive() }), req.params);
     const found = await app.repos.positions.get(id);
-    if (!found || found.position.status !== 'open') throw new HttpError(404, 'no_open_position', 'Position not found or already closed.');
-    const res = await app.tradeService.closePosition({ positionId: id, reason: 'manual', detail: 'Manual close via API.' });
-    return { closed: Boolean(res?.position), trade: res?.trade ?? null, position: res?.position ?? toPosition(found.position, found.token) };
+    if (!found || found.position.status !== 'open')
+      throw new HttpError(404, 'no_open_position', 'Position not found or already closed.');
+    const res = await app.tradeService.closePosition({
+      positionId: id,
+      reason: 'manual',
+      detail: 'Manual close via API.',
+    });
+    return {
+      closed: Boolean(res?.position),
+      trade: res?.trade ?? null,
+      position: res?.position ?? toPosition(found.position, found.token),
+    };
   });
 
   server.post('/strategy', admin, async (req) => {
     const updated = await app.strategyStore.update(req.body);
-    await app.repos.events.log('info', 'config', `strategy updated to version ${updated.version}`, { body: req.body as Record<string, unknown> });
+    await app.repos.events.log('info', 'config', `strategy updated to version ${updated.version}`, {
+      body: req.body as Record<string, unknown>,
+    });
     return updated;
   });
 
@@ -320,7 +406,10 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
   });
   server.post('/engine/stop', admin, async () => {
     await app.engine.stop();
-    return { engineRunning: false, note: 'Discovery and new entries stopped; open positions remain protected by the monitor.' };
+    return {
+      engineRunning: false,
+      note: 'Discovery and new entries stopped; open positions remain protected by the monitor.',
+    };
   });
   server.post('/risk/resume', admin, async () => {
     await app.portfolio.resume();
@@ -331,42 +420,49 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
     const { id } = parse(z.object({ id: z.coerce.number().int().positive() }), req.params);
     return { acknowledged: await app.repos.alerts.acknowledge(id) };
   });
-  server.post('/alerts/ack-all', admin, async () => ({ acknowledged: await app.repos.alerts.acknowledgeAll() }));
+  server.post('/alerts/ack-all', admin, async () => ({
+    acknowledged: await app.repos.alerts.acknowledgeAll(),
+  }));
 
-  server.post('/backtest', { ...admin, config: { rateLimit: { max: 6, timeWindow: '1 minute' } } }, async (req) => {
-    const body = parse(
-      z.object({
-        source: z.enum(['synthetic', 'database']).default('synthetic'),
-        tokens: z.number().int().min(1).max(1000).default(150),
-        seed: z.union([z.string(), z.number()]).default(42),
-        startingBalanceUsd: z.number().positive().max(1e9).optional(),
-        assumeCleanSecurity: z.boolean().default(false),
-        failureRate: z.number().min(0).max(1).optional(),
-        evaluateEveryMinutes: z.number().min(1).max(1440).default(5),
-      }),
-      req.body ?? {},
-    );
-    const cfg = app.strategyStore.get();
-    const dataset =
-      body.source === 'synthetic'
-        ? generateSyntheticDataset({ tokens: body.tokens, seed: body.seed })
-        : await loadDatasetFromDatabase(app.repos, { limit: body.tokens, minPoints: 10 });
-    if (dataset.tokens.length === 0) throw new HttpError(400, 'no_data', 'No tokens with enough recorded history to backtest.');
-    const result = runBacktest(dataset, {
-      startingBalanceUsd: body.startingBalanceUsd ?? config.paper.startingBalanceUsd,
-      limits: cfg.limits,
-      strategy: cfg.strategy,
-      dexFeePct: config.paper.dexFeePercent,
-      failureRate: body.failureRate ?? config.paper.failureRate,
-      seed: body.seed,
-      catastrophicLossPct: config.trading.catastrophicLossPercent,
-      evaluateEveryMinutes: body.evaluateEveryMinutes,
-      exitMaxSlippagePct: config.trading.exitMaxSlippagePercent,
-      assumeCleanSecurity: body.assumeCleanSecurity,
-    });
-    result.id = await app.repos.backtests.insert(result);
-    return result;
-  });
+  server.post(
+    '/backtest',
+    { ...admin, config: { rateLimit: { max: 6, timeWindow: '1 minute' } } },
+    async (req) => {
+      const body = parse(
+        z.object({
+          source: z.enum(['synthetic', 'database']).default('synthetic'),
+          tokens: z.number().int().min(1).max(1000).default(150),
+          seed: z.union([z.string(), z.number()]).default(42),
+          startingBalanceUsd: z.number().positive().max(1e9).optional(),
+          assumeCleanSecurity: z.boolean().default(false),
+          failureRate: z.number().min(0).max(1).optional(),
+          evaluateEveryMinutes: z.number().min(1).max(1440).default(5),
+        }),
+        req.body ?? {},
+      );
+      const cfg = app.strategyStore.get();
+      const dataset =
+        body.source === 'synthetic'
+          ? generateSyntheticDataset({ tokens: body.tokens, seed: body.seed })
+          : await loadDatasetFromDatabase(app.repos, { limit: body.tokens, minPoints: 10 });
+      if (dataset.tokens.length === 0)
+        throw new HttpError(400, 'no_data', 'No tokens with enough recorded history to backtest.');
+      const result = runBacktest(dataset, {
+        startingBalanceUsd: body.startingBalanceUsd ?? config.paper.startingBalanceUsd,
+        limits: cfg.limits,
+        strategy: cfg.strategy,
+        dexFeePct: config.paper.dexFeePercent,
+        failureRate: body.failureRate ?? config.paper.failureRate,
+        seed: body.seed,
+        catastrophicLossPct: config.trading.catastrophicLossPercent,
+        evaluateEveryMinutes: body.evaluateEveryMinutes,
+        exitMaxSlippagePct: config.trading.exitMaxSlippagePercent,
+        assumeCleanSecurity: body.assumeCleanSecurity,
+      });
+      result.id = await app.repos.backtests.insert(result);
+      return result;
+    },
+  );
 
   return server;
 }

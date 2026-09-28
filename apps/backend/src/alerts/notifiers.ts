@@ -7,7 +7,11 @@ export interface Notifier {
 }
 
 const SEVERITY_ICON: Record<AlertSeverity, string> = { info: 'ℹ️', warning: '⚠️', critical: '🚨' };
-const SEVERITY_COLOR: Record<AlertSeverity, number> = { info: 0x3b82f6, warning: 0xf59e0b, critical: 0xef4444 };
+const SEVERITY_COLOR: Record<AlertSeverity, number> = {
+  info: 0x3b82f6,
+  warning: 0xf59e0b,
+  critical: 0xef4444,
+};
 
 export const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -18,8 +22,10 @@ export function formatTelegram(alert: Alert, dashboardUrl: string | null): strin
     `${SEVERITY_ICON[alert.severity]} <b>${escapeHtml(alert.title)}</b>${token}`,
     escapeHtml(alert.message).slice(0, 3000),
   ];
-  if (alert.chain && alert.address) lines.push(`<code>${escapeHtml(alert.chain)}:${escapeHtml(alert.address)}</code>`);
-  if (dashboardUrl && alert.address) lines.push(`${escapeHtml(dashboardUrl)}/tokens/${encodeURIComponent(alert.address)}`);
+  if (alert.chain && alert.address)
+    lines.push(`<code>${escapeHtml(alert.chain)}:${escapeHtml(alert.address)}</code>`);
+  if (dashboardUrl && alert.address)
+    lines.push(`${escapeHtml(dashboardUrl)}/tokens/${encodeURIComponent(alert.address)}`);
   lines.push(`<i>${alert.type} · ${alert.createdAt}</i>`);
   return lines.join('\n');
 }
@@ -57,7 +63,11 @@ export function formatDiscord(alert: Alert): Record<string, unknown> {
     username: 'MemeGuard',
     embeds: [
       {
-        title: `${SEVERITY_ICON[alert.severity]} ${alert.title}${alert.symbol ? ` — ${alert.symbol}` : ''}`.slice(0, 256),
+        title:
+          `${SEVERITY_ICON[alert.severity]} ${alert.title}${alert.symbol ? ` — ${alert.symbol}` : ''}`.slice(
+            0,
+            256,
+          ),
         description: alert.message.slice(0, 4000),
         color: SEVERITY_COLOR[alert.severity],
         fields,

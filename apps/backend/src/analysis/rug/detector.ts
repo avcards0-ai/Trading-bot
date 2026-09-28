@@ -21,7 +21,15 @@ import {
 
 export const RUG_MODEL_VERSION = 'rug-model-1.0.0';
 
-export const CATEGORIES: RiskCategory[] = ['honeypot', 'liquidity', 'contract', 'concentration', 'developer', 'market', 'data'];
+export const CATEGORIES: RiskCategory[] = [
+  'honeypot',
+  'liquidity',
+  'contract',
+  'concentration',
+  'developer',
+  'market',
+  'data',
+];
 
 /**
  * How strongly a maxed-out category implies a rug. Honeypot/liquidity problems are near-certain
@@ -70,7 +78,11 @@ export function combineCategories(scores: Record<RiskCategory, number>, p = 3): 
 
 const round = (v: number) => Math.round(v * 10) / 10;
 
-function assessCategory(category: RiskCategory, factors: RiskFactor[], emptyNote: string): CategoryAssessment {
+function assessCategory(
+  category: RiskCategory,
+  factors: RiskFactor[],
+  emptyNote: string,
+): CategoryAssessment {
   const own = factors.filter((f) => f.category === category);
   let score = combineNoisyOr(own.map((f) => f.points));
   const critical = own.some((f) => f.critical);
@@ -115,7 +127,10 @@ export interface RugDetectorOptions {
 export class RugDetector {
   constructor(private readonly opts: RugDetectorOptions = { freshWalletAgeHours: 72 }) {}
 
-  analyze(snapshot: TokenSnapshot, context: Partial<RiskContext> & { llmReview?: LlmReview | null } = {}): RiskReport {
+  analyze(
+    snapshot: TokenSnapshot,
+    context: Partial<RiskContext> & { llmReview?: LlmReview | null } = {},
+  ): RiskReport {
     const ctx: RiskContext = {
       now: context.now ?? new Date(),
       previous: context.previous ?? null,
@@ -153,7 +168,10 @@ export class RugDetector {
     const categories = Object.fromEntries(
       CATEGORIES.map((c) => [c, assessCategory(c, factors, notes[c])]),
     ) as Record<RiskCategory, CategoryAssessment>;
-    const scores = Object.fromEntries(CATEGORIES.map((c) => [c, categories[c].score])) as Record<RiskCategory, number>;
+    const scores = Object.fromEntries(CATEGORIES.map((c) => [c, categories[c].score])) as Record<
+      RiskCategory,
+      number
+    >;
 
     const criticalFactors = factors.filter((f) => f.critical);
     let rugScore = combineCategories(scores);
@@ -169,12 +187,20 @@ export class RugDetector {
     );
     const overallRisk = maxLevel(levelFromScore(rugScore), core);
     const isLikelyScam =
-      criticalFactors.length > 0 || rugScore >= 75 || categories.honeypot.level === 'CRITICAL' || s.reportedRugged === true;
+      criticalFactors.length > 0 ||
+      rugScore >= 75 ||
+      categories.honeypot.level === 'CRITICAL' ||
+      s.reportedRugged === true;
 
     const missingData = KEY_DATA.filter((k) => {
       if (k === 'honeypot') return !(s.honeypot?.simulated && s.honeypot.isHoneypot !== null);
       if (k === 'liquidity') {
-        return !s.liquidity || (!s.liquidity.programControlled && s.liquidity.lpLockedPercent === null && s.liquidity.lpBurnedPercent === null);
+        return (
+          !s.liquidity ||
+          (!s.liquidity.programControlled &&
+            s.liquidity.lpLockedPercent === null &&
+            s.liquidity.lpBurnedPercent === null)
+        );
       }
       if (k === 'deployer') return !s.deployer?.address;
       return s[k] === null;
@@ -187,21 +213,29 @@ export class RugDetector {
     const drivers = ranked.filter((r) => r.weighted >= 10).slice(0, 3);
     const rugExplanation =
       `RUG_SCORE ${rugScore}/100 = weighted cube-root-of-cubes of category scores (worst categories dominate): ` +
-      CATEGORIES.map((c) => `${CATEGORY_NAMES[c]} ${Math.round(scores[c])}×${CATEGORY_WEIGHTS[c]}`).join(', ') +
+      CATEGORIES.map((c) => `${CATEGORY_NAMES[c]} ${Math.round(scores[c])}×${CATEGORY_WEIGHTS[c]}`).join(
+        ', ',
+      ) +
       '.' +
       (criticalFactors.length > 0
         ? ` Floor of 90 applied because of critical findings: ${criticalFactors.map((f) => f.label).join(', ')}.`
         : '') +
-      (drivers.length > 0 ? ` Main drivers: ${drivers.map((d) => CATEGORY_NAMES[d.c]).join(', ')}.` : ' No significant drivers.');
+      (drivers.length > 0
+        ? ` Main drivers: ${drivers.map((d) => CATEGORY_NAMES[d.c]).join(', ')}.`
+        : ' No significant drivers.');
 
-    const worstCore = (['honeypot', 'liquidity', 'contract', 'concentration', 'developer'] as RiskCategory[]).sort(
+    const worstCore = (
+      ['honeypot', 'liquidity', 'contract', 'concentration', 'developer'] as RiskCategory[]
+    ).sort(
       (a, b) => levelRank(categories[b].level) - levelRank(categories[a].level) || scores[b] - scores[a],
     )[0] as RiskCategory;
     const topFactors = [...factors].sort((a, b) => b.points - a.points).slice(0, 3);
     const overallExplanation =
       `OVERALL ${overallRisk}: the higher of the rug-score level (${levelFromScore(rugScore)}) and the worst core category ` +
       `(${CATEGORY_NAMES[worstCore]} ${categories[worstCore].level}).` +
-      (topFactors.length > 0 ? ` Top factors: ${topFactors.map((f) => `${f.label} (+${Math.round(f.points)})`).join('; ')}.` : '') +
+      (topFactors.length > 0
+        ? ` Top factors: ${topFactors.map((f) => `${f.label} (+${Math.round(f.points)})`).join('; ')}.`
+        : '') +
       (isLikelyScam ? ' Classified as a LIKELY SCAM / RUG — never trade.' : '') +
       (missingData.length > 0 ? ` Missing data (treated as risk): ${missingData.join(', ')}.` : '');
 

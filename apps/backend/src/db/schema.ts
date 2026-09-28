@@ -85,8 +85,14 @@ export const wallets = pgTable(
     /** True when the wallet has more history than we paged through (age is a lower bound). */
     ageIsLowerBound: boolean('age_is_lower_bound').notNull().default(false),
     fundedBy: text('funded_by'),
-    riskFlags: jsonb('risk_flags').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    riskFlags: jsonb('risk_flags')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    metadata: jsonb('metadata')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     firstSeenAt: ts('first_seen_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -261,10 +267,7 @@ export const positions = pgTable(
     closedAt: ts('closed_at'),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
-  (t) => [
-    index('positions_status_idx').on(t.mode, t.status),
-    index('positions_token_idx').on(t.tokenId),
-  ],
+  (t) => [index('positions_status_idx').on(t.mode, t.status), index('positions_token_idx').on(t.tokenId)],
 );
 
 export const trades = pgTable(
@@ -303,10 +306,16 @@ export const alerts = pgTable(
     severity: text('severity').notNull(),
     title: text('title').notNull(),
     message: text('message').notNull(),
-    data: jsonb('data').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    data: jsonb('data')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     dedupeKey: text('dedupe_key'),
     acknowledged: boolean('acknowledged').notNull().default(false),
-    deliveredTo: jsonb('delivered_to').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    deliveredTo: jsonb('delivered_to')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (t) => [
@@ -373,7 +382,10 @@ export const eventLog = pgTable(
     category: text('category').notNull(),
     message: text('message').notNull(),
     tokenId: integer('token_id').references(() => tokens.id, { onDelete: 'set null' }),
-    data: jsonb('data').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    data: jsonb('data')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (t) => [index('event_log_created_idx').on(t.createdAt), index('event_log_category_idx').on(t.category)],

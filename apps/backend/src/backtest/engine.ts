@@ -16,7 +16,13 @@ import { RiskManager } from '../risk/riskManager';
 import { computePositionSize } from '../strategy/sizing';
 import { evaluateEntry, evaluateExit } from '../strategy/strategy';
 import { computeMetrics, maxDrawdown, type EquityPoint } from './metrics';
-import type { BacktestConfig, BacktestDataset, HistoricalBar, HistoricalToken, SecuritySnapshot } from './types';
+import type {
+  BacktestConfig,
+  BacktestDataset,
+  HistoricalBar,
+  HistoricalToken,
+  SecuritySnapshot,
+} from './types';
 
 const MIN = 60_000;
 
@@ -170,7 +176,9 @@ export function runBacktest(dataset: BacktestDataset, config: BacktestConfig): B
   const warnings: string[] = [];
 
   if (dataset.synthetic) {
-    warnings.push('SYNTHETIC DATA: results demonstrate engine behaviour only and are NOT evidence of real-world profitability.');
+    warnings.push(
+      'SYNTHETIC DATA: results demonstrate engine behaviour only and are NOT evidence of real-world profitability.',
+    );
   }
   const noSecurity = dataset.tokens.filter((t) => !t.security && !t.riskTimeline?.length).length;
   if (noSecurity > 0) {
@@ -180,10 +188,16 @@ export function runBacktest(dataset: BacktestDataset, config: BacktestConfig): B
         : `${noSecurity} token(s) have no security data; they are treated as unverifiable (fail-closed) and will not be traded.`,
     );
   }
-  if (dataset.tokens.some((t) => t.bars.some((b) => b.liquidityUsd === undefined || b.liquidityUsd === null))) {
-    warnings.push('Some bars lack liquidity; the last known liquidity is carried forward (liquidity pulls between observations are missed).');
+  if (
+    dataset.tokens.some((t) => t.bars.some((b) => b.liquidityUsd === undefined || b.liquidityUsd === null))
+  ) {
+    warnings.push(
+      'Some bars lack liquidity; the last known liquidity is carried forward (liquidity pulls between observations are missed).',
+    );
   }
-  warnings.push('Exits are assumed to fill even when price impact exceeds EXIT_MAX_SLIPPAGE; in reality a collapsing pool may not be exitable at all.');
+  warnings.push(
+    'Exits are assumed to fill even when price impact exceeds EXIT_MAX_SLIPPAGE; in reality a collapsing pool may not be exitable at all.',
+  );
 
   const states: TokState[] = dataset.tokens.map((tok) => {
     const bars = [...tok.bars].sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
@@ -252,12 +266,23 @@ export function runBacktest(dataset: BacktestDataset, config: BacktestConfig): B
     return detector.analyze(snapshot, { now: new Date(t) });
   };
 
-  const closePos = (k: number, price: number, liq: number | null, reason: string, ts: string, stopGap: boolean) => {
+  const closePos = (
+    k: number,
+    price: number,
+    liq: number | null,
+    reason: string,
+    ts: string,
+    stopGap: boolean,
+  ) => {
     const p = positions.get(k) as Pos;
     const tok = dataset.tokens[k] as HistoricalToken;
     const st = states[k] as TokState;
     const fee = NETWORK_FEE_USD[tok.chain];
-    const sellTax = Math.max(0, securityFor(tok)?.contract?.sellTaxPct ?? 0, securityFor(tok)?.honeypot?.sellTaxPct ?? 0);
+    const sellTax = Math.max(
+      0,
+      securityFor(tok)?.contract?.sellTaxPct ?? 0,
+      securityFor(tok)?.honeypot?.sellTaxPct ?? 0,
+    );
     let proceeds: number;
     if (st.scamTruth === 'honeypot') {
       proceeds = 0; // sells are impossible
@@ -269,7 +294,8 @@ export function runBacktest(dataset: BacktestDataset, config: BacktestConfig): B
     cash += proceeds;
     const pnl = proceeds - p.cost;
     const pnlPct = (pnl / p.cost) * 100;
-    const catastrophic = pnlPct <= -config.catastrophicLossPct || p.rugDuringHold || stopGap || st.scamTruth === 'honeypot';
+    const catastrophic =
+      pnlPct <= -config.catastrophicLossPct || p.rugDuringHold || stopGap || st.scamTruth === 'honeypot';
     trades.push({
       address: tok.address,
       symbol: tok.symbol,
@@ -286,7 +312,12 @@ export function runBacktest(dataset: BacktestDataset, config: BacktestConfig): B
       rugEventDuringHold: p.rugDuringHold || st.scamTruth === 'honeypot',
     });
     if (catastrophic) {
-      const kind: CatastrophicEvent['kind'] = p.rugDuringHold || st.scamTruth ? 'rug_while_holding' : stopGap ? 'stop_gap_through' : 'catastrophic_trade_loss';
+      const kind: CatastrophicEvent['kind'] =
+        p.rugDuringHold || st.scamTruth
+          ? 'rug_while_holding'
+          : stopGap
+            ? 'stop_gap_through'
+            : 'catastrophic_trade_loss';
       events.push({
         address: tok.address,
         symbol: tok.symbol,
@@ -334,7 +365,9 @@ export function runBacktest(dataset: BacktestDataset, config: BacktestConfig): B
 
       const pos = positions.get(k);
       if (pos) {
-        const rugNow = st.eventTimes.some((e) => (e.type === 'rug' || e.type === 'liquidity_removed') && e.t > prevT && e.t <= t);
+        const rugNow = st.eventTimes.some(
+          (e) => (e.type === 'rug' || e.type === 'liquidity_removed') && e.t > prevT && e.t <= t,
+        );
         if (rugNow) {
           pos.rugDuringHold = true;
           closePos(k, bar.low, liq, 'rug_event', ts, false);
@@ -409,7 +442,11 @@ export function runBacktest(dataset: BacktestDataset, config: BacktestConfig): B
       };
       const report = reportAt(tok, snapshot, t);
       if (!report) continue;
-      if (report.isLikelyScam || report.overallRisk === 'CRITICAL' || report.rugScore > config.limits.maxRugScore) {
+      if (
+        report.isLikelyScam ||
+        report.overallRisk === 'CRITICAL' ||
+        report.rugScore > config.limits.maxRugScore
+      ) {
         // Security data is static per token, so a rug rejection is final.
         if (!tok.riskTimeline?.length) st.rejectedForRug = true;
         st.skippedRug = true;
@@ -436,7 +473,14 @@ export function runBacktest(dataset: BacktestDataset, config: BacktestConfig): B
         mode: 'paper',
         tradingEnabled: true,
         liveExecutionSupported: true,
-        account: { equityUsd: eq, cashUsd: cash, peakEquityUsd: Math.max(peak, eq), dayStartEquityUsd: dayStart, halted: false, haltReason: null },
+        account: {
+          equityUsd: eq,
+          cashUsd: cash,
+          peakEquityUsd: Math.max(peak, eq),
+          dayStartEquityUsd: dayStart,
+          halted: false,
+          haltReason: null,
+        },
         openPositions: positions.size,
         hasOpenPositionForToken: false,
         snapshot,
@@ -509,7 +553,9 @@ export function runBacktest(dataset: BacktestDataset, config: BacktestConfig): B
   if (curve.length > 0) curve.push({ ts: (curve[curve.length - 1] as EquityPoint).ts, equityUsd: cash });
 
   const skippedRug = states.filter((s) => s.skippedRug).length;
-  const scams = dataset.tokens.map((t, k) => ({ t, s: states[k] as TokState })).filter((x) => x.t.outcome?.rugged || x.s.scamTruth);
+  const scams = dataset.tokens
+    .map((t, k) => ({ t, s: states[k] as TokState }))
+    .filter((x) => x.t.outcome?.rugged || x.s.scamTruth);
   const metrics = computeMetrics({
     startingBalanceUsd: config.startingBalanceUsd,
     endingBalanceUsd: cash,
@@ -526,14 +572,21 @@ export function runBacktest(dataset: BacktestDataset, config: BacktestConfig): B
     warnings.push(`Only ${metrics.numberOfTrades} trades: too few for statistically meaningful conclusions.`);
   }
   if (metrics.catastrophicLosses > 0) {
-    warnings.push(`${metrics.catastrophicLosses} CATASTROPHIC trade(s) occurred — see catastrophicEvents. Do not judge this strategy by total return alone.`);
+    warnings.push(
+      `${metrics.catastrophicLosses} CATASTROPHIC trade(s) occurred — see catastrophicEvents. Do not judge this strategy by total return alone.`,
+    );
   }
-  if (drawdownBreached) warnings.push('The MAX_DRAWDOWN limit was breached during the run; live trading would have halted.');
+  if (drawdownBreached)
+    warnings.push('The MAX_DRAWDOWN limit was breached during the run; live trading would have halted.');
 
   const dd = maxDrawdown(curve);
   const stride = Math.max(1, Math.ceil(curve.length / 1500));
   const sampled = curve
-    .map((p, j) => ({ ts: p.ts, equityUsd: Math.round(p.equityUsd * 100) / 100, drawdownPct: Math.round((dd.series[j] ?? 0) * 100) / 100 }))
+    .map((p, j) => ({
+      ts: p.ts,
+      equityUsd: Math.round(p.equityUsd * 100) / 100,
+      drawdownPct: Math.round((dd.series[j] ?? 0) * 100) / 100,
+    }))
     .filter((_, j) => j % stride === 0 || j === curve.length - 1);
 
   return {

@@ -52,7 +52,9 @@ const tokenTxSchema = z
   })
   .passthrough();
 
-export class EtherscanAdapter implements SecuritySource, WalletProfiler, DeveloperActivitySource, DeployerHistorySource {
+export class EtherscanAdapter
+  implements SecuritySource, WalletProfiler, DeveloperActivitySource, DeployerHistorySource
+{
   readonly name = 'etherscan';
 
   constructor(
@@ -73,7 +75,8 @@ export class EtherscanAdapter implements SecuritySource, WalletProfiler, Develop
     });
     if (res.status === '1') return res.result;
     const text = typeof res.result === 'string' ? res.result : res.message;
-    if (/no (transactions|records) found/i.test(res.message) || /no (transactions|records) found/i.test(text)) return [];
+    if (/no (transactions|records) found/i.test(res.message) || /no (transactions|records) found/i.test(text))
+      return [];
     if (/rate limit/i.test(text)) throw new ProviderError(this.name, text, 429, true);
     throw new ProviderResponseError(this.name, text);
   }
@@ -81,12 +84,22 @@ export class EtherscanAdapter implements SecuritySource, WalletProfiler, Develop
   async inspect(ctx: TokenContext): Promise<SnapshotContribution | null> {
     const [source, creation] = await Promise.all([
       this.call(ctx.chain, { module: 'contract', action: 'getsourcecode', address: ctx.address }),
-      this.call(ctx.chain, { module: 'contract', action: 'getcontractcreation', contractaddresses: ctx.address }).catch(
-        () => [],
-      ),
+      this.call(ctx.chain, {
+        module: 'contract',
+        action: 'getcontractcreation',
+        contractaddresses: ctx.address,
+      }).catch(() => []),
     ]);
     const src = z
-      .array(z.object({ SourceCode: z.string().nullish(), Proxy: z.string().nullish(), Implementation: z.string().nullish() }).passthrough())
+      .array(
+        z
+          .object({
+            SourceCode: z.string().nullish(),
+            Proxy: z.string().nullish(),
+            Implementation: z.string().nullish(),
+          })
+          .passthrough(),
+      )
       .safeParse(source);
     const created = z.array(z.object({ contractCreator: z.string() }).passthrough()).safeParse(creation);
     const first = src.success ? src.data[0] : undefined;
@@ -137,9 +150,14 @@ export class EtherscanAdapter implements SecuritySource, WalletProfiler, Develop
     return out;
   }
 
-  async history(chain: Chain, deployer: string): Promise<{ tokensCreated: number | null; walletCreatedAt: Date | null }> {
+  async history(
+    chain: Chain,
+    deployer: string,
+  ): Promise<{ tokensCreated: number | null; walletCreatedAt: Date | null }> {
     const txs = await this.firstTransactions(chain, deployer, 1000);
-    const created = txs.filter((t) => (!t.to || t.to === '') && t.contractAddress && t.isError !== '1').length;
+    const created = txs.filter(
+      (t) => (!t.to || t.to === '') && t.contractAddress && t.isError !== '1',
+    ).length;
     return {
       tokensCreated: created,
       walletCreatedAt: txs[0] ? new Date(Number(txs[0].timeStamp) * 1000) : null,
@@ -148,7 +166,12 @@ export class EtherscanAdapter implements SecuritySource, WalletProfiler, Develop
 
   async activity(
     chain: Chain,
-    token: { address: string; totalSupply: number | null; decimals: number | null; pairAddress: string | null },
+    token: {
+      address: string;
+      totalSupply: number | null;
+      decimals: number | null;
+      pairAddress: string | null;
+    },
     devAddress: string,
     lookbackMinutes: number,
   ): Promise<DeveloperActivity> {
@@ -193,8 +216,11 @@ export class EtherscanAdapter implements SecuritySource, WalletProfiler, Develop
       }
     }
     // Transfers into the pair are sells; other outgoing transfers are checked for fresh recipients.
-    const recipients = [...new Set(events.filter((e) => e.kind === 'transfer_out').map((e) => e.counterparty as string))].slice(0, 5);
-    const profiles = recipients.length > 0 ? await this.profile(chain, recipients) : new Map<string, WalletProfile>();
+    const recipients = [
+      ...new Set(events.filter((e) => e.kind === 'transfer_out').map((e) => e.counterparty as string)),
+    ].slice(0, 5);
+    const profiles =
+      recipients.length > 0 ? await this.profile(chain, recipients) : new Map<string, WalletProfile>();
     const cutoff = Date.now() - this.opts.freshWalletAgeHours * 3_600_000;
     const fresh = [...profiles.values()].filter((p) => p.createdAt && p.createdAt.getTime() >= cutoff).length;
     return {

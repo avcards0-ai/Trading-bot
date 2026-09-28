@@ -13,7 +13,15 @@ const CATEGORY_LABEL: Record<RiskCategory, string> = {
   data: 'Data quality',
 };
 
-const ORDER: RiskCategory[] = ['honeypot', 'liquidity', 'contract', 'concentration', 'developer', 'market', 'data'];
+const ORDER: RiskCategory[] = [
+  'honeypot',
+  'liquidity',
+  'contract',
+  'concentration',
+  'developer',
+  'market',
+  'data',
+];
 
 /** Meter: fill carries severity; the track is a lighter step of the same hue. */
 export function RugScoreMeter({ score, limit }: { score: number; limit?: number }) {
@@ -31,10 +39,25 @@ export function RugScoreMeter({ score, limit }: { score: number; limit?: number 
           <s.Icon size={16} className={s.color} aria-hidden /> {s.label}
         </div>
       </div>
-      <div className="relative mt-3 h-3 rounded-full" style={{ background: `${hex}33` }} role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={score} aria-label="Rug score">
-        <div className="h-3 rounded-full" style={{ width: `${Math.min(100, Math.max(0, score))}%`, background: hex }} />
+      <div
+        className="relative mt-3 h-3 rounded-full"
+        style={{ background: `${hex}33` }}
+        role="meter"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={score}
+        aria-label="Rug score"
+      >
+        <div
+          className="h-3 rounded-full"
+          style={{ width: `${Math.min(100, Math.max(0, score))}%`, background: hex }}
+        />
         {limit !== undefined && (
-          <div className="absolute -top-1 h-5 w-0.5 rounded bg-ink" style={{ left: `calc(${limit}% - 1px)` }} title={`MAX_RUG_SCORE ${limit}`} />
+          <div
+            className="absolute -top-1 h-5 w-0.5 rounded bg-ink"
+            style={{ left: `calc(${limit}% - 1px)` }}
+            title={`MAX_RUG_SCORE ${limit}`}
+          />
         )}
       </div>
       <div className="tabular mt-1 flex justify-between text-[10px] text-muted">
@@ -44,7 +67,9 @@ export function RugScoreMeter({ score, limit }: { score: number; limit?: number 
         <span>75</span>
         <span>100</span>
       </div>
-      {limit !== undefined && <div className="mt-1 text-xs text-muted">Trading limit (MAX_RUG_SCORE): {limit}</div>}
+      {limit !== undefined && (
+        <div className="mt-1 text-xs text-muted">Trading limit (MAX_RUG_SCORE): {limit}</div>
+      )}
     </div>
   );
 }
@@ -65,7 +90,10 @@ export function CategoryBars({ report }: { report: RiskReport }) {
               </span>
             </div>
             <div className="h-2 rounded-full bg-surface-3">
-              <div className="h-2 rounded-full" style={{ width: `${Math.max(1, a.score)}%`, background: hex }} />
+              <div
+                className="h-2 rounded-full"
+                style={{ width: `${Math.max(1, a.score)}%`, background: hex }}
+              />
             </div>
           </li>
         );
@@ -81,7 +109,11 @@ function FactorRow({ f }: { f: RiskFactor }) {
         <div className="flex items-center gap-2 text-sm font-medium text-ink">
           <RiskBadge level={f.severity} compact />
           {f.label}
-          {f.critical && <span className="rounded bg-critical/25 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink">critical</span>}
+          {f.critical && (
+            <span className="rounded bg-critical/25 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink">
+              critical
+            </span>
+          )}
         </div>
         <span className="tabular text-xs text-muted">
           +{Math.round(f.points)} pts · {CATEGORY_LABEL[f.category]}
@@ -92,7 +124,8 @@ function FactorRow({ f }: { f: RiskFactor }) {
         Observed: <span className="text-ink-2">{String(f.observed ?? 'n/a')}</span>
         {f.threshold !== null && f.threshold !== undefined && (
           <>
-            {' '}· Threshold: <span className="text-ink-2">{String(f.threshold)}</span>
+            {' '}
+            · Threshold: <span className="text-ink-2">{String(f.threshold)}</span>
           </>
         )}
         {f.sources.length > 0 && <> · Sources: {f.sources.join(', ')}</>}
@@ -103,21 +136,32 @@ function FactorRow({ f }: { f: RiskFactor }) {
 
 export function RiskExplanation({ report }: { report: RiskReport }) {
   const [showAll, setShowAll] = useState(false);
-  const factors = [...report.factors].sort((a, b) => Number(b.critical) - Number(a.critical) || b.points - a.points);
+  const factors = [...report.factors].sort(
+    (a, b) => Number(b.critical) - Number(a.critical) || b.points - a.points,
+  );
   const shown = showAll ? factors : factors.slice(0, 6);
   const outputs: [string, string, string][] = [
     ['RUG_SCORE', String(report.rugScore), report.explanations.rugScore],
     ['HONEYPOT_RISK', report.honeypotRisk, report.explanations.honeypotRisk],
     ['LIQUIDITY_RISK', report.liquidityRisk, report.explanations.liquidityRisk],
     ['CONTRACT_RISK', report.contractRisk, report.explanations.contractRisk],
-    ['WALLET_CONCENTRATION_RISK', report.walletConcentrationRisk, report.explanations.walletConcentrationRisk],
+    [
+      'WALLET_CONCENTRATION_RISK',
+      report.walletConcentrationRisk,
+      report.explanations.walletConcentrationRisk,
+    ],
     ['OVERALL_RISK', report.overallRisk, report.explanations.overallRisk],
   ];
   return (
     <div className="space-y-4">
       {report.isLikelyScam && (
-        <div className="rounded-lg border border-critical/50 bg-critical/15 p-3 text-sm text-ink" role="alert">
-          <strong>Likely scam / rug pull.</strong> {report.criticalFlags.length > 0 ? `Critical findings: ${report.criticalFlags.join(', ')}.` : ''} The engine will never trade this token.
+        <div
+          className="rounded-lg border border-critical/50 bg-critical/15 p-3 text-sm text-ink"
+          role="alert"
+        >
+          <strong>Likely scam / rug pull.</strong>{' '}
+          {report.criticalFlags.length > 0 ? `Critical findings: ${report.criticalFlags.join(', ')}.` : ''}{' '}
+          The engine will never trade this token.
         </div>
       )}
       <dl className="space-y-2">
@@ -125,7 +169,11 @@ export function RiskExplanation({ report }: { report: RiskReport }) {
           <div key={k} className="rounded-lg border border-border p-3">
             <dt className="flex items-center justify-between gap-2 text-xs">
               <span className="font-mono text-muted">{k}</span>
-              {k === 'RUG_SCORE' ? <span className="tabular font-semibold text-ink">{v}/100</span> : <RiskBadge level={v as RiskReport['overallRisk']} />}
+              {k === 'RUG_SCORE' ? (
+                <span className="tabular font-semibold text-ink">{v}/100</span>
+              ) : (
+                <RiskBadge level={v as RiskReport['overallRisk']} />
+              )}
             </dt>
             <dd className="mt-1.5 text-sm text-ink-2">{why}</dd>
           </div>
@@ -143,7 +191,11 @@ export function RiskExplanation({ report }: { report: RiskReport }) {
           </ul>
         )}
         {factors.length > 6 && (
-          <button type="button" onClick={() => setShowAll((v) => !v)} className={clsx('mt-2 text-xs text-series-1 hover:underline')}>
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className={clsx('mt-2 text-xs text-series-1 hover:underline')}
+          >
             {showAll ? 'Show fewer' : `Show all ${factors.length} factors`}
           </button>
         )}
@@ -151,7 +203,8 @@ export function RiskExplanation({ report }: { report: RiskReport }) {
       <div className="text-xs text-muted">
         Model {report.modelVersion} · data completeness {Math.round(report.dataCompleteness * 100)}%
         {report.missingData.length > 0 && ` · missing (treated as risk): ${report.missingData.join(', ')}`}
-        {report.llmReview && ` · LLM review: ${report.llmReview.error ? `unavailable (${report.llmReview.error})` : report.llmReview.escalate ? 'escalated' : 'no escalation'}`}
+        {report.llmReview &&
+          ` · LLM review: ${report.llmReview.error ? `unavailable (${report.llmReview.error})` : report.llmReview.escalate ? 'escalated' : 'no escalation'}`}
       </div>
     </div>
   );

@@ -8,9 +8,17 @@ import { api } from '../lib/api';
 export function PositionsPage() {
   const qc = useQueryClient();
   const [page, setPage] = useState(0);
-  const open = useQuery({ queryKey: ['positions', 'open'], queryFn: () => api.positions('open'), refetchInterval: 15_000 });
+  const open = useQuery({
+    queryKey: ['positions', 'open'],
+    queryFn: () => api.positions('open'),
+    refetchInterval: 15_000,
+  });
   const closed = useQuery({ queryKey: ['positions', 'closed'], queryFn: () => api.positions('closed') });
-  const trades = useQuery({ queryKey: ['trades', page], queryFn: () => api.trades(50, page * 50), placeholderData: keepPreviousData });
+  const trades = useQuery({
+    queryKey: ['trades', page],
+    queryFn: () => api.trades(50, page * 50),
+    placeholderData: keepPreviousData,
+  });
   const [busy, setBusy] = useState<number | null>(null);
   const close = useMutation({
     mutationFn: (p: Position) => api.closePosition(p.id),
@@ -47,14 +55,21 @@ export function PositionsPage() {
       <Card title="Closed positions" padded={false}>
         {closed.isLoading ? <Spinner /> : <PositionsTable items={closed.data?.items ?? []} />}
       </Card>
-      <Card title={trades.data ? `Trade history (${trades.data.total})` : 'Trade history'} subtitle="Every order attempt, including failed and reverted transactions" padded={false}>
+      <Card
+        title={trades.data ? `Trade history (${trades.data.total})` : 'Trade history'}
+        subtitle="Every order attempt, including failed and reverted transactions"
+        padded={false}
+      >
         {trades.isLoading ? <Spinner /> : <TradesTable items={trades.data?.items ?? []} />}
       </Card>
       <div className="flex justify-end gap-2">
         <Button disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
           Previous
         </Button>
-        <Button disabled={!trades.data || (page + 1) * 50 >= trades.data.total} onClick={() => setPage((p) => p + 1)}>
+        <Button
+          disabled={!trades.data || (page + 1) * 50 >= trades.data.total}
+          onClick={() => setPage((p) => p + 1)}
+        >
           Next
         </Button>
       </div>

@@ -170,8 +170,10 @@ export function analysisAlerts(prev: Observation | null, curr: Observation): Ale
   if (pc && cc) {
     const changes: string[] = [];
     if (pc.codeHash && cc.codeHash && pc.codeHash !== cc.codeHash) changes.push('code/authorities hash');
-    if (pc.ownerAddress && pc.ownerAddress !== cc.ownerAddress) changes.push(`owner ${pc.ownerAddress} -> ${cc.ownerAddress ?? 'none'}`);
-    if (pc.proxyImplementation && pc.proxyImplementation !== cc.proxyImplementation) changes.push('proxy implementation');
+    if (pc.ownerAddress && pc.ownerAddress !== cc.ownerAddress)
+      changes.push(`owner ${pc.ownerAddress} -> ${cc.ownerAddress ?? 'none'}`);
+    if (pc.proxyImplementation && pc.proxyImplementation !== cc.proxyImplementation)
+      changes.push('proxy implementation');
     if (!pc.mintAuthority && cc.mintAuthority) changes.push('mint authority enabled');
     if (!pc.freezeAuthority && cc.freezeAuthority) changes.push('freeze authority enabled');
     if (changes.length > 0) {
@@ -191,15 +193,17 @@ export function analysisAlerts(prev: Observation | null, curr: Observation): Ale
   const cr = curr.report ?? null;
   if (pr && cr) {
     const delta = cr.rugScore - pr.rugScore;
-    const levelUp = levelRank(cr.overallRisk) > levelRank(pr.overallRisk) && levelRank(cr.overallRisk) >= levelRank('HIGH');
+    const levelUp =
+      levelRank(cr.overallRisk) > levelRank(pr.overallRisk) && levelRank(cr.overallRisk) >= levelRank('HIGH');
     if (delta >= 15 || levelUp) {
       out.push({
         type: 'RUG_RISK_ESCALATION',
         severity: cr.overallRisk === 'CRITICAL' ? 'critical' : 'warning',
         title: 'Rug risk escalated',
-        message: `Rug score ${pr.rugScore} -> ${cr.rugScore}; overall ${pr.overallRisk} -> ${cr.overallRisk}. ${
-          cr.criticalFlags.length > 0 ? `Critical: ${cr.criticalFlags.join(', ')}.` : ''
-        }`.trim(),
+        message:
+          `Rug score ${pr.rugScore} -> ${cr.rugScore}; overall ${pr.overallRisk} -> ${cr.overallRisk}. ${
+            cr.criticalFlags.length > 0 ? `Critical: ${cr.criticalFlags.join(', ')}.` : ''
+          }`.trim(),
         data: { from: pr.rugScore, to: cr.rugScore, overall: cr.overallRisk },
         key: `${cr.overallRisk}:${Math.round(cr.rugScore / 10)}`,
       });

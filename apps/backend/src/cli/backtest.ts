@@ -56,7 +56,8 @@ function print(r: BacktestResult) {
   row('Catastrophic losses', fmt(m.catastrophicLosses));
   if (r.catastrophicEvents.length > 0) {
     console.log('\nCATASTROPHIC EVENTS:');
-    for (const e of r.catastrophicEvents.slice(0, 25)) console.log(`  ! ${e.ts} ${e.kind.padEnd(24)} ${e.symbol ?? ''} ${e.description}`);
+    for (const e of r.catastrophicEvents.slice(0, 25))
+      console.log(`  ! ${e.ts} ${e.kind.padEnd(24)} ${e.symbol ?? ''} ${e.description}`);
     if (r.catastrophicEvents.length > 25) console.log(`  … ${r.catastrophicEvents.length - 25} more`);
   }
   console.log('\nWARNINGS:');
@@ -91,7 +92,12 @@ async function main() {
     let limits = config.hardLimits;
     let strategy = config.defaultStrategy;
     if (repos) {
-      const eff = await new StrategyStore(repos.strategy, config.trading.mode, config.hardLimits, config.defaultStrategy).load();
+      const eff = await new StrategyStore(
+        repos.strategy,
+        config.trading.mode,
+        config.hardLimits,
+        config.defaultStrategy,
+      ).load();
       limits = eff.limits;
       strategy = eff.strategy;
     }
@@ -100,8 +106,12 @@ async function main() {
       if (!values.file) throw new Error('--file is required with --source file');
       dataset = loadDatasetFromFile(values.file);
     } else if (values.source === 'db') {
-      dataset = await loadDatasetFromDatabase(repos as NonNullable<typeof repos>, { limit: Number(values.tokens), minPoints: 10 });
-      if (dataset.tokens.length === 0) throw new Error('no recorded tokens with enough history; run the engine first');
+      dataset = await loadDatasetFromDatabase(repos as NonNullable<typeof repos>, {
+        limit: Number(values.tokens),
+        minPoints: 10,
+      });
+      if (dataset.tokens.length === 0)
+        throw new Error('no recorded tokens with enough history; run the engine first');
     } else {
       dataset = generateSyntheticDataset({ tokens: Number(values.tokens), seed: values.seed as string });
     }

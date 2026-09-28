@@ -388,5 +388,8 @@ export type ServerEvent =
   | { type: 'trade'; data: Trade }
   | { type: 'position'; data: Position }
   | { type: 'alert'; data: Alert }
-  | { type: 'performance'; data: Pick<PerformanceSummary, 'equityUsd' | 'dailyPnlUsd' | 'drawdownPct' | 'halted'> }
+  | {
+      type: 'performance';
+      data: Pick<PerformanceSummary, 'equityUsd' | 'dailyPnlUsd' | 'drawdownPct' | 'halted'>;
+    }
   | { type: 'status'; data: Pick<SystemStatus, 'engineRunning' | 'halted' | 'haltReason'> };

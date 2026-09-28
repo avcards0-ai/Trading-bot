@@ -49,7 +49,11 @@ export const SOLANA_AMM_AUTHORITIES = new Set([
 export const isBurnAddress = (chain: Chain, address: string): boolean =>
   chain === 'solana' ? SOLANA_BURN_ADDRESSES.has(address) : EVM_BURN_ADDRESSES.has(address.toLowerCase());
 
-export const sameAddress = (chain: Chain, a: string | null | undefined, b: string | null | undefined): boolean => {
+export const sameAddress = (
+  chain: Chain,
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean => {
   if (!a || !b) return false;
   return chain === 'solana' ? a === b : a.toLowerCase() === b.toLowerCase();
 };

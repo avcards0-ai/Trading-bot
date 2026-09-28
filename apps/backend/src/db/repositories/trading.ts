@@ -20,7 +20,11 @@ export type AccountRow = typeof accounts.$inferSelect;
 type TokenRef = { id?: number; chain: string; address: string; symbol: string | null };
 type TokenRefRow = { id: number; chain: string; address: string; symbol: string | null };
 
-export function toPosition(row: PositionRow, token: TokenRef, currentPriceUsd: number | null = null): Position {
+export function toPosition(
+  row: PositionRow,
+  token: TokenRef,
+  currentPriceUsd: number | null = null,
+): Position {
   const price = currentPriceUsd ?? row.lastPriceUsd;
   const unrealized = row.status === 'open' && price !== null ? row.quantity * price - row.costBasisUsd : null;
   return {
@@ -40,7 +44,8 @@ export function toPosition(row: PositionRow, token: TokenRef, currentPriceUsd: n
     trailingStopPercent: row.trailingStopPercent,
     highestPriceUsd: row.highestPriceUsd,
     unrealizedPnlUsd: unrealized,
-    unrealizedPnlPct: unrealized !== null && row.costBasisUsd > 0 ? (unrealized / row.costBasisUsd) * 100 : null,
+    unrealizedPnlPct:
+      unrealized !== null && row.costBasisUsd > 0 ? (unrealized / row.costBasisUsd) * 100 : null,
     realizedPnlUsd: row.realizedPnlUsd,
     exitPriceUsd: row.exitPriceUsd,
     closeReason: row.closeReason as CloseReason | null,
@@ -104,7 +109,10 @@ export class PositionsRepository {
       .orderBy(desc(positions.openedAt));
   }
 
-  async listRecentClosed(mode: TradingMode, limit: number): Promise<{ position: PositionRow; token: TokenRefRow }[]> {
+  async listRecentClosed(
+    mode: TradingMode,
+    limit: number,
+  ): Promise<{ position: PositionRow; token: TokenRefRow }[]> {
     return this.db
       .select({ position: positions, token: tokenRefCols })
       .from(positions)
@@ -189,7 +197,10 @@ export class PositionsRepository {
   }
 
   /** Realized P/L per UTC day (by close time). */
-  async dailyRealized(mode: TradingMode, days: number): Promise<{ day: string; pnlUsd: number; trades: number }[]> {
+  async dailyRealized(
+    mode: TradingMode,
+    days: number,
+  ): Promise<{ day: string; pnlUsd: number; trades: number }[]> {
     const since = new Date(Date.now() - days * 86_400_000);
     const rows = await this.db
       .select({

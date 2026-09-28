@@ -31,7 +31,8 @@ export interface SizingInput {
  */
 export function computePositionSize(i: SizingInput): PositionSizing {
   const byMaxPositionPercent = (i.equityUsd * i.limits.maxPositionPercent) / 100;
-  const roundTripCostPct = 2 * i.dexFeePct + 2 * estimateBuyImpactPct(byMaxPositionPercent, i.liquidityUsd, i.dexFeePct);
+  const roundTripCostPct =
+    2 * i.dexFeePct + 2 * estimateBuyImpactPct(byMaxPositionPercent, i.liquidityUsd, i.dexFeePct);
   const riskBudget = (i.equityUsd * i.params.riskPerTradePercent) / 100;
   const byRiskPerTrade = riskBudget / Math.max(0.005, (i.params.stopLossPercent + roundTripCostPct) / 100);
   const byLiquidityShare = (i.liquidityUsd * i.limits.maxLiquiditySharePercent) / 100;
@@ -48,7 +49,8 @@ export function computePositionSize(i: SizingInput): PositionSizing {
     ['LIQUIDITY_SHARE', byLiquidityShare],
     ['AVAILABLE_CASH', byAvailableCash],
   ];
-  if (i.absoluteCapUsd !== null && i.absoluteCapUsd !== undefined) caps.push(['ABSOLUTE_CAP', i.absoluteCapUsd]);
+  if (i.absoluteCapUsd !== null && i.absoluteCapUsd !== undefined)
+    caps.push(['ABSOLUTE_CAP', i.absoluteCapUsd]);
   let [limitingFactor, size] = caps.reduce((a, b) => (b[1] < a[1] ? b : a));
   size *= confidenceMultiplier;
   if (i.requestedUsd !== null && i.requestedUsd !== undefined && i.requestedUsd < size) {

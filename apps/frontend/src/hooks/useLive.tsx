@@ -53,7 +53,11 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       if (e.type === 'token.analyzed') {
         setAnalyzed((list) => [e.data.token, ...list.filter((t) => t.id !== e.data.token.id)].slice(0, 60));
       }
-      if (e.type === 'alert' && (e.data.severity === 'critical' || ['POSITION_OPENED', 'POSITION_CLOSED', 'STOP_LOSS', 'TAKE_PROFIT'].includes(e.data.type))) {
+      if (
+        e.type === 'alert' &&
+        (e.data.severity === 'critical' ||
+          ['POSITION_OPENED', 'POSITION_CLOSED', 'STOP_LOSS', 'TAKE_PROFIT'].includes(e.data.type))
+      ) {
         setToasts((t) => [e.data, ...t].slice(0, 4));
         window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== e.data.id)), 12_000);
       }
@@ -66,7 +70,13 @@ export function LiveProvider({ children }: { children: ReactNode }) {
 
   return (
     <LiveContext.Provider
-      value={{ connection, decisions, analyzed, toasts, dismissToast: (id) => setToasts((t) => t.filter((x) => x.id !== id)) }}
+      value={{
+        connection,
+        decisions,
+        analyzed,
+        toasts,
+        dismissToast: (id) => setToasts((t) => t.filter((x) => x.id !== id)),
+      }}
     >
       {children}
     </LiveContext.Provider>

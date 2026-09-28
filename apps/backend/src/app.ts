@@ -63,7 +63,12 @@ function dbWalletCache(repos: Repositories): WalletCache {
       const out = new Map<string, WalletProfile>();
       for (const [addr, row] of rows) {
         if (row.metadata?.profiled !== true) continue;
-        out.set(addr, { address: addr, createdAt: row.walletCreatedAt, ageIsLowerBound: row.ageIsLowerBound, fundedBy: row.fundedBy });
+        out.set(addr, {
+          address: addr,
+          createdAt: row.walletCreatedAt,
+          ageIsLowerBound: row.ageIsLowerBound,
+          fundedBy: row.fundedBy,
+        });
       }
       return out;
     },
@@ -84,7 +89,9 @@ function dbWalletCache(repos: Repositories): WalletCache {
 
 export async function createApp(config: AppConfig, o: AppOverrides = {}): Promise<App> {
   const redactor = new SecretRedactor(collectSecrets(config));
-  const logger = o.logger ?? createLogger({ level: config.log.level, file: config.log.file, pretty: config.log.pretty, redactor });
+  const logger =
+    o.logger ??
+    createLogger({ level: config.log.level, file: config.log.file, pretty: config.log.pretty, redactor });
   logger.info({ config: safeConfigView(config) }, 'starting MemeGuard');
 
   const db = o.db ?? (await createDatabase(config.database.url, logger));
@@ -94,11 +101,15 @@ export async function createApp(config: AppConfig, o: AppOverrides = {}): Promis
   }
   const repos = createRepositories(db.db);
   const providers =
-    o.providers ?? createProviders({ config, logger, registerSecret: (s) => redactor.add(s), fetchImpl: o.fetchImpl });
+    o.providers ??
+    createProviders({ config, logger, registerSecret: (s) => redactor.add(s), fetchImpl: o.fetchImpl });
   const bus = new EventBus();
 
   const notifierConfig = [
-    { name: 'telegram', configured: config.alerts.telegramBotToken !== null && config.alerts.telegramChatId !== null },
+    {
+      name: 'telegram',
+      configured: config.alerts.telegramBotToken !== null && config.alerts.telegramChatId !== null,
+    },
     { name: 'discord', configured: config.alerts.discordWebhookUrl !== null },
   ];
   let notifiers = o.notifiers;
@@ -107,7 +118,14 @@ export async function createApp(config: AppConfig, o: AppOverrides = {}): Promis
     if (config.alerts.telegramBotToken && config.alerts.telegramChatId) {
       notifiers.push(
         new TelegramNotifier(
-          new HttpClient({ name: 'telegram', baseUrl: 'https://api.telegram.org', ratePerMinute: 20, burst: 3, logger, fetchImpl: o.fetchImpl }),
+          new HttpClient({
+            name: 'telegram',
+            baseUrl: 'https://api.telegram.org',
+            ratePerMinute: 20,
+            burst: 3,
+            logger,
+            fetchImpl: o.fetchImpl,
+          }),
           config.alerts.telegramBotToken,
           config.alerts.telegramChatId,
         ),
@@ -116,14 +134,26 @@ export async function createApp(config: AppConfig, o: AppOverrides = {}): Promis
     if (config.alerts.discordWebhookUrl) {
       notifiers.push(
         new DiscordNotifier(
-          new HttpClient({ name: 'discord', baseUrl: config.alerts.discordWebhookUrl, ratePerMinute: 25, burst: 3, logger, fetchImpl: o.fetchImpl }),
+          new HttpClient({
+            name: 'discord',
+            baseUrl: config.alerts.discordWebhookUrl,
+            ratePerMinute: 25,
+            burst: 3,
+            logger,
+            fetchImpl: o.fetchImpl,
+          }),
         ),
       );
     }
   }
   const alerts = new AlertService(repos.alerts, bus, notifiers, config.alerts, logger);
 
-  const strategyStore = new StrategyStore(repos.strategy, config.trading.mode, config.hardLimits, config.defaultStrategy);
+  const strategyStore = new StrategyStore(
+    repos.strategy,
+    config.trading.mode,
+    config.hardLimits,
+    config.defaultStrategy,
+  );
   await strategyStore.load();
 
   let executor: TradeExecutor;
@@ -135,7 +165,12 @@ export async function createApp(config: AppConfig, o: AppOverrides = {}): Promis
     const signer = config.wallet.keypairPath
       ? signerFromFile(config.wallet.keypairPath, (s) => redactor.add(s))
       : signerFromSecret(config.wallet.privateKey as string, (s) => redactor.add(s));
-    executor = new LiveSolanaExecutor({ rpc: providers.solanaRpc, jupiter: providers.jupiter, signer, logger });
+    executor = new LiveSolanaExecutor({
+      rpc: providers.solanaRpc,
+      jupiter: providers.jupiter,
+      signer,
+      logger,
+    });
     logger.warn({ wallet: signer.publicKey }, 'LIVE TRADING ARMED — real funds will be used');
   } else {
     executor = new PaperExecutor({
@@ -170,7 +205,12 @@ export async function createApp(config: AppConfig, o: AppOverrides = {}): Promis
     o.llm !== undefined
       ? o.llm
       : config.llm.enabled && config.llm.apiKey
-        ? new LlmReviewer({ apiKey: config.llm.apiKey, model: config.llm.model, timeoutMs: config.llm.timeoutMs, logger })
+        ? new LlmReviewer({
+            apiKey: config.llm.apiKey,
+            model: config.llm.model,
+            timeoutMs: config.llm.timeoutMs,
+            logger,
+          })
         : null;
 
   const tradeService = new TradeService({

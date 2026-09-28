@@ -15,10 +15,7 @@ export const DEXSCREENER_BASE_URL = 'https://api.dexscreener.com';
 
 const numLike = z.union([z.number(), z.string()]).nullish();
 const txn = z.object({ buys: z.number().nullish(), sells: z.number().nullish() }).nullish();
-const windows = z
-  .object({ m5: numLike, h1: numLike, h6: numLike, h24: numLike })
-  .partial()
-  .nullish();
+const windows = z.object({ m5: numLike, h1: numLike, h6: numLike, h24: numLike }).partial().nullish();
 
 export const dexPairSchema = z.object({
   chainId: z.string(),
@@ -83,7 +80,12 @@ export function pairToMarket(p: DexPair, fetchedAt: Date): MarketData {
 }
 
 /** Pick the deepest pool where the token is the base asset and aggregate liquidity across pools. */
-export function quoteFromPairs(chain: Chain, address: string, pairs: DexPair[], fetchedAt: Date): MarketQuote | null {
+export function quoteFromPairs(
+  chain: Chain,
+  address: string,
+  pairs: DexPair[],
+  fetchedAt: Date,
+): MarketQuote | null {
   const own = pairs.filter((p) => sameAddress(chain, p.baseToken.address, address));
   if (own.length === 0) return null;
   const sorted = [...own].sort((a, b) => (toNum(b.liquidity?.usd) ?? 0) - (toNum(a.liquidity?.usd) ?? 0));

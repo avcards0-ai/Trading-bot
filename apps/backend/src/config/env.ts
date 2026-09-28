@@ -4,7 +4,13 @@ import type { Chain, RiskLimits, StrategyParams, TradingMode } from '@memeguard/
 /** Exact phrase that must be present in LIVE_TRADING_CONFIRMATION before live trading can start. */
 export const LIVE_TRADING_CONFIRMATION_PHRASE = 'I_UNDERSTAND_LIVE_TRADING_CAN_LOSE_REAL_MONEY';
 
-export const SUPPORTED_CHAINS = ['solana', 'ethereum', 'bsc', 'base', 'arbitrum'] as const satisfies readonly Chain[];
+export const SUPPORTED_CHAINS = [
+  'solana',
+  'ethereum',
+  'bsc',
+  'base',
+  'arbitrum',
+] as const satisfies readonly Chain[];
 
 /** Chains for which a live execution venue is implemented. */
 export const LIVE_EXECUTION_CHAINS: readonly Chain[] = ['solana'];
@@ -340,9 +346,17 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env, version = '1
   if (e.REQUIRE_AUTH_FOR_READS && e.API_KEY === null) {
     throw new ConfigError('REQUIRE_AUTH_FOR_READS=true requires API_KEY to be set.');
   }
-  if (e.HOST !== '127.0.0.1' && e.HOST !== 'localhost' && e.HOST !== '::1' && !e.REQUIRE_AUTH_FOR_READS && e.NODE_ENV === 'production') {
+  if (
+    e.HOST !== '127.0.0.1' &&
+    e.HOST !== 'localhost' &&
+    e.HOST !== '::1' &&
+    !e.REQUIRE_AUTH_FOR_READS &&
+    e.NODE_ENV === 'production'
+  ) {
     // Not fatal (docker binds 0.0.0.0 behind a localhost port mapping), but worth knowing.
-    process.emitWarning('HOST is not loopback and REQUIRE_AUTH_FOR_READS=false: read endpoints are unauthenticated.');
+    process.emitWarning(
+      'HOST is not loopback and REQUIRE_AUTH_FOR_READS=false: read endpoints are unauthenticated.',
+    );
   }
   if (e.EXIT_MAX_SLIPPAGE < e.MAX_SLIPPAGE) {
     throw new ConfigError('EXIT_MAX_SLIPPAGE must be >= MAX_SLIPPAGE.');

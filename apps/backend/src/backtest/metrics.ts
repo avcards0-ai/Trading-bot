@@ -54,7 +54,8 @@ export function computeMetrics(args: {
   const m = mean(rets);
   const sd = stdev(rets);
   const downside = rets.filter((r) => r < 0);
-  const dsd = downside.length >= 2 ? Math.sqrt(downside.reduce((a, r) => a + r * r, 0) / downside.length) : null;
+  const dsd =
+    downside.length >= 2 ? Math.sqrt(downside.reduce((a, r) => a + r * r, 0) / downside.length) : null;
   const sortedRets = [...rets].sort((a, b) => a - b);
   const tailN = Math.max(1, Math.ceil(sortedRets.length * 0.05));
   const cvar = sortedRets.length > 0 ? (mean(sortedRets.slice(0, tailN)) as number) : null;
@@ -79,7 +80,10 @@ export function computeMetrics(args: {
     sortinoRatio: m !== null && dsd !== null && dsd > 0 ? round(m / dsd, 3) : null,
     calmarRatio: dd.pct > 0 ? round(totalReturnPct / dd.pct, 3) : null,
     cvar95Pct: round(cvar, 2),
-    totalFeesUsd: round(trades.reduce((a, t) => a + t.feesUsd, 0), 2) as number,
+    totalFeesUsd: round(
+      trades.reduce((a, t) => a + t.feesUsd, 0),
+      2,
+    ) as number,
     exposurePct: args.totalSteps > 0 ? (round((args.exposureSteps / args.totalSteps) * 100, 2) as number) : 0,
     tokensEvaluated: args.tokensEvaluated,
     tokensSkippedForRugRisk: args.tokensSkippedForRugRisk,

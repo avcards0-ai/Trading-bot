@@ -1,7 +1,13 @@
 import type { Chain, ContractData, HolderInfo } from '@memeguard/shared';
 import { emptyContract } from '../analysis/merge';
 import { createRng } from '../lib/math';
-import type { BacktestDataset, HistoricalBar, HistoricalEvent, HistoricalToken, SecuritySnapshot } from './types';
+import type {
+  BacktestDataset,
+  HistoricalBar,
+  HistoricalEvent,
+  HistoricalToken,
+  SecuritySnapshot,
+} from './types';
 
 /**
  * SYNTHETIC scenario generator. Produces labelled token histories so the backtester, rug model
@@ -38,7 +44,8 @@ function gaussian(rng: () => number): number {
 
 const b58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 function fakeAddress(rng: () => number, chain: Chain): string {
-  if (chain === 'solana') return Array.from({ length: 44 }, () => b58[Math.floor(rng() * b58.length)]).join('');
+  if (chain === 'solana')
+    return Array.from({ length: 44 }, () => b58[Math.floor(rng() * b58.length)]).join('');
   return `0x${Array.from({ length: 40 }, () => '0123456789abcdef'[Math.floor(rng() * 16)]).join('')}`;
 }
 
@@ -113,7 +120,12 @@ function security(rng: () => number, chain: Chain, scenario: Scenario): Security
   }
   return {
     contract: c,
-    holders: { sources: ['synthetic'], holderCount: Math.floor(300 + rng() * 3000), topHolders: holders(rng, top, top10), totalSupply: 1_000_000_000 },
+    holders: {
+      sources: ['synthetic'],
+      holderCount: Math.floor(300 + rng() * 3000),
+      topHolders: holders(rng, top, top10),
+      totalSupply: 1_000_000_000,
+    },
     liquidity: {
       sources: ['synthetic'],
       totalLiquidityUsd: null,
@@ -176,7 +188,8 @@ export function generateSyntheticDataset(opts: SyntheticOptions): BacktestDatase
     let liq = Math.exp(Math.log(20_000) + rng() * (Math.log(400_000) - Math.log(20_000)));
     const liq0 = liq;
     const p0 = price;
-    const rugAt = scenario === 'rug_pull' || scenario === 'stealth_rug' ? 45 + Math.floor(rng() * (nBars - 90)) : -1;
+    const rugAt =
+      scenario === 'rug_pull' || scenario === 'stealth_rug' ? 45 + Math.floor(rng() * (nBars - 90)) : -1;
     const pumpLen = 60 + Math.floor(rng() * 90);
     const bars: HistoricalBar[] = [];
     const events: HistoricalEvent[] = [];
@@ -213,7 +226,11 @@ export function generateSyntheticDataset(opts: SyntheticOptions): BacktestDatase
       if (i === rugAt) {
         ret = Math.log(0.02 + rng() * 0.03);
         liq *= 0.01;
-        events.push({ ts: new Date(t).toISOString(), type: 'rug', description: 'liquidity removed by deployer' });
+        events.push({
+          ts: new Date(t).toISOString(),
+          type: 'rug',
+          description: 'liquidity removed by deployer',
+        });
       }
       price = open * Math.exp(ret);
       if (i !== rugAt && !(rugAt >= 0 && i > rugAt)) liq = liq0 * Math.sqrt(price / p0);
@@ -222,7 +239,8 @@ export function generateSyntheticDataset(opts: SyntheticOptions): BacktestDatase
       const low = Math.min(open, price) * (1 - Math.abs(gaussian(rng)) * sigma * 0.5);
       const volume = liq * (0.002 + rng() * 0.008) * (1 + Math.abs(ret) * 25);
       const txCount = Math.max(1, Math.round(volume / (150 + rng() * 250)));
-      const buyShare = scenario === 'honeypot' ? 0.97 : Math.min(0.9, Math.max(0.1, 0.5 + ret * 12 + gaussian(rng) * 0.05));
+      const buyShare =
+        scenario === 'honeypot' ? 0.97 : Math.min(0.9, Math.max(0.1, 0.5 + ret * 12 + gaussian(rng) * 0.05));
       const buys = Math.round(txCount * buyShare);
       bars.push({
         ts: new Date(t).toISOString(),
@@ -236,7 +254,8 @@ export function generateSyntheticDataset(opts: SyntheticOptions): BacktestDatase
         sells: txCount - buys,
       });
     }
-    if (scenario === 'honeypot') events.push({ ts: new Date(launch).toISOString(), type: 'honeypot_enabled' });
+    if (scenario === 'honeypot')
+      events.push({ ts: new Date(launch).toISOString(), type: 'honeypot_enabled' });
     const rugged = scenario === 'rug_pull' || scenario === 'stealth_rug' || scenario === 'honeypot';
     tokens.push({
       chain,
