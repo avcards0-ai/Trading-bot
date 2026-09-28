@@ -1,0 +1,60 @@
+# MemeGuard: PostgreSQL + API/engine + dashboard.
+#   cp .env.example .env   # then set API_KEY and POSTGRES_PASSWORD at minimum
+#   docker compose up --build
+# Ports are bound to 127.0.0.1 only. Put a TLS-terminating reverse proxy in front before
+# exposing anything, and set REQUIRE_AUTH_FOR_READS=true if you do.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-memeguard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+      POSTGRES_DB: ${POSTGRES_DB:-memeguard}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  backend:
+    image: memeguard-backend:local
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-memeguard}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-memeguard}
+      HOST: 0.0.0.0
+      PORT: 8080
+      CORS_ORIGINS: http://localhost:8081,http://127.0.0.1:8081
+      LOG_PRETTY: 'false'
+    # Mount a keypair file for live trading instead of putting the key in .env:
+    # volumes:
+    #   - ./secrets/keypair.json:/run/secrets/keypair.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:8080:8080'
+    restart: unless-stopped
+
+  frontend:
+    image: memeguard-frontend:local
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:8081:80'
+    restart: unless-stopped
+
+volumes:
+  pgdata:
