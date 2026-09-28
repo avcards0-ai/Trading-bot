@@ -383,7 +383,7 @@ export function TokenDetailPage() {
             <code className="text-ink-2">{t.address}</code>
             <button
               type="button"
-              onClick={() => void navigator.clipboard?.writeText(t.address)}
+              onClick={() => void navigator.clipboard?.writeText(t.address).catch(() => undefined)}
               className="hover:text-ink"
               aria-label="Copy address"
             >

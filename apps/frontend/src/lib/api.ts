@@ -82,11 +82,13 @@ async function request<T>(
   body?: unknown,
   query?: Record<string, unknown>,
 ): Promise<T> {
-  const url = new URL(`${API_BASE}${path}`, window.location.origin);
+  // Relative URL built without window.location.origin, which is "null" in sandboxed frames.
+  const params = new URLSearchParams();
   for (const [k, v] of Object.entries(query ?? {})) {
-    if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
+    if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
   }
-  const res = await fetch(url.toString().replace(window.location.origin, ''), {
+  const qs = params.toString();
+  const res = await fetch(`${API_BASE}${path}${qs ? `?${qs}` : ''}`, {
     method,
     headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), ...authHeaders() },
     body: body !== undefined ? JSON.stringify(body) : undefined,
