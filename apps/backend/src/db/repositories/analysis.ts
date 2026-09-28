@@ -134,7 +134,7 @@ export class DecisionsRepository {
 
   async update(
     id: number,
-    patch: Partial<Pick<Decision, 'executed' | 'tradeId' | 'stages' | 'reasons'>>,
+    patch: Partial<Pick<Decision, 'label' | 'executed' | 'tradeId' | 'stages' | 'reasons'>>,
   ): Promise<void> {
     await this.db.update(aiDecisions).set(patch).where(eq(aiDecisions.id, id));
   }

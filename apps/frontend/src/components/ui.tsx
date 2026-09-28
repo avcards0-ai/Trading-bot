@@ -18,7 +18,7 @@ export function Card({
   padded?: boolean;
 }) {
   return (
-    <section className={clsx('rounded-xl border border-border bg-surface', className)}>
+    <section className={clsx('min-w-0 rounded-xl border border-border bg-surface', className)}>
       {(title || actions) && (
         <header className="flex flex-wrap items-start justify-between gap-2 border-b border-border px-4 py-3">
           <div className="min-w-0">

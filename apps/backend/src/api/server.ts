@@ -3,7 +3,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyBaseLogger, type FastifyInstance, type FastifyReply } from 'fastify';
 import { z } from 'zod';
-import type { Chain, Decision, PaperTradeResponse, ScanResponse, ServerEvent } from '@memeguard/shared';
+import type { Chain, PaperTradeResponse, ScanResponse, ServerEvent } from '@memeguard/shared';
 import { isValidSolanaAddress } from '../adapters/solana/keys';
 import type { App } from '../app';
 import { runBacktest } from '../backtest/engine';
@@ -13,11 +13,14 @@ import { SUPPORTED_CHAINS, safeConfigView } from '../config/env';
 import { StrategyValidationError } from '../config/strategyStore';
 import { normalizeAddress, toPosition, toTrade } from '../db/repositories';
 import { errorMessage } from '../lib/errors';
+import { closeWithDecision } from '../trading/exitDecision';
 import { makeAuthGuards } from './auth';
 import { findToken, listPositions, systemStatus, tokenDetail, tokenItems } from './queries';
 
 const chainEnum = z.enum(SUPPORTED_CHAINS);
 const riskEnum = z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
+/** Query-string boolean. (z.coerce.boolean() would turn the string "false" into true.) */
+const boolQuery = z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1');
 const pageQuery = {
   limit: z.coerce.number().int().min(1).max(500).default(50),
   offset: z.coerce.number().int().min(0).default(0),
@@ -60,6 +63,12 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
     config.server.apiKey,
     config.server.requireAuthForReads,
   );
+  const exitDeps = {
+    repos: app.repos,
+    tradeService: app.tradeService,
+    bus: app.bus,
+    mode: config.trading.mode,
+  };
 
   await server.register(helmet, { contentSecurityPolicy: false });
   await server.register(cors, {
@@ -113,7 +122,7 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
         chain: chainEnum.optional(),
         risk: riskEnum.optional(),
         search: z.string().max(80).optional(),
-        analyzedOnly: z.coerce.boolean().optional(),
+        analyzedOnly: boolQuery.optional(),
       }),
       req.query,
     );
@@ -198,7 +207,7 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
         ...pageQuery,
         severity: z.enum(['info', 'warning', 'critical']).optional(),
         type: z.string().max(40).optional(),
-        unacknowledged: z.coerce.boolean().optional(),
+        unacknowledged: boolQuery.optional(),
       }),
       req.query,
     );
@@ -330,48 +339,21 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
       : await app.repos.positions.openForToken('paper', row.id);
     if (!open || open.status !== 'open' || open.tokenId !== row.id)
       throw new HttpError(404, 'no_open_position', 'No open paper position for this token.');
-    const res = await app.tradeService.closePosition({
+    const { decision, result } = await closeWithDecision(exitDeps, {
       positionId: open.id,
+      tokenId: row.id,
+      token: { chain: body.chain, address: row.address, symbol: row.symbol },
       reason: 'manual',
-      detail: 'Manual paper sell via API.',
-    });
-    const decision: Decision = {
-      id: null,
-      chain: body.chain,
-      address: row.address,
-      symbol: row.symbol,
-      action: 'SELL',
-      label: res?.position ? 'SELL — MANUAL' : 'SELL — EXECUTION FAILED',
       reasonCode: 'MANUAL_SELL',
-      confidence: 1,
-      reasons: ['Manual paper sell requested via API.', ...(res?.trade?.error ? [res.trade.error] : [])],
-      factors: {},
-      stages: [
-        {
-          stage: 'EXECUTION',
-          status: res?.position ? 'pass' : 'error',
-          summary: res?.position
-            ? 'Paper sell filled.'
-            : `Sell failed: ${res?.trade?.error ?? 'position busy'}`,
-          metrics: { tradeId: res?.trade?.id ?? null },
-          durationMs: 0,
-        },
-      ],
-      riskChecks: [],
-      sizing: null,
+      reasons: ['Manual paper sell requested via API.'],
+      trigger: 'manual',
       rugScore: row.rugScore,
-      strategyScore: null,
-      mode: 'paper',
-      executed: Boolean(res?.position),
-      tradeId: res?.trade?.id ?? null,
-      createdAt: new Date().toISOString(),
-    };
-    decision.id = await app.repos.decisions.insert(row.id, decision);
+    });
     return {
       accepted: decision.executed,
       decision,
-      trade: res?.trade ?? null,
-      position: res?.position ?? null,
+      trade: result?.trade ?? null,
+      position: result?.position ?? null,
     };
   });
 
@@ -380,15 +362,21 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
     const found = await app.repos.positions.get(id);
     if (!found || found.position.status !== 'open')
       throw new HttpError(404, 'no_open_position', 'Position not found or already closed.');
-    const res = await app.tradeService.closePosition({
+    const { decision, result } = await closeWithDecision(exitDeps, {
       positionId: id,
+      tokenId: found.token.id,
+      token: { chain: found.token.chain as Chain, address: found.token.address, symbol: found.token.symbol },
       reason: 'manual',
-      detail: 'Manual close via API.',
+      reasonCode: 'MANUAL_CLOSE',
+      reasons: ['Manual close requested via API.'],
+      trigger: 'manual',
+      rugScore: (await app.repos.risk.latest(found.token.id))?.rugScore ?? null,
     });
     return {
-      closed: Boolean(res?.position),
-      trade: res?.trade ?? null,
-      position: res?.position ?? toPosition(found.position, found.token),
+      closed: decision.executed,
+      decision,
+      trade: result?.trade ?? null,
+      position: result?.position ?? toPosition(found.position, found.token),
     };
   });
 

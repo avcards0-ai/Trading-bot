@@ -5,6 +5,10 @@ export const round = (v: number, digits = 2): number => {
   return Math.round(v * f) / f;
 };
 
+/** Human-readable price for reasons/alerts: 6 significant digits, without float noise. */
+export const fmtPrice = (v: number | null | undefined): string =>
+  v === null || v === undefined || !Number.isFinite(v) ? 'n/a' : String(Number(v.toPrecision(6)));
+
 export const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
 export const toNum = (v: unknown): number | null => {

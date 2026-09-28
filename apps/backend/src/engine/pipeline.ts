@@ -27,10 +27,12 @@ import type { TradeExecutor } from '../execution/types';
 import { errorMessage } from '../lib/errors';
 import type { EventBus } from '../lib/events';
 import type { Logger } from '../lib/logger';
+import { fmtPrice } from '../lib/math';
 import type { RiskManager } from '../risk/riskManager';
 import { computePositionSize } from '../strategy/sizing';
 import { evaluateEntry, evaluateExit } from '../strategy/strategy';
 import type { Portfolio } from '../trading/portfolio';
+import { exitLabel } from '../trading/exitDecision';
 import type { TradeService } from '../trading/tradeService';
 
 export type AnalysisTrigger = 'discovery' | 'watchlist' | 'manual' | 'monitor';
@@ -378,10 +380,7 @@ export class DecisionPipeline {
       if (exit.action === 'SELL') {
         action = 'SELL';
         reasonCode = exit.reasonCode;
-        label =
-          exit.reason === 'rug_risk_escalation'
-            ? 'SELL — HIGH RUG RISK'
-            : `SELL — ${(exit.reason ?? 'exit').replace(/_/g, ' ').toUpperCase()}`;
+        label = exitLabel(exit.reason ?? 'strategy_exit');
         confidence = 0.9;
         reasons.push(...exit.reasons);
         const mayExecute = req.trigger !== 'manual' || req.allowTrade;
@@ -392,6 +391,7 @@ export class DecisionPipeline {
               reason: exit.reason as CloseReason,
               detail: exit.reasons.join(' '),
               market: m,
+              decisionId: decisionId as number,
             });
             return {
               trade: res?.trade ?? null,
@@ -611,7 +611,7 @@ export class DecisionPipeline {
           'EXECUTION',
           ok ? 'pass' : 'error',
           ok
-            ? `${mode.toUpperCase()} ${trade?.side} filled: $${trade?.filledUsd?.toFixed(2)} @ ${trade?.priceUsd}.`
+            ? `${mode.toUpperCase()} ${trade?.side} filled: $${trade?.filledUsd?.toFixed(2)} @ $${fmtPrice(trade?.priceUsd)}.`
             : `Execution failed: ${res.error}`,
           {
             tradeId: trade?.id ?? null,
@@ -633,6 +633,7 @@ export class DecisionPipeline {
         await repos.events.log('error', 'execution', errorMessage(err), { decisionId }, token.id);
       }
       await repos.decisions.update(decisionId, {
+        label: decision.label,
         executed: decision.executed,
         tradeId: decision.tradeId,
         stages: decision.stages,

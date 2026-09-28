@@ -91,7 +91,8 @@ export function TimeSeriesChart({
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
       crosshair: { mode: CrosshairMode.Magnet },
-      localization: { priceFormatter: (v: number) => fmt.current(v) },
+      // Explicit locale: the browser default can be an invalid BCP-47 tag (e.g. 'en-US@posix').
+      localization: { locale: 'en-US', priceFormatter: (v: number) => fmt.current(v) },
     });
     const series = chart.addSeries(AreaSeries, {
       lineColor: color,
@@ -124,6 +125,13 @@ export function TimeSeriesChart({
   }, [height, color]);
 
   useEffect(() => {
+    // Scale the tick step to the data: meme-coin prices can be 1e-8, where the default minMove
+    // (0.01) leaves the axis without ticks, while liquidity is in the millions.
+    const max = data.reduce((m, d) => Math.max(m, Math.abs(d.value)), 0);
+    const minMove = max > 0 ? 10 ** (Math.floor(Math.log10(max)) - 5) : 0.01;
+    seriesRef.current?.applyOptions({
+      priceFormat: { type: 'custom', formatter: (v: number) => fmt.current(v), minMove },
+    });
     seriesRef.current?.setData(data);
     chartRef.current?.timeScale().fitContent();
   }, [data]);

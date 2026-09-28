@@ -1,5 +1,5 @@
 import type { CloseReason, RiskLimits, RiskReport, StrategyParams, TokenSnapshot } from '@memeguard/shared';
-import { clamp, scale01 } from '../lib/math';
+import { clamp, fmtPrice as px, scale01 } from '../lib/math';
 import { computeSignals, type MarketSignals } from './signals';
 
 /**
@@ -235,7 +235,11 @@ export function evaluateExit(
     };
   }
   if (price <= pos.stopLossPriceUsd) {
-    return sell('stop_loss', 'EXIT_STOP_LOSS', `Price ${price} <= stop loss ${pos.stopLossPriceUsd}.`);
+    return sell(
+      'stop_loss',
+      'EXIT_STOP_LOSS',
+      `Price $${px(price)} <= stop loss $${px(pos.stopLossPriceUsd)}.`,
+    );
   }
   if (pos.trailingStopPercent && pos.highestPriceUsd > pos.entryPriceUsd) {
     const trail = pos.highestPriceUsd * (1 - pos.trailingStopPercent / 100);
@@ -243,7 +247,7 @@ export function evaluateExit(
       return sell(
         'trailing_stop',
         'EXIT_TRAILING_STOP',
-        `Price ${price} fell ${pos.trailingStopPercent}% from high ${pos.highestPriceUsd}.`,
+        `Price $${px(price)} fell ${pos.trailingStopPercent}% from high $${px(pos.highestPriceUsd)}.`,
       );
     }
   }
@@ -251,7 +255,7 @@ export function evaluateExit(
     return sell(
       'take_profit',
       'EXIT_TAKE_PROFIT',
-      `Price ${price} >= take profit ${pos.takeProfitPriceUsd}.`,
+      `Price $${px(price)} >= take profit $${px(pos.takeProfitPriceUsd)}.`,
     );
   }
   if (heldMin >= params.maxHoldMinutes) {
@@ -266,7 +270,7 @@ export function evaluateExit(
     reason: null,
     reasonCode: 'HOLD_POSITION',
     reasons: [
-      `Holding: P/L ${pnlPct?.toFixed(2)}%, stop ${pos.stopLossPriceUsd}, target ${pos.takeProfitPriceUsd}.`,
+      `Holding: P/L ${pnlPct?.toFixed(2)}%, stop $${px(pos.stopLossPriceUsd)}, target $${px(pos.takeProfitPriceUsd)}.`,
     ],
     metrics,
   };

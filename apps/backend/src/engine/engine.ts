@@ -10,6 +10,7 @@ import { errorMessage } from '../lib/errors';
 import type { EventBus } from '../lib/events';
 import type { Logger } from '../lib/logger';
 import { evaluateExit } from '../strategy/strategy';
+import { closeWithDecision } from '../trading/exitDecision';
 import type { Portfolio } from '../trading/portfolio';
 import type { TradeService } from '../trading/tradeService';
 import { Loop } from './loop';
@@ -315,12 +316,21 @@ export class TradingEngine {
         );
         if (exit.action === 'SELL' && exit.reason) {
           this.d.logger.info({ positionId: position.id, reason: exit.reason }, 'exit rule triggered');
-          await this.d.tradeService.closePosition({
-            positionId: position.id,
-            reason: exit.reason,
-            detail: exit.reasons.join(' '),
-            market,
-          });
+          await closeWithDecision(
+            { repos: this.d.repos, tradeService: this.d.tradeService, bus: this.d.bus, mode },
+            {
+              positionId: position.id,
+              tokenId: token.id,
+              token: { chain: token.chain as Chain, address: token.address, symbol: token.symbol },
+              reason: exit.reason,
+              reasonCode: exit.reasonCode,
+              reasons: exit.reasons,
+              trigger: 'monitor',
+              metrics: exit.metrics,
+              rugScore: report?.rugScore ?? null,
+              market,
+            },
+          );
           continue;
         }
         // Periodic full re-analysis (security + rug score) of held tokens.

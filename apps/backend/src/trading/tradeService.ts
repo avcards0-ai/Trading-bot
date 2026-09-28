@@ -279,7 +279,7 @@ export class TradeService {
             ? 'critical'
             : 'info',
         title: `${special?.title ?? 'Position closed'} (${this.deps.mode})`,
-        message: `Sold ${token.symbol ?? token.address}: ${args.detail} Realized P/L ${realized >= 0 ? '+' : ''}$${realized.toFixed(2)} (${pnlPct.toFixed(1)}%).`,
+        message: `Sold ${token.symbol ?? token.address}: ${args.detail} Realized P/L ${realized >= 0 ? '+' : '-'}$${Math.abs(realized).toFixed(2)} (${pnlPct.toFixed(1)}%).`,
         tokenId: token.id,
         token: tokenRef,
         data: { positionId: position.id, realizedPnlUsd: realized, pnlPct, reason: args.reason },

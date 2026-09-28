@@ -50,6 +50,40 @@ describe('trading engine (integration)', () => {
     await ctx.app.alerts.flush();
     const alerts = await ctx.app.repos.alerts.list({ limit: 50, offset: 0 });
     expect(alerts.items.map((a) => a.type)).toEqual(expect.arrayContaining(['POSITION_OPENED', 'STOP_LOSS']));
+    // Prices in messages are rounded to significant digits, not raw floats.
+    const stopAlert = alerts.items.find((a) => a.type === 'STOP_LOSS');
+    expect(stopAlert?.message).not.toMatch(/\d\.\d{9,}/);
+  });
+
+  it('records monitor-triggered exits as SELL decisions linked to the trade', async () => {
+    ctx = await createTestApp();
+    ctx.world.add(makeToken({ chain: 'solana', address: A, symbol: 'AAA' }));
+    const { row } = await ctx.app.repos.tokens.upsertDiscovered({
+      chain: 'solana',
+      address: A,
+      discoveredVia: 'test',
+    });
+    await ctx.app.pipeline.analyze({ tokenId: row.id, trigger: 'discovery', allowTrade: true });
+    const events: string[] = [];
+    const unsubscribe = ctx.app.bus.subscribe((e) => {
+      if (e.type === 'decision') events.push(e.data.label);
+    });
+    ctx.world.update(A, { priceUsd: 0.00245 * 2 });
+    await ctx.app.engine.runOnce('position-monitor');
+    unsubscribe();
+
+    const [latest] = await ctx.app.repos.decisions.listForToken(row.id, 5);
+    expect(latest?.action).toBe('SELL');
+    expect(latest?.label).toBe('SELL — TAKE PROFIT');
+    expect(latest?.reasonCode).toBe('EXIT_TAKE_PROFIT');
+    expect(latest?.executed).toBe(true);
+    expect(latest?.stages.map((s) => s.stage)).toEqual(['STRATEGY', 'RISK_CHECK', 'EXECUTION']);
+    const { rows } = await ctx.app.repos.trades.list({ mode: 'paper', limit: 5, offset: 0 });
+    const sell = rows.find((r) => r.trade.side === 'sell')?.trade;
+    expect(sell?.id).toBe(latest?.tradeId);
+    expect(sell?.decisionId).toBe(latest?.id);
+    expect((await ctx.app.repos.tokens.getById(row.id))?.lastDecisionLabel).toBe('SELL — TAKE PROFIT');
+    expect(events).toContain('SELL — TAKE PROFIT');
   });
 
   it('exits immediately when liquidity is pulled and raises a liquidity-crash alert', async () => {

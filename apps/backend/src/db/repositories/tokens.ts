@@ -245,6 +245,14 @@ export class TokensRepository {
       .where(eq(tokens.id, id));
   }
 
+  /** Records a decision made outside the analysis pipeline (monitor exits, manual closes). */
+  async setLastDecision(id: number, decision: Pick<Decision, 'action' | 'label'>): Promise<void> {
+    await this.db
+      .update(tokens)
+      .set({ lastDecision: decision.action, lastDecisionLabel: decision.label, updatedAt: new Date() })
+      .where(eq(tokens.id, id));
+  }
+
   async setStatus(id: number, status: 'watching' | 'ignored' | 'expired'): Promise<void> {
     await this.db.update(tokens).set({ status, updatedAt: new Date() }).where(eq(tokens.id, id));
   }

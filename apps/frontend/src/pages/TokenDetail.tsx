@@ -541,7 +541,7 @@ export function TokenDetailPage() {
         </Card>
       </div>
 
-      <div className="flex gap-1 border-b border-border" role="tablist">
+      <div className="flex gap-1 overflow-x-auto border-b border-border" role="tablist">
         {(
           [
             ['risk', 'Risk explanation'],

@@ -70,32 +70,34 @@ export function SystemPage() {
       </div>
 
       <Card title="Engine loops" padded={false}>
-        <table className="w-full">
-          <thead>
-            <tr>
-              <Th>Loop</Th>
-              <Th>State</Th>
-              <Th align="right">Interval</Th>
-              <Th align="right">Runs</Th>
-              <Th align="right">Last run</Th>
-              <Th align="right">Duration</Th>
-              <Th>Last error</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {s.loops.map((l) => (
-              <tr key={l.name}>
-                <Td>{l.name}</Td>
-                <Td>{l.running ? 'running' : 'stopped'}</Td>
-                <Td align="right">{Math.round(l.intervalMs / 1000)}s</Td>
-                <Td align="right">{l.runs}</Td>
-                <Td align="right">{timeAgo(l.lastRunAt)}</Td>
-                <Td align="right">{l.lastDurationMs ?? '—'}ms</Td>
-                <Td className="max-w-[24rem] truncate text-xs text-ink-2">{l.lastError ?? '—'}</Td>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr>
+                <Th>Loop</Th>
+                <Th>State</Th>
+                <Th align="right">Interval</Th>
+                <Th align="right">Runs</Th>
+                <Th align="right">Last run</Th>
+                <Th align="right">Duration</Th>
+                <Th>Last error</Th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {s.loops.map((l) => (
+                <tr key={l.name}>
+                  <Td>{l.name}</Td>
+                  <Td>{l.running ? 'running' : 'stopped'}</Td>
+                  <Td align="right">{Math.round(l.intervalMs / 1000)}s</Td>
+                  <Td align="right">{l.runs}</Td>
+                  <Td align="right">{timeAgo(l.lastRunAt)}</Td>
+                  <Td align="right">{l.lastDurationMs ?? '—'}ms</Td>
+                  <Td className="max-w-[24rem] truncate text-xs text-ink-2">{l.lastError ?? '—'}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       <Card
@@ -147,28 +149,30 @@ export function SystemPage() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card title="Notifications" padded={false}>
-          <table className="w-full">
-            <thead>
-              <tr>
-                <Th>Channel</Th>
-                <Th>Status</Th>
-                <Th align="right">Sent</Th>
-                <Th align="right">Failed</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {s.notifiers.map((n) => (
-                <tr key={n.name}>
-                  <Td>{n.name}</Td>
-                  <Td>
-                    <Health ok={n.failed === 0 || n.sent > 0} configured={n.configured} />
-                  </Td>
-                  <Td align="right">{n.sent}</Td>
-                  <Td align="right">{n.failed}</Td>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <Th>Channel</Th>
+                  <Th>Status</Th>
+                  <Th align="right">Sent</Th>
+                  <Th align="right">Failed</Th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {s.notifiers.map((n) => (
+                  <tr key={n.name}>
+                    <Td>{n.name}</Td>
+                    <Td>
+                      <Health ok={n.failed === 0 || n.sent > 0} configured={n.configured} />
+                    </Td>
+                    <Td align="right">{n.sent}</Td>
+                    <Td align="right">{n.failed}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
         <Card title="LLM second opinion">
           <div className="text-sm">
@@ -205,36 +209,38 @@ export function SystemPage() {
           <Spinner />
         ) : (
           <div className="max-h-[28rem] overflow-auto">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  <Th>Time</Th>
-                  <Th>Level</Th>
-                  <Th>Category</Th>
-                  <Th>Message</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.data?.items.map((l) => (
-                  <tr key={l.id}>
-                    <Td className="text-xs text-ink-2">{dateTime(l.createdAt)}</Td>
-                    <Td>
-                      <span
-                        className={clsx(
-                          'text-xs',
-                          l.level === 'error' ? 'font-semibold text-ink' : 'text-ink-2',
-                        )}
-                      >
-                        {l.level === 'error' ? '✗ ' : ''}
-                        {l.level}
-                      </span>
-                    </Td>
-                    <Td className="text-xs">{l.category}</Td>
-                    <Td className="whitespace-normal text-xs text-ink-2">{l.message}</Td>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <Th>Time</Th>
+                    <Th>Level</Th>
+                    <Th>Category</Th>
+                    <Th>Message</Th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {logs.data?.items.map((l) => (
+                    <tr key={l.id}>
+                      <Td className="text-xs text-ink-2">{dateTime(l.createdAt)}</Td>
+                      <Td>
+                        <span
+                          className={clsx(
+                            'text-xs',
+                            l.level === 'error' ? 'font-semibold text-ink' : 'text-ink-2',
+                          )}
+                        >
+                          {l.level === 'error' ? '✗ ' : ''}
+                          {l.level}
+                        </span>
+                      </Td>
+                      <Td className="text-xs">{l.category}</Td>
+                      <Td className="whitespace-normal text-xs text-ink-2">{l.message}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </Card>
