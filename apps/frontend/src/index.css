@@ -1,0 +1,65 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens (dark theme). Chart colors follow the validated reference palette:
+ *  - series-1 blue for single-series charts
+ *  - diverging blue <-> red for P/L polarity
+ *  - fixed status palette for risk levels, ALWAYS paired with an icon + text label
+ */
+@theme {
+  --color-bg: #0f0f0e;
+  --color-surface: #1a1a19;
+  --color-surface-2: #232321;
+  --color-surface-3: #2c2c29;
+  --color-border: #2e2e2b;
+  --color-grid: #2e2e2b;
+  --color-ink: #f3f3f1;
+  --color-ink-2: #c3c2b7;
+  --color-muted: #8b8a82;
+
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+  --color-pos: #3987e5;
+  --color-neg: #e66767;
+
+  --color-good: #0ca30c;
+  --color-warning: #fab219;
+  --color-serious: #ec835a;
+  --color-critical: #d03b3b;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Thin, recessive scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-3) transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-series-1);
+  outline-offset: 2px;
+}

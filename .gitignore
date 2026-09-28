@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+data/
+.pglite/
+.DS_Store
+*.tsbuildinfo
+backtest-results/

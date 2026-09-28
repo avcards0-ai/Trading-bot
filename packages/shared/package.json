@@ -1,0 +1,16 @@
+{
+  "name": "@memeguard/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Type-only domain contracts shared by the backend and the dashboard.",
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}
