@@ -6,6 +6,7 @@
 import type { Chain } from '@memeguard/shared';
 
 import bs58 from 'bs58';
+import { FakeSolana } from './fakeSolana';
 
 export const SOL = 'So11111111111111111111111111111111111111112';
 
@@ -83,6 +84,8 @@ export class FakeWorld {
   readonly failingHosts = new Set<string>();
   /** Force a number of 429 responses before succeeding, per host. */
   readonly rateLimitOnce = new Map<string, number>();
+  /** Solana JSON-RPC node at FAKE_RPC_URL (used when a test sets RPC_URL to it). */
+  readonly solana = new FakeSolana();
 
   add(t: FakeToken): FakeToken {
     this.tokens.set(t.address, t);
@@ -117,6 +120,8 @@ export class FakeWorld {
         return this.honeypotIs(url);
       case 'lite-api.jup.ag':
         return this.jupiter(url);
+      case 'rpc.fake.test':
+        return this.solana.handle(String(init?.body ?? '{}'));
       case 'api.telegram.org':
       case 'discord.com':
         return json({ ok: true });

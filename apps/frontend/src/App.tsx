@@ -7,6 +7,7 @@ import { LeaderboardPage } from './pages/Leaderboard';
 import { PerformancePage } from './pages/Performance';
 import { PositionsPage } from './pages/Positions';
 import { SettingsPage } from './pages/Settings';
+import { SniperPage } from './pages/Sniper';
 import { SystemPage } from './pages/System';
 import { TokenDetailPage } from './pages/TokenDetail';
 import { TokensPage } from './pages/Tokens';
@@ -20,6 +21,7 @@ export function App() {
         <Route path="/tokens/:address" element={<TokenDetailPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/positions" element={<PositionsPage />} />
+        <Route path="/sniper" element={<SniperPage />} />
         <Route path="/performance" element={<PerformancePage />} />
         <Route path="/backtest" element={<BacktestPage />} />
         <Route path="/alerts" element={<AlertsPage />} />

@@ -4,6 +4,7 @@ import type {
   CloseReason,
   EquityPoint,
   Position,
+  PositionStrategy,
   Trade,
   TradeSide,
   TradeStatus,
@@ -29,6 +30,7 @@ export function toPosition(
   const unrealized = row.status === 'open' && price !== null ? row.quantity * price - row.costBasisUsd : null;
   return {
     id: row.id,
+    strategy: row.strategy as PositionStrategy,
     tokenId: row.tokenId,
     chain: token.chain as Chain,
     address: token.address,
@@ -139,6 +141,66 @@ export class PositionsRepository {
       .where(and(eq(positions.mode, mode), eq(positions.status, 'open'), eq(positions.tokenId, tokenId)))
       .limit(1);
     return row ?? null;
+  }
+
+  /** Open positions plus the most recently closed ones for one strategy (newest first). */
+  async listForStrategy(
+    mode: TradingMode,
+    strategy: PositionStrategy,
+    closedLimit: number,
+  ): Promise<{ position: PositionRow; token: TokenRefRow }[]> {
+    const open = await this.db
+      .select({ position: positions, token: tokenRefCols })
+      .from(positions)
+      .innerJoin(tokens, eq(tokens.id, positions.tokenId))
+      .where(and(eq(positions.mode, mode), eq(positions.strategy, strategy), eq(positions.status, 'open')))
+      .orderBy(desc(positions.openedAt));
+    const closed = await this.db
+      .select({ position: positions, token: tokenRefCols })
+      .from(positions)
+      .innerJoin(tokens, eq(tokens.id, positions.tokenId))
+      .where(and(eq(positions.mode, mode), eq(positions.strategy, strategy), eq(positions.status, 'closed')))
+      .orderBy(desc(positions.closedAt))
+      .limit(closedLimit);
+    return [...open, ...closed];
+  }
+
+  /** Counts and P/L for one strategy; "today" is the current UTC day. */
+  async strategyStats(
+    mode: TradingMode,
+    strategy: PositionStrategy,
+    now: Date,
+  ): Promise<{
+    open: number;
+    closed: number;
+    wins: number;
+    losses: number;
+    realizedPnlUsd: number;
+    todayRealizedPnlUsd: number;
+    todayOpened: number;
+  }> {
+    const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const [r] = await this.db
+      .select({
+        open: sql<number>`count(*) filter (where ${positions.status} = 'open')`,
+        closed: sql<number>`count(*) filter (where ${positions.status} = 'closed')`,
+        wins: sql<number>`count(*) filter (where ${positions.status} = 'closed' and ${positions.realizedPnlUsd} > 0)`,
+        losses: sql<number>`count(*) filter (where ${positions.status} = 'closed' and ${positions.realizedPnlUsd} <= 0)`,
+        realized: sql<number>`coalesce(sum(${positions.realizedPnlUsd}) filter (where ${positions.status} = 'closed'), 0)`,
+        todayRealized: sql<number>`coalesce(sum(${positions.realizedPnlUsd}) filter (where ${positions.status} = 'closed' and ${positions.closedAt} >= ${dayStart}), 0)`,
+        todayOpened: sql<number>`count(*) filter (where ${positions.openedAt} >= ${dayStart})`,
+      })
+      .from(positions)
+      .where(and(eq(positions.mode, mode), eq(positions.strategy, strategy)));
+    return {
+      open: Number(r?.open ?? 0),
+      closed: Number(r?.closed ?? 0),
+      wins: Number(r?.wins ?? 0),
+      losses: Number(r?.losses ?? 0),
+      realizedPnlUsd: Number(r?.realized ?? 0),
+      todayRealizedPnlUsd: Number(r?.todayRealized ?? 0),
+      todayOpened: Number(r?.todayOpened ?? 0),
+    };
   }
 
   async countOpen(mode: TradingMode): Promise<number> {

@@ -1,7 +1,9 @@
 import type {
+  Chain,
   CloseReason,
   MarketData,
   Position,
+  PositionStrategy,
   PositionSizing,
   RiskReport,
   StrategyParams,
@@ -56,6 +58,7 @@ export class TradeService {
     },
   ) {}
 
+  /** Opens a position for an approved pipeline decision (main strategy). */
   async openPosition(args: {
     token: TokenRow;
     snapshot: TokenSnapshot;
@@ -66,17 +69,61 @@ export class TradeService {
     decisionId: number;
     reason: string;
   }): Promise<OpenResult> {
-    const { token, snapshot, sizing, strategy } = args;
-    const market = snapshot.market as MarketData;
+    const { snapshot, strategy } = args;
+    return this.open({
+      token: args.token,
+      decimals: snapshot.decimals,
+      market: snapshot.market as MarketData,
+      sizeUsd: args.sizing.sizeUsd,
+      taxes: { buyPct: buyTaxOf(snapshot), sellPct: sellTaxOf(snapshot) },
+      exits: {
+        stopLossPercent: strategy.stopLossPercent,
+        takeProfitPercent: strategy.takeProfitPercent,
+        trailingStopPercent: strategy.trailingStopPercent,
+        maxHoldMinutes: null,
+      },
+      strategy: 'main',
+      meta: null,
+      rugScore: args.report.rugScore,
+      maxSlippagePct: args.maxSlippagePct,
+      decisionId: args.decisionId,
+      reason: args.reason,
+    });
+  }
+
+  /**
+   * Executes a buy and records the trade, position, cash and alerts. `market` must be fresh:
+   * the fill is simulated (paper) or quoted (live) against it.
+   */
+  async open(args: {
+    token: TokenRow;
+    decimals: number | null;
+    market: MarketData;
+    sizeUsd: number;
+    taxes: { buyPct: number; sellPct: number };
+    exits: {
+      stopLossPercent: number;
+      takeProfitPercent: number;
+      trailingStopPercent: number | null;
+      maxHoldMinutes: number | null;
+    };
+    strategy: PositionStrategy;
+    meta: Record<string, unknown> | null;
+    rugScore: number | null;
+    maxSlippagePct: number;
+    decisionId: number;
+    reason: string;
+  }): Promise<OpenResult> {
+    const { token, market, exits } = args;
     const result = await this.deps.executor.execute({
       side: 'buy',
-      chain: snapshot.chain,
-      address: snapshot.address,
-      decimals: snapshot.decimals,
+      chain: token.chain as Chain,
+      address: token.address,
+      decimals: args.decimals,
       market,
-      amountUsd: sizing.sizeUsd,
+      amountUsd: args.sizeUsd,
       maxSlippagePct: args.maxSlippagePct,
-      taxes: { buyPct: buyTaxOf(snapshot), sellPct: sellTaxOf(snapshot) },
+      taxes: args.taxes,
     });
 
     const tradeRow = await this.deps.repos.trades.insert({
@@ -85,7 +132,7 @@ export class TradeService {
       mode: this.deps.mode,
       side: 'buy',
       status: result.status,
-      requestedUsd: sizing.sizeUsd,
+      requestedUsd: args.sizeUsd,
       filledUsd: result.status === 'filled' ? result.filledUsd : null,
       quantity: result.status === 'filled' ? result.quantity : null,
       priceUsd: result.avgPriceUsd,
@@ -127,19 +174,22 @@ export class TradeService {
     const positionRow = await this.deps.repos.positions.create({
       tokenId: token.id,
       mode: this.deps.mode,
+      strategy: args.strategy,
       status: 'open',
       quantity: result.quantity,
       rawQuantity: result.rawQuantity,
-      tokenDecimals: snapshot.decimals,
+      tokenDecimals: args.decimals,
       entryPriceUsd: entry,
       costBasisUsd: result.filledUsd,
-      stopLossPriceUsd: entry * (1 - strategy.stopLossPercent / 100),
-      takeProfitPriceUsd: entry * (1 + strategy.takeProfitPercent / 100),
-      trailingStopPercent: strategy.trailingStopPercent,
+      stopLossPriceUsd: entry * (1 - exits.stopLossPercent / 100),
+      takeProfitPriceUsd: entry * (1 + exits.takeProfitPercent / 100),
+      trailingStopPercent: exits.trailingStopPercent,
+      maxHoldMinutes: exits.maxHoldMinutes,
       highestPriceUsd: Math.max(entry, market.priceUsd ?? entry),
       lastPriceUsd: market.priceUsd,
       entryLiquidityUsd: market.liquidityUsd,
-      entryRugScore: args.report.rugScore,
+      entryRugScore: args.rugScore,
+      meta: args.meta,
     });
     await this.deps.repos.trades.setPosition(tradeRow.id, positionRow.id);
     await this.deps.portfolio.applyCash(-result.filledUsd, 0);
@@ -148,22 +198,67 @@ export class TradeService {
     const position = toPosition(positionRow, tokenRef, market.priceUsd);
     this.deps.bus.publish({ type: 'trade', data: trade });
     this.deps.bus.publish({ type: 'position', data: position });
+    const label = args.strategy === 'sniper' ? 'Sniper position opened' : 'Position opened';
     await this.deps.alerts.raise({
       type: 'POSITION_OPENED',
       severity: 'info',
-      title: `Position opened (${this.deps.mode})`,
-      message: `Bought ${result.quantity.toPrecision(6)} ${token.symbol ?? ''} for $${result.filledUsd.toFixed(2)} at $${entry.toPrecision(6)}. Stop $${positionRow.stopLossPriceUsd.toPrecision(6)}, target $${positionRow.takeProfitPriceUsd.toPrecision(6)}. Rug score ${args.report.rugScore}.`,
+      title: `${label} (${this.deps.mode})`,
+      message: `Bought ${result.quantity.toPrecision(6)} ${token.symbol ?? ''} for $${result.filledUsd.toFixed(2)} at $${entry.toPrecision(6)}. Stop $${positionRow.stopLossPriceUsd.toPrecision(6)}, target $${positionRow.takeProfitPriceUsd.toPrecision(6)}.${args.rugScore !== null ? ` Rug score ${args.rugScore}.` : ''}`,
       tokenId: token.id,
       token: tokenRef,
       data: {
         positionId: positionRow.id,
         sizeUsd: result.filledUsd,
-        rugScore: args.report.rugScore,
+        rugScore: args.rugScore,
         mode: this.deps.mode,
+        strategy: args.strategy,
       },
       dedupeKey: `POSITION_OPENED:${positionRow.id}`,
     });
     return { trade, position };
+  }
+
+  /**
+   * Records a position whose pool was drained as a total loss: there is nothing left to sell
+   * into, so proceeds are zero and no trade is placed.
+   */
+  async writeOff(args: {
+    positionId: number;
+    reason: CloseReason;
+    detail: string;
+  }): Promise<Position | null> {
+    if (this.closing.has(args.positionId)) return null;
+    this.closing.add(args.positionId);
+    try {
+      const found = await this.deps.repos.positions.get(args.positionId);
+      if (!found || found.position.status !== 'open') return null;
+      const { position, token } = found;
+      const loss = -position.costBasisUsd;
+      const closed = await this.deps.repos.positions.close(position.id, {
+        exitPriceUsd: 0,
+        proceedsUsd: 0,
+        realizedPnlUsd: loss,
+        closeReason: args.reason,
+      });
+      if (!closed) return null;
+      await this.deps.portfolio.applyCash(0, loss);
+      const tokenRef = { chain: token.chain, address: token.address, symbol: token.symbol };
+      const dto = toPosition(closed, tokenRef);
+      this.deps.bus.publish({ type: 'position', data: dto });
+      await this.deps.alerts.raise({
+        type: 'POSITION_CLOSED',
+        severity: 'critical',
+        title: `Position written off (${this.deps.mode})`,
+        message: `${token.symbol ?? token.address}: ${args.detail} Lost $${position.costBasisUsd.toFixed(2)} (100%).`,
+        tokenId: token.id,
+        token: tokenRef,
+        data: { positionId: position.id, realizedPnlUsd: loss, pnlPct: -100, reason: args.reason },
+        dedupeKey: `CLOSE:${position.id}`,
+      });
+      return dto;
+    } finally {
+      this.closing.delete(args.positionId);
+    }
   }
 
   async closePosition(args: {

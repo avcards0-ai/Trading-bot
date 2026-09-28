@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Chain, RiskLimits, StrategyParams, TradingMode } from '@memeguard/shared';
+import { DEFAULT_LAUNCH_SOURCES, parseLaunchSources, type LaunchProgram } from '../sniper/programs';
 
 /** Exact phrase that must be present in LIVE_TRADING_CONFIRMATION before live trading can start. */
 export const LIVE_TRADING_CONFIRMATION_PHRASE = 'I_UNDERSTAND_LIVE_TRADING_CAN_LOSE_REAL_MONEY';
@@ -199,6 +200,28 @@ const envSchema = z.object({
   STRATEGY_MAX_TOKEN_AGE_MINUTES: num(1440, { min: 1 }),
   STRATEGY_EXIT_RUG_SCORE: num(50, { min: 0, max: 100 }),
   STRATEGY_EXIT_LIQUIDITY_DROP_PERCENT: num(30, { min: 1, max: 100 }),
+
+  // Launch sniper (paper only; off by default)
+  SNIPER_ENABLED: bool(false),
+  SNIPER_SOURCES: z.string().optional().default(DEFAULT_LAUNCH_SOURCES),
+  SOLANA_WS_URL: optUrl,
+  SNIPER_POSITION_USD: num(25, { min: 1 }),
+  SNIPER_MAX_OPEN_POSITIONS: num(3, { min: 1, max: 50, int: true }),
+  SNIPER_MAX_TRADES_PER_DAY: num(20, { min: 1, int: true }),
+  SNIPER_MAX_DAILY_LOSS_USD: num(100, { min: 1 }),
+  SNIPER_STOP_LOSS_PERCENT: num(25, { min: 1, max: 95 }),
+  SNIPER_TAKE_PROFIT_PERCENT: num(50, { min: 1, max: 10_000 }),
+  SNIPER_MAX_HOLD_MINUTES: num(10, { min: 1 }),
+  SNIPER_MAX_LAUNCH_AGE_SECONDS: num(30, { min: 1, max: 600 }),
+  SNIPER_MIN_LIQUIDITY_USD: num(5_000, { min: 0 }),
+  SNIPER_MAX_CREATOR_PERCENT: num(5, { min: 0, max: 100 }),
+  SNIPER_MAX_TOP_HOLDER_PERCENT: num(10, { min: 0, max: 100 }),
+  SNIPER_MIN_CREATOR_WALLET_AGE_HOURS: num(24, { min: 0 }),
+  SNIPER_MAX_PRICE_IMPACT_PERCENT: num(5, { min: 0.1, max: 50 }),
+  SNIPER_SELL_ROUTE_WAIT_SECONDS: num(10, { min: 0, max: 120 }),
+  SNIPER_MONITOR_SECONDS: num(3, { min: 1, max: 60 }),
+  SNIPER_CONCURRENCY: num(2, { min: 1, max: 8, int: true }),
+  SNIPER_QUEUE_SIZE: num(50, { min: 1, max: 1000, int: true }),
 });
 
 export type RawEnv = z.infer<typeof envSchema>;
@@ -291,6 +314,38 @@ export interface AppConfig {
     required: boolean;
     timeoutMs: number;
   };
+  sniper: SniperConfig;
+}
+
+export interface SniperConfig {
+  enabled: boolean;
+  /** WebSocket endpoint for real-time log subscriptions (derived from RPC_URL when unset). */
+  wsUrl: string | null;
+  sources: LaunchProgram[];
+  positionUsd: number;
+  maxOpenPositions: number;
+  maxTradesPerDay: number;
+  maxDailyLossUsd: number;
+  stopLossPercent: number;
+  takeProfitPercent: number;
+  maxHoldMinutes: number;
+  maxLaunchAgeSeconds: number;
+  minLiquidityUsd: number;
+  maxCreatorPercent: number;
+  maxTopHolderPercent: number;
+  minCreatorWalletAgeHours: number;
+  maxPriceImpactPercent: number;
+  sellRouteWaitSeconds: number;
+  monitorIntervalMs: number;
+  concurrency: number;
+  queueSize: number;
+}
+
+/** wss:// endpoint for an https:// RPC URL (most providers serve both on the same host). */
+export function deriveWsUrl(rpcUrl: string | null): string | null {
+  if (!rpcUrl) return null;
+  if (/^wss?:\/\//.test(rpcUrl)) return rpcUrl;
+  return rpcUrl.replace(/^http(s?):\/\//, (_m, tls: string) => `ws${tls}://`);
 }
 
 /** Every configured value that must never appear in logs. */
@@ -309,6 +364,7 @@ export function collectSecrets(config: AppConfig): string[] {
     config.llm.apiKey,
     // RPC URLs frequently embed provider API keys.
     config.rpc.solana,
+    config.sniper.wsUrl,
     ...Object.values(config.rpc.evm),
     passwordFromUrl(config.database.url),
   ];
@@ -396,6 +452,29 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env, version = '1
       );
     }
     liveArmed = true;
+  }
+
+  let sources: LaunchProgram[];
+  try {
+    sources = parseLaunchSources(e.SNIPER_SOURCES);
+  } catch (err) {
+    throw new ConfigError(`SNIPER_SOURCES: ${(err as Error).message}`);
+  }
+  const wsUrl = e.SOLANA_WS_URL ?? deriveWsUrl(e.RPC_URL);
+  if (e.SNIPER_ENABLED) {
+    const problems: string[] = [];
+    // The sniper is paper-only for now: refuse rather than silently simulate inside a live account.
+    if (mode === 'live')
+      problems.push('the launch sniper is paper-only; set SNIPER_ENABLED=false in live mode');
+    if (!e.RPC_URL) problems.push('RPC_URL (Solana RPC endpoint) is required');
+    if (!wsUrl) problems.push('SOLANA_WS_URL could not be derived from RPC_URL; set it explicitly');
+    if (!e.CHAINS.includes('solana')) problems.push('CHAINS must include solana');
+    if (sources.length === 0) problems.push('SNIPER_SOURCES must list at least one launch program');
+    if (problems.length > 0) {
+      throw new ConfigError(
+        `SNIPER_ENABLED=true but the sniper cannot run:\n${problems.map((p) => `  - ${p}`).join('\n')}`,
+      );
+    }
   }
 
   const hardLimits: RiskLimits = {
@@ -518,6 +597,28 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env, version = '1
       required: e.LLM_REVIEW_REQUIRED,
       timeoutMs: e.LLM_REVIEW_TIMEOUT_MS,
     },
+    sniper: {
+      enabled: e.SNIPER_ENABLED,
+      wsUrl,
+      sources,
+      positionUsd: e.SNIPER_POSITION_USD,
+      maxOpenPositions: e.SNIPER_MAX_OPEN_POSITIONS,
+      maxTradesPerDay: e.SNIPER_MAX_TRADES_PER_DAY,
+      maxDailyLossUsd: e.SNIPER_MAX_DAILY_LOSS_USD,
+      stopLossPercent: e.SNIPER_STOP_LOSS_PERCENT,
+      takeProfitPercent: e.SNIPER_TAKE_PROFIT_PERCENT,
+      maxHoldMinutes: e.SNIPER_MAX_HOLD_MINUTES,
+      maxLaunchAgeSeconds: e.SNIPER_MAX_LAUNCH_AGE_SECONDS,
+      minLiquidityUsd: e.SNIPER_MIN_LIQUIDITY_USD,
+      maxCreatorPercent: e.SNIPER_MAX_CREATOR_PERCENT,
+      maxTopHolderPercent: e.SNIPER_MAX_TOP_HOLDER_PERCENT,
+      minCreatorWalletAgeHours: e.SNIPER_MIN_CREATOR_WALLET_AGE_HOURS,
+      maxPriceImpactPercent: e.SNIPER_MAX_PRICE_IMPACT_PERCENT,
+      sellRouteWaitSeconds: e.SNIPER_SELL_ROUTE_WAIT_SECONDS,
+      monitorIntervalMs: e.SNIPER_MONITOR_SECONDS * 1000,
+      concurrency: e.SNIPER_CONCURRENCY,
+      queueSize: e.SNIPER_QUEUE_SIZE,
+    },
   };
 }
 
@@ -552,5 +653,6 @@ export function safeConfigView(config: AppConfig): Record<string, unknown> {
       minSeverity: config.alerts.minSeverity,
     },
     llm: { enabled: config.llm.enabled, model: config.llm.enabled ? config.llm.model : null },
+    sniper: { enabled: config.sniper.enabled, sources: config.sniper.sources.map((p) => p.name) },
   };
 }

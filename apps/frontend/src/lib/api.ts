@@ -11,6 +11,7 @@ import type {
   RiskReport,
   ScanRequest,
   ScanResponse,
+  SniperStatus,
   StrategyUpdateRequest,
   SystemStatus,
   TokenDetail,
@@ -172,6 +173,7 @@ export const api = {
   trades: (limit = 100, offset = 0) =>
     request<Paginated<Trade>>('GET', '/trades', undefined, { limit, offset }),
   performance: () => request<PerformanceSummary>('GET', '/performance'),
+  sniper: () => request<SniperStatus>('GET', '/sniper'),
   decisions: (limit = 50, action?: Decision['action']) =>
     request<{ items: Decision[] }>('GET', '/decisions', undefined, { limit, action }),
   alerts: (q: {

@@ -16,6 +16,7 @@ import type { TradeService } from '../trading/tradeService';
 import { Loop } from './loop';
 import type { AnalysisTrigger, DecisionPipeline } from './pipeline';
 import { WorkQueue } from './queue';
+import type { SniperService } from '../sniper/sniperService';
 
 const PRIORITY: Record<AnalysisTrigger, number> = { manual: 100, monitor: 80, discovery: 50, watchlist: 10 };
 
@@ -67,6 +68,8 @@ export class TradingEngine {
       bus: EventBus;
       logger: Logger;
       settings: EngineSettings;
+      /** Optional launch sniper; follows the engine's start/stop like the discovery loops. */
+      sniper?: SniperService | null;
     },
   ) {
     const s = d.settings;
@@ -114,7 +117,10 @@ export class TradingEngine {
   }
 
   loopStatus(): LoopStatus[] {
-    return [...this.protectiveLoops, ...this.tradingLoops].map((l) => l.snapshot());
+    return [
+      ...[...this.protectiveLoops, ...this.tradingLoops].map((l) => l.snapshot()),
+      ...(this.d.sniper?.loopStatus() ?? []),
+    ];
   }
 
   /** Starts position protection (monitor + metrics). Called at boot regardless of autostart. */
@@ -123,6 +129,7 @@ export class TradingEngine {
     this.protecting = true;
     this.queue.resume();
     for (const l of this.protectiveLoops) l.start(true);
+    this.d.sniper?.startProtection();
   }
 
   /** Starts discovery and new entries. */
@@ -131,6 +138,7 @@ export class TradingEngine {
     if (this.running) return;
     this.running = true;
     for (const l of this.tradingLoops) l.start(true);
+    this.d.sniper?.start();
     await this.d.repos.events.log('info', 'engine', 'engine started').catch(() => undefined);
     this.d.bus.publish({ type: 'status', data: { engineRunning: true, halted: false, haltReason: null } });
     this.d.logger.info('trading engine started');
@@ -144,6 +152,7 @@ export class TradingEngine {
     if (!this.running) return;
     this.running = false;
     for (const l of this.tradingLoops) l.stop();
+    this.d.sniper?.stop();
     // Awaited: closing the database with a write in flight must never happen.
     await this.d.repos.events
       .log('info', 'engine', 'engine stopped (position protection remains active)')
@@ -161,6 +170,7 @@ export class TradingEngine {
     await this.queue.drain(10_000);
     // Let in-flight loop iterations (which may be mid-write) finish before the DB closes.
     await Promise.all([...this.protectiveLoops, ...this.tradingLoops].map((l) => l.idle(10_000)));
+    await this.d.sniper?.shutdown();
   }
 
   enqueue(tokenId: number, trigger: AnalysisTrigger, forceSecurityRefresh = false): boolean {
@@ -249,7 +259,10 @@ export class TradingEngine {
 
   private async monitor(): Promise<void> {
     const mode = this.d.portfolio.mode;
-    const open = await this.d.repos.positions.listOpen(mode);
+    // Sniper positions are priced from the pool on-chain and exited by the sniper's own monitor.
+    const open = (await this.d.repos.positions.listOpen(mode)).filter(
+      (o) => o.position.strategy !== 'sniper',
+    );
     if (open.length === 0) return;
     const cfg = this.d.strategyStore.get();
     const byChain = new Map<Chain, typeof open>();
@@ -307,6 +320,7 @@ export class TradingEngine {
             highestPriceUsd: position.highestPriceUsd,
             entryLiquidityUsd: position.entryLiquidityUsd,
             openedAt: position.openedAt,
+            maxHoldMinutes: position.maxHoldMinutes,
           },
           market?.priceUsd ?? position.lastPriceUsd,
           market?.liquidityUsd ?? null,

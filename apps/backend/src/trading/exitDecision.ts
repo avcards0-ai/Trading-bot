@@ -31,6 +31,8 @@ export interface ExitDecisionRequest {
   metrics?: Record<string, number | null>;
   rugScore?: number | null;
   market?: MarketData | null;
+  /** The pool is gone: record the position as a total loss instead of attempting a sale. */
+  writeOff?: boolean;
 }
 
 export const exitLabel = (reason: CloseReason): string =>
@@ -93,16 +95,27 @@ export async function closeWithDecision(
   const started = Date.now();
   let result: OpenResult | null = null;
   let error: string | null = null;
+  let writtenOff = false;
   try {
-    result = await d.tradeService.closePosition({
-      positionId: req.positionId,
-      reason: req.reason,
-      detail: req.reasons.join(' '),
-      market: req.market ?? null,
-      decisionId,
-    });
-    if (!result) error = 'exit not attempted (position busy, already closed, or no market data)';
-    else if (!result.position) error = result.trade.error ?? 'exit not completed';
+    if (req.writeOff) {
+      const closed = await d.tradeService.writeOff({
+        positionId: req.positionId,
+        reason: req.reason,
+        detail: req.reasons.join(' '),
+      });
+      if (closed) writtenOff = true;
+      else error = 'write-off not applied (position busy or already closed)';
+    } else {
+      result = await d.tradeService.closePosition({
+        positionId: req.positionId,
+        reason: req.reason,
+        detail: req.reasons.join(' '),
+        market: req.market ?? null,
+        decisionId,
+      });
+      if (!result) error = 'exit not attempted (position busy, already closed, or no market data)';
+      else if (!result.position) error = result.trade.error ?? 'exit not completed';
+    }
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
@@ -113,8 +126,9 @@ export async function closeWithDecision(
   stages.push({
     stage: 'EXECUTION',
     status: error === null ? 'pass' : 'error',
-    summary:
-      error === null
+    summary: writtenOff
+      ? 'Pool drained: tokens cannot be sold; position recorded as a total loss.'
+      : error === null
         ? `${d.mode.toUpperCase()} sell filled: $${trade?.filledUsd?.toFixed(2)}.`
         : `Sell failed: ${error}`,
     metrics: {
@@ -125,6 +139,7 @@ export async function closeWithDecision(
     },
     durationMs: Date.now() - started,
   });
+  if (writtenOff) decision.label = 'SELL — WRITTEN OFF (POOL DRAINED)';
   if (error !== null) {
     decision.label = 'SELL — EXECUTION FAILED';
     decision.reasons.push(`Execution failed: ${error}`);

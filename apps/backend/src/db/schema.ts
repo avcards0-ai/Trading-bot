@@ -245,6 +245,8 @@ export const positions = pgTable(
       .notNull()
       .references(() => tokens.id, { onDelete: 'restrict' }),
     mode: text('mode').notNull(),
+    /** Which part of the bot opened it: 'main' (analysis pipeline) or 'sniper' (launch sniper). */
+    strategy: text('strategy').notNull().default('main'),
     status: text('status').notNull().default('open'),
     quantity: doublePrecision('quantity').notNull(),
     /** Raw on-chain amount (base units) for live positions. */
@@ -259,6 +261,10 @@ export const positions = pgTable(
     lastPriceUsd: doublePrecision('last_price_usd'),
     entryLiquidityUsd: doublePrecision('entry_liquidity_usd'),
     entryRugScore: doublePrecision('entry_rug_score'),
+    /** Overrides the strategy's max hold time for this position (sniper positions are short). */
+    maxHoldMinutes: integer('max_hold_minutes'),
+    /** Strategy-specific details, e.g. the sniper's pool vaults used for on-chain pricing. */
+    meta: jsonb('meta').$type<Record<string, unknown>>(),
     exitPriceUsd: doublePrecision('exit_price_usd'),
     proceedsUsd: doublePrecision('proceeds_usd'),
     realizedPnlUsd: doublePrecision('realized_pnl_usd'),

@@ -356,6 +356,7 @@ export class DecisionPipeline {
           highestPriceUsd: Math.max(openPosition.highestPriceUsd, m?.priceUsd ?? 0),
           entryLiquidityUsd: openPosition.entryLiquidityUsd,
           openedAt: openPosition.openedAt,
+          maxHoldMinutes: openPosition.maxHoldMinutes,
         },
         m?.priceUsd ?? null,
         m?.liquidityUsd ?? null,

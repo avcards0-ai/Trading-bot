@@ -1,4 +1,4 @@
-import { createApp, type App } from '../../src/app';
+import { createApp, type App, type AppOverrides } from '../../src/app';
 import { loadConfig } from '../../src/config/env';
 import { createNullLogger } from '../../src/lib/logger';
 import { FakeWorld } from './fakeWorld';
@@ -12,7 +12,10 @@ export interface TestContext {
 }
 
 /** Full application wired to an in-memory PGlite database and a FakeWorld of external APIs. */
-export async function createTestApp(env: Record<string, string> = {}): Promise<TestContext> {
+export async function createTestApp(
+  env: Record<string, string> = {},
+  overrides: Partial<AppOverrides> = {},
+): Promise<TestContext> {
   const world = new FakeWorld();
   const config = loadConfig({
     NODE_ENV: 'test',
@@ -26,7 +29,12 @@ export async function createTestApp(env: Record<string, string> = {}): Promise<T
     ALERT_COOLDOWN_SECONDS: '0',
     ...env,
   } as NodeJS.ProcessEnv);
-  const app = await createApp(config, { logger: createNullLogger(), fetchImpl: world.fetch, notifiers: [] });
+  const app = await createApp(config, {
+    logger: createNullLogger(),
+    fetchImpl: world.fetch,
+    notifiers: [],
+    ...overrides,
+  });
   return {
     app,
     world,

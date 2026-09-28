@@ -232,6 +232,8 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
     return { items: await app.repos.events.list(q) };
   });
 
+  server.get('/sniper', read, async () => app.sniper.status());
+
   server.get('/backtests', read, async () => ({ items: await app.repos.backtests.list(50) }));
   server.get('/backtests/:id', read, async (req) => {
     const { id } = parse(z.object({ id: z.coerce.number().int().positive() }), req.params);

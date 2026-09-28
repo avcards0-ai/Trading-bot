@@ -168,6 +168,8 @@ export interface OpenPositionView {
   highestPriceUsd: number;
   entryLiquidityUsd: number | null;
   openedAt: Date;
+  /** Per-position override of the strategy's max hold time (sniper positions are short-lived). */
+  maxHoldMinutes?: number | null;
 }
 
 export interface ExitEvaluation {
@@ -258,12 +260,9 @@ export function evaluateExit(
       `Price $${px(price)} >= take profit $${px(pos.takeProfitPriceUsd)}.`,
     );
   }
-  if (heldMin >= params.maxHoldMinutes) {
-    return sell(
-      'max_hold_time',
-      'EXIT_MAX_HOLD',
-      `Held ${Math.round(heldMin)} min >= max ${params.maxHoldMinutes} min.`,
-    );
+  const maxHold = pos.maxHoldMinutes ?? params.maxHoldMinutes;
+  if (heldMin >= maxHold) {
+    return sell('max_hold_time', 'EXIT_MAX_HOLD', `Held ${Math.round(heldMin)} min >= max ${maxHold} min.`);
   }
   return {
     action: 'HOLD',

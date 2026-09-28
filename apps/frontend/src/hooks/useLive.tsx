@@ -23,11 +23,12 @@ const LiveContext = createContext<LiveState>({
 const INVALIDATES: Record<ServerEvent['type'], string[][]> = {
   'token.analyzed': [['tokens'], ['token']],
   decision: [['decisions'], ['token']],
-  trade: [['trades'], ['performance'], ['positions']],
-  position: [['positions'], ['performance']],
+  trade: [['trades'], ['performance'], ['positions'], ['sniper']],
+  position: [['positions'], ['performance'], ['sniper']],
   alert: [['alerts']],
   performance: [['performance']],
   status: [['status']],
+  'sniper.attempt': [['sniper']],
 };
 
 export function LiveProvider({ children }: { children: ReactNode }) {

@@ -1,5 +1,7 @@
 import type {
   Chain,
+  RiskCheckName,
+  RiskCheckResult,
   Decision,
   DecisionAction,
   RiskLevel,
@@ -101,8 +103,12 @@ export type CloseReason =
   | 'strategy_exit'
   | 'daily_loss_limit';
 
+/** Which part of the bot opened a position. */
+export type PositionStrategy = 'main' | 'sniper';
+
 export interface Position {
   id: number;
+  strategy: PositionStrategy;
   tokenId: number;
   chain: Chain;
   address: string;
@@ -392,4 +398,93 @@ export type ServerEvent =
       type: 'performance';
       data: Pick<PerformanceSummary, 'equityUsd' | 'dailyPnlUsd' | 'drawdownPct' | 'halted'>;
     }
-  | { type: 'status'; data: Pick<SystemStatus, 'engineRunning' | 'halted' | 'haltReason'> };
+  | { type: 'status'; data: Pick<SystemStatus, 'engineRunning' | 'halted' | 'haltReason'> }
+  | { type: 'sniper.attempt'; data: SniperAttempt };
+
+// ---------------------------------------------------------------------------
+// Launch sniper (paper only)
+// ---------------------------------------------------------------------------
+
+export type SniperOutcome = 'bought' | 'rejected' | 'failed' | 'dropped';
+
+/** One detected pool launch and what the sniper did with it. */
+export interface SniperAttempt {
+  signature: string;
+  source: string;
+  mint: string | null;
+  tokenId: number | null;
+  symbol: string | null;
+  /** Block time of the pool-creation transaction (second precision). */
+  launchedAt: string | null;
+  detectedAt: string;
+  decidedAt: string | null;
+  outcome: SniperOutcome;
+  failedCheck: RiskCheckName | null;
+  reason: string;
+  checks: RiskCheckResult[];
+  /** Seconds from launch block to our (simulated) fill, or to the decision when not bought. */
+  secondsAfterLaunch: number | null;
+  launchPriceUsd: number | null;
+  entryPriceUsd: number | null;
+  /** How much more we paid than the pool's opening price, percent. */
+  entryPremiumPct: number | null;
+  liquidityUsd: number | null;
+  positionId: number | null;
+  decisionId: number | null;
+}
+
+export interface SniperSettingsView {
+  sources: { name: string; programId: string }[];
+  positionUsd: number;
+  maxOpenPositions: number;
+  maxTradesPerDay: number;
+  maxDailyLossUsd: number;
+  stopLossPercent: number;
+  takeProfitPercent: number;
+  maxHoldMinutes: number;
+  maxLaunchAgeSeconds: number;
+  minLiquidityUsd: number;
+  maxCreatorPercent: number;
+  maxTopHolderPercent: number;
+  minCreatorWalletAgeHours: number;
+  maxPriceImpactPercent: number;
+  sellRouteWaitSeconds: number;
+}
+
+export interface SniperStatus {
+  enabled: boolean;
+  /** The sniper only ever simulates trades for now. */
+  mode: 'paper';
+  running: boolean;
+  disabledReason: string | null;
+  listener: {
+    connected: boolean;
+    reconnects: number;
+    lastMessageAt: string | null;
+    lastError: string | null;
+  };
+  settings: SniperSettingsView | null;
+  stats: {
+    since: string;
+    launchesSeen: number;
+    dropped: number;
+    analysed: number;
+    bought: number;
+    rejected: number;
+    failed: number;
+    rejectionsByCheck: Partial<Record<RiskCheckName, number>>;
+    medianSecondsAfterLaunch: number | null;
+    medianEntryPremiumPct: number | null;
+  };
+  performance: {
+    openPositions: number;
+    closedPositions: number;
+    wins: number;
+    losses: number;
+    realizedPnlUsd: number;
+    todayRealizedPnlUsd: number;
+    todayTrades: number;
+  };
+  recent: SniperAttempt[];
+  positions: Position[];
+}

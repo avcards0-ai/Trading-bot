@@ -26,16 +26,17 @@ errors, the system treats that as risk and does not trade (it fails closed).
 2. [Quick start (Docker + PostgreSQL)](#quick-start-docker--postgresql)
 3. [Configuration](#configuration)
 4. [Paper trading](#paper-trading)
-5. [Rug scanner](#rug-scanner)
-6. [Backtesting](#backtesting)
-7. [Tests and quality checks](#tests-and-quality-checks)
-8. [Enabling live trading](#enabling-live-trading)
-9. [Architecture](#architecture)
-10. [Rug-risk model](#rug-risk-model)
-11. [Risk management](#risk-management)
-12. [API reference](#api-reference)
-13. [Security](#security)
-14. [Known limitations](#known-limitations)
+5. [Launch sniper (paper only)](#launch-sniper-paper-only)
+6. [Rug scanner](#rug-scanner)
+7. [Backtesting](#backtesting)
+8. [Tests and quality checks](#tests-and-quality-checks)
+9. [Enabling live trading](#enabling-live-trading)
+10. [Architecture](#architecture)
+11. [Rug-risk model](#rug-risk-model)
+12. [Risk management](#risk-management)
+13. [API reference](#api-reference)
+14. [Security](#security)
+15. [Known limitations](#known-limitations)
 
 ---
 
@@ -178,6 +179,62 @@ curl -s -X POST http://127.0.0.1:8080/positions/<id>/close -H "Authorization: Be
 
 Engine control: `POST /engine/start`, `POST /engine/stop` (stops new entries; open positions
 remain protected by the monitor), and `POST /risk/resume` (clears a drawdown halt).
+
+## Launch sniper (paper only)
+
+The sniper is an optional part of the engine that tries to buy brand-new Solana tokens within
+seconds of their pool being created. It is **off by default**, runs in **paper mode only**, and
+refuses to start when `TRADING_MODE=live`.
+
+Turn it on in `.env` (it needs a Solana `RPC_URL`), then start the engine:
+
+```bash
+SNIPER_ENABLED=true
+RPC_URL=https://<your Solana RPC provider>
+```
+
+How it works:
+
+1. **Listens in real time.** It subscribes to the logs of the launch programs (`SNIPER_SOURCES`:
+   Raydium AMM v4, Raydium CPMM and PumpSwap by default) over your RPC provider's WebSocket.
+   It reacts only to **confirmed** pool creations. It never front-runs or sandwiches other traders'
+   pending transactions.
+2. **Checks the launch, failing closed.** It uses only what can be known at launch, and the first
+   failed check ends the attempt:
+   - its own budget: open sniper positions, trades per day, daily loss, cash, and the global limits;
+   - the launch is still fresh (`SNIPER_MAX_LAUNCH_AGE_SECONDS`);
+   - the liquidity is secured: LP tokens are burned, sent to the incinerator, or held by a program
+     account such as a locker or launchpad. LP held by an ordinary wallet, or no LP token at all,
+     fails;
+   - enough starting liquidity;
+   - mint and freeze authority revoked, and no dangerous Token-2022 features (permanent delegate,
+     transfer hook, pausable, high transfer fee, …);
+   - the creator holds at most `SNIPER_MAX_CREATOR_PERCENT` and no other wallet more than
+     `SNIPER_MAX_TOP_HOLDER_PERCENT`;
+   - the creator's wallet is old enough, and no earlier token by the same creator was flagged by
+     this bot;
+   - price impact is acceptable;
+   - a Jupiter buy-and-sell-back quote works, which rules out honeypots. New pools can take a few
+     seconds to become routable; it waits up to `SNIPER_SELL_ROUTE_WAIT_SECONDS`.
+3. **Buys small, sells fast.** It buys a fixed `SNIPER_POSITION_USD` at the pool's current on-chain
+   price, using the same paper execution model as the main strategy. Its positions are priced from
+   the pool's vaults every `SNIPER_MONITOR_SECONDS`. They exit on stop loss, take profit, the
+   short `SNIPER_MAX_HOLD_MINUTES` limit, or a liquidity pull. If the pool is emptied, the
+   position is written off as a total loss, because there is nothing left to sell into.
+
+Every launch that gets past the budget checks is recorded as a decision (BUY or
+`SKIP — SNIPER: <reason>`) with each check's result. The **Launch sniper** dashboard page shows:
+
+- whether the WebSocket stream is connected;
+- how many launches were seen, checked and bought;
+- **why launches were skipped**;
+- **how many seconds after launch it bought, and how much more it paid than the opening price.**
+
+The last two numbers tell you quickly whether the sniper can compete. Professional snipers use
+private transaction bundles and servers next to the validators, and usually buy in the same block
+as the launch. This bot typically arrives seconds later.
+
+`GET /sniper` returns the same status as JSON.
 
 ## Rug scanner
 
@@ -385,31 +442,32 @@ liquidation proceeds. Exits are never blocked by entry checks.
 Reads are public unless `REQUIRE_AUTH_FOR_READS=true`. Admin routes need
 `Authorization: Bearer <API_KEY>` (or `X-API-Key`). If `API_KEY` is unset, admin routes return 503.
 
-| Method & path                                  | Description                                                                                             |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `GET /health`                                  | liveness                                                                                                |
-| `GET /status`                                  | engine, loops, providers, notifiers, queue, DB                                                          |
-| `GET /config`                                  | effective limits/strategy and a redacted system config                                                  |
-| `GET /tokens`                                  | `?limit&offset&sort&order&chain&risk&search&analyzedOnly`                                               |
-| `GET /tokens/:address`                         | detail: snapshot, risk report, price/liquidity/risk history, decisions, positions, alerts               |
-| `GET /tokens/:address/wallets`                 | holders, clusters, deployer, developer activity, transfers                                              |
-| `GET /risk/:address`                           | latest rug-risk report                                                                                  |
-| `GET /positions`                               | `?status=open\|closed\|all`                                                                             |
-| `GET /trades`                                  | paginated trade log                                                                                     |
-| `GET /performance`                             | equity, P/L, drawdown, win rate, equity curve, daily P/L                                                |
-| `GET /decisions`                               | `?action=BUY\|SELL\|HOLD\|SKIP`                                                                         |
-| `GET /alerts`                                  | `?severity&type&unacknowledged`                                                                         |
-| `GET /logs`                                    | engine event log (skipped opportunities, errors, config changes)                                        |
-| `GET /backtests`, `GET /backtests/:id`         | saved backtests                                                                                         |
-| `GET /events`                                  | Server-Sent Events: `token.analyzed`, `decision`, `trade`, `position`, `alert`, `performance`, `status` |
-| `POST /scan`                                   | `{chain,address,allowTrade?}` analyse now, or `{discover:true}`                                         |
-| `POST /paper-trade`                            | `{chain,address,side,amountUsd?,positionId?}` (paper mode only)                                         |
-| `POST /positions/:id/close`                    | manual close                                                                                            |
-| `POST /strategy`                               | `{limits?,strategy?}`; values looser than the hard env limits are rejected                              |
-| `POST /engine/start`, `POST /engine/stop`      | engine control                                                                                          |
-| `POST /risk/resume`                            | clear a drawdown halt                                                                                   |
-| `POST /alerts/:id/ack`, `POST /alerts/ack-all` | acknowledge alerts                                                                                      |
-| `POST /backtest`                               | run a synthetic or DB backtest and save it                                                              |
+| Method & path                                  | Description                                                                                                               |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                                  | liveness                                                                                                                  |
+| `GET /status`                                  | engine, loops, providers, notifiers, queue, DB                                                                            |
+| `GET /config`                                  | effective limits/strategy and a redacted system config                                                                    |
+| `GET /tokens`                                  | `?limit&offset&sort&order&chain&risk&search&analyzedOnly`                                                                 |
+| `GET /tokens/:address`                         | detail: snapshot, risk report, price/liquidity/risk history, decisions, positions, alerts                                 |
+| `GET /tokens/:address/wallets`                 | holders, clusters, deployer, developer activity, transfers                                                                |
+| `GET /risk/:address`                           | latest rug-risk report                                                                                                    |
+| `GET /positions`                               | `?status=open\|closed\|all`                                                                                               |
+| `GET /trades`                                  | paginated trade log                                                                                                       |
+| `GET /performance`                             | equity, P/L, drawdown, win rate, equity curve, daily P/L                                                                  |
+| `GET /decisions`                               | `?action=BUY\|SELL\|HOLD\|SKIP`                                                                                           |
+| `GET /alerts`                                  | `?severity&type&unacknowledged`                                                                                           |
+| `GET /logs`                                    | engine event log (skipped opportunities, errors, config changes)                                                          |
+| `GET /backtests`, `GET /backtests/:id`         | saved backtests                                                                                                           |
+| `GET /sniper`                                  | launch sniper status, limits, recent launches with every check, sniper positions                                          |
+| `GET /events`                                  | Server-Sent Events: `token.analyzed`, `decision`, `trade`, `position`, `alert`, `performance`, `status`, `sniper.attempt` |
+| `POST /scan`                                   | `{chain,address,allowTrade?}` analyse now, or `{discover:true}`                                                           |
+| `POST /paper-trade`                            | `{chain,address,side,amountUsd?,positionId?}` (paper mode only)                                                           |
+| `POST /positions/:id/close`                    | manual close                                                                                                              |
+| `POST /strategy`                               | `{limits?,strategy?}`; values looser than the hard env limits are rejected                                                |
+| `POST /engine/start`, `POST /engine/stop`      | engine control                                                                                                            |
+| `POST /risk/resume`                            | clear a drawdown halt                                                                                                     |
+| `POST /alerts/:id/ack`, `POST /alerts/ack-all` | acknowledge alerts                                                                                                        |
+| `POST /backtest`                               | run a synthetic or DB backtest and save it                                                                                |
 
 ---
 
@@ -434,6 +492,13 @@ Reads are public unless `REQUIRE_AUTH_FOR_READS=true`. Admin routes need
   token metadata as untrusted input and can only raise risk.
 
 ## Known limitations
+
+- **The launch sniper is untested against mainnet.** Its program ids, log markers and
+  transaction parsing follow the programs' public behaviour and were tested against a simulated
+  chain only. Launch programs change often; `SNIPER_SOURCES` accepts `name=programId` for new
+  ones. The parser is deliberately strict: a transaction it cannot attribute is skipped, not
+  guessed. It is paper-only, and its latency (WebSocket plus several RPC and Jupiter calls) is
+  seconds, not milliseconds.
 
 - **Provider integrations were built against the providers' documented response formats and
   tested with recorded-format fixtures.** They were not exercised against the live services from

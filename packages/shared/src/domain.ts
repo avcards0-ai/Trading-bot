@@ -372,7 +372,27 @@ export type RiskCheckName =
   | 'NO_DUPLICATE_POSITION'
   | 'LIQUIDITY_SHARE'
   | 'LIVE_EXECUTION_SUPPORTED'
-  | 'LLM_REVIEW';
+  | 'LLM_REVIEW'
+  | SniperCheckName;
+
+/** Launch-sniper checks: only what can be known in the first seconds after a pool is created. */
+export type SniperCheckName =
+  | 'SNIPER_BUDGET'
+  | 'SNIPER_MAX_OPEN'
+  | 'SNIPER_DAILY_TRADES'
+  | 'SNIPER_DAILY_LOSS'
+  | 'LAUNCH_FRESH'
+  | 'LAUNCH_PARSED'
+  | 'LIQUIDITY_SECURED'
+  | 'MINT_AUTHORITY_REVOKED'
+  | 'FREEZE_AUTHORITY_REVOKED'
+  | 'NO_DANGEROUS_EXTENSIONS'
+  | 'CREATOR_HOLDINGS'
+  | 'TOP_HOLDER'
+  | 'CREATOR_NO_RUG_HISTORY'
+  | 'CREATOR_WALLET_AGE'
+  | 'PRICE_IMPACT'
+  | 'SELL_ROUTE';
 
 export interface RiskCheckResult {
   check: RiskCheckName;

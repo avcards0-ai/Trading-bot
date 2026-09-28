@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { makeToken, solAddress } from '../helpers/fakeWorld';
+import { walletAddress } from '../helpers/fakeSolana';
+import { makeToken } from '../helpers/fakeWorld';
 import { createTestApp, type TestContext } from '../helpers/testApp';
 
 /**
@@ -10,7 +11,9 @@ const url = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!url)('PostgreSQL (real server)', () => {
   let ctx: TestContext;
-  const A = solAddress(42);
+  // A fresh token per run: the database persists between runs, and a position left open by an
+  // earlier run would (correctly) be exited instead of analysed for entry.
+  const A = walletAddress(`pg-${Date.now()}`);
 
   beforeAll(async () => {
     ctx = await createTestApp({ DATABASE_URL: url as string });

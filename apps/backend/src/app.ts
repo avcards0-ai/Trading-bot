@@ -21,6 +21,8 @@ import { HttpClient, type FetchLike } from './lib/http';
 import { createLogger, type Logger } from './lib/logger';
 import { SecretRedactor } from './lib/redact';
 import { RiskManager } from './risk/riskManager';
+import type { WebSocketFactory } from './sniper/listener';
+import { SniperService } from './sniper/sniperService';
 import { Portfolio } from './trading/portfolio';
 import { TradeService } from './trading/tradeService';
 
@@ -40,6 +42,7 @@ export interface App {
   tradeService: TradeService;
   pipeline: DecisionPipeline;
   engine: TradingEngine;
+  sniper: SniperService;
   llm: LlmReviewer | null;
   startedAt: Date;
   close(): Promise<void>;
@@ -53,6 +56,7 @@ export interface AppOverrides {
   notifiers?: Notifier[];
   fetchImpl?: FetchLike;
   llm?: LlmReviewer | null;
+  wsFactory?: WebSocketFactory;
 }
 
 /** Persistent wallet-profile cache (wallet age and funder never change). */
@@ -245,6 +249,21 @@ export async function createApp(config: AppConfig, o: AppOverrides = {}): Promis
       securityRefreshMs: config.engine.securityRefreshMs,
     },
   });
+  const sniper = new SniperService({
+    config: config.sniper,
+    mode: config.trading.mode,
+    dexFeePct: config.paper.dexFeePercent,
+    repos,
+    rpc: providers.solanaRpc,
+    jupiter: providers.jupiter,
+    walletProfiler: providers.walletProfilers.find((p) => p.supports('solana')) ?? null,
+    tradeService,
+    portfolio,
+    strategyStore,
+    bus,
+    logger,
+    wsFactory: o.wsFactory,
+  });
   const engine = new TradingEngine({
     repos,
     providers,
@@ -256,6 +275,7 @@ export async function createApp(config: AppConfig, o: AppOverrides = {}): Promis
     bus,
     logger,
     settings: config.engine,
+    sniper,
   });
 
   return {
@@ -274,6 +294,7 @@ export async function createApp(config: AppConfig, o: AppOverrides = {}): Promis
     tradeService,
     pipeline,
     engine,
+    sniper,
     llm,
     startedAt: new Date(),
     async close() {

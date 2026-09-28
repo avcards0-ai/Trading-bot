@@ -245,6 +245,24 @@ export class TokensRepository {
       .where(eq(tokens.id, id));
   }
 
+  /**
+   * Tokens by this deployer that the analysis flagged as rugged or critical-risk. Only knows about
+   * tokens this bot has analysed; a clean result is not proof of a clean history.
+   */
+  async countFlaggedByDeployer(chain: Chain, deployer: string): Promise<number> {
+    const [r] = await this.db
+      .select({ n: count() })
+      .from(tokens)
+      .where(
+        and(
+          eq(tokens.chain, chain),
+          sql`${tokens.latestSnapshot}->'deployer'->>'address' = ${deployer}`,
+          or(gte(tokens.rugScore, 75), sql`(${tokens.latestSnapshot}->>'reportedRugged') = 'true'`),
+        ),
+      );
+    return Number(r?.n ?? 0);
+  }
+
   /** Records a decision made outside the analysis pipeline (monitor exits, manual closes). */
   async setLastDecision(id: number, decision: Pick<Decision, 'action' | 'label'>): Promise<void> {
     await this.db

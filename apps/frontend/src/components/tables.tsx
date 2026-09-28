@@ -138,6 +138,7 @@ export function PositionsTable({
                   </Link>
                   <div className="text-xs text-muted">
                     {p.chain} · {p.mode}
+                    {p.strategy === 'sniper' && ' · sniper'}
                   </div>
                 </Td>
                 <Td>
