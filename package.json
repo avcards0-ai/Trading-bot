@@ -14,6 +14,7 @@
   "scripts": {
     "dev": "npm run dev -w @memeguard/backend",
     "dev:frontend": "npm run dev -w @memeguard/frontend",
+    "launch": "node scripts/start.mjs",
     "build": "npm run build -w @memeguard/backend && npm run build -w @memeguard/frontend",
     "start": "npm run start -w @memeguard/backend",
     "typecheck": "npm run typecheck --workspaces --if-present",

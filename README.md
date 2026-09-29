@@ -22,24 +22,44 @@ errors, the system treats that as risk and does not trade (it fails closed).
 
 ## Contents
 
-1. [Quick start (local, no database server)](#quick-start-local-no-database-server)
-2. [Quick start (Docker + PostgreSQL)](#quick-start-docker--postgresql)
-3. [Configuration](#configuration)
-4. [Paper trading](#paper-trading)
-5. [Launch sniper (paper only)](#launch-sniper-paper-only)
-6. [X (Twitter) tracker](#x-twitter-tracker)
-7. [Rug scanner](#rug-scanner)
-8. [Backtesting](#backtesting)
-9. [Tests and quality checks](#tests-and-quality-checks)
-10. [Enabling live trading](#enabling-live-trading)
-11. [Architecture](#architecture)
-12. [Rug-risk model](#rug-risk-model)
-13. [Risk management](#risk-management)
-14. [API reference](#api-reference)
-15. [Security](#security)
-16. [Known limitations](#known-limitations)
+1. [Easiest start (no typing commands)](#easiest-start-no-typing-commands)
+2. [Quick start (local, no database server)](#quick-start-local-no-database-server)
+3. [Quick start (Docker + PostgreSQL)](#quick-start-docker--postgresql)
+4. [Configuration](#configuration)
+5. [Paper trading](#paper-trading)
+6. [Launch sniper (paper only)](#launch-sniper-paper-only)
+7. [X (Twitter) tracker](#x-twitter-tracker)
+8. [Rug scanner](#rug-scanner)
+9. [Backtesting](#backtesting)
+10. [Tests and quality checks](#tests-and-quality-checks)
+11. [Enabling live trading](#enabling-live-trading)
+12. [Architecture](#architecture)
+13. [Rug-risk model](#rug-risk-model)
+14. [Risk management](#risk-management)
+15. [API reference](#api-reference)
+16. [Security](#security)
+17. [Known limitations](#known-limitations)
 
 ---
+
+## Easiest start (no typing commands)
+
+1. Install **Node.js** (the LTS version) from [nodejs.org](https://nodejs.org). On Windows,
+   `start.bat` can install it for you.
+2. Download this project (**Code → Download ZIP** on GitHub) and unzip it.
+3. Double-click **`start.bat`** (Windows) or **`start.command`** (macOS).
+
+The first start takes a few minutes to install. The launcher then creates `.env` with the
+default settings (paper trading: fake money only) and a random dashboard password, starts the bot
+and the dashboard, and opens http://localhost:5173 in your browser. The password is copied to your
+clipboard (it is also the `API_KEY` line in `.env`): paste it on the **Configuration** page to use
+the buttons. Keep the window open; press Ctrl+C or close it to stop MemeGuard.
+
+- Windows may warn about a downloaded file: click **More info → Run anyway**.
+- macOS may refuse to open `start.command` from the internet: right-click it and choose **Open**,
+  or allow it under **System Settings → Privacy & Security**. You can also open Terminal, type
+  `bash ` (with a space), drag `start.command` into the window and press Enter.
+- `npm run launch` does the same from a terminal on any system.
 
 ## Quick start (local, no database server)
 
