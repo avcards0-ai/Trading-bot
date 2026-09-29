@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { CircuitOpenError, ProviderError, ProviderResponseError } from '../../src/lib/errors';
-import { HttpClient, parseRetryAfter, type FetchLike } from '../../src/lib/http';
+import { HttpClient, parseRateLimitReset, parseRetryAfter, type FetchLike } from '../../src/lib/http';
 import { TokenBucket } from '../../src/lib/rateLimiter';
 
 const respond = (status: number, body: unknown, headers: Record<string, string> = {}) =>
@@ -86,6 +86,28 @@ describe('HttpClient', () => {
     await expect(c.get('/x', { query: { apikey: 'TOPSECRET' } })).rejects.toSatisfy(
       (e: Error) => !e.message.includes('TOPSECRET'),
     );
+  });
+
+  it('does not count an expected "answer" error against provider health', async () => {
+    const c = client(async () => respond(400, { errorCode: 'COULD_NOT_FIND_ANY_ROUTE' }));
+    await expect(
+      c.get('/quote', { isAnswer: (e) => e.status === 400 && /NO_ROUTE|ANY_ROUTE/.test(e.message) }),
+    ).rejects.toBeInstanceOf(ProviderError);
+    expect(c.health().failures).toBe(0);
+    await expect(c.get('/quote')).rejects.toBeInstanceOf(ProviderError);
+    expect(c.health().failures).toBe(1);
+  });
+
+  it('waits for an x-rate-limit-reset time on 429 (X API style)', async () => {
+    let n = 0;
+    const reset = String(Math.floor(Date.now() / 1000));
+    const c = client(async () =>
+      ++n === 1 ? respond(429, {}, { 'x-rate-limit-reset': reset }) : respond(200, { ok: 1 }),
+    );
+    await expect(c.get('/x')).resolves.toEqual({ ok: 1 });
+    expect(parseRateLimitReset(String(Math.floor(Date.now() / 1000) + 60))).toBeGreaterThan(55_000);
+    expect(parseRateLimitReset(String(Math.floor(Date.now() / 1000) + 3600))).toBe(15 * 60_000);
+    expect(parseRateLimitReset(null)).toBeNull();
   });
 
   it('parses Retry-After in seconds and HTTP-date form', () => {

@@ -159,6 +159,7 @@ function notConfigured(name: string) {
   return {
     name,
     configured: false,
+    calls: 0,
     requests: 0,
     failures: 0,
     rateLimited: 0,

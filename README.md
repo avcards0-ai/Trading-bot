@@ -180,6 +180,30 @@ curl -s -X POST http://127.0.0.1:8080/positions/<id>/close -H "Authorization: Be
 Engine control: `POST /engine/start`, `POST /engine/stop` (stops new entries; open positions
 remain protected by the monitor), and `POST /risk/resume` (clears a drawdown halt).
 
+### Soak test (timed paper run on live data)
+
+The most realistic check short of real money: run the whole engine against the live market for a
+fixed time, then read one report.
+
+```bash
+npm run soak -- --minutes 30                  # writes soak-report.json and prints a summary
+npm run soak -- --minutes 120 --out run2.json # longer run
+```
+
+It always runs in paper mode, whatever `TRADING_MODE` says, and never loads a wallet. It uses a
+fresh in-memory database, so your normal paper account is untouched (`--db` overrides this). The
+report covers:
+
+- tokens found and analysed, risk verdicts, likely scams and the most common red flags;
+- decisions and their reasons;
+- paper trades and P/L;
+- the health of every data source. It says in plain words when a source is failing, rate-limited,
+  or answering in a format the adapter no longer understands.
+
+Run it before anything else on a new machine or after a long break: it is the quickest way to
+find a provider that changed its API. Thirty minutes shows whether the pipeline works on real data;
+it is far too short to judge profitability.
+
 ## Launch sniper (paper only)
 
 The sniper is an optional part of the engine that tries to buy brand-new Solana tokens within

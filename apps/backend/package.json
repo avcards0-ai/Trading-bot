@@ -16,7 +16,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/cli/migrate.ts",
     "scan": "tsx src/cli/scan.ts",
-    "backtest": "tsx src/cli/backtest.ts"
+    "backtest": "tsx src/cli/backtest.ts",
+    "soak": "tsx src/cli/soak.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

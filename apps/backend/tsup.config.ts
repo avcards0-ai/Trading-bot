@@ -6,6 +6,7 @@ export default defineConfig({
     'cli/migrate': 'src/cli/migrate.ts',
     'cli/scan': 'src/cli/scan.ts',
     'cli/backtest': 'src/cli/backtest.ts',
+    'cli/soak': 'src/cli/soak.ts',
   },
   format: ['esm'],
   platform: 'node',

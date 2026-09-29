@@ -72,6 +72,8 @@ export class JupiterAdapter implements SecuritySource {
           restrictIntermediateTokens: true,
         },
         schema: quoteSchema,
+        // "No route" is evidence about the token, not a Jupiter outage.
+        isAnswer: isNoRouteError,
       });
     } catch (err) {
       // "No route" is a meaningful answer (possible honeypot/illiquid). Any other failure

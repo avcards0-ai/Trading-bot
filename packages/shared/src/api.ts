@@ -244,7 +244,11 @@ export interface Alert {
 export interface ProviderHealth {
   name: string;
   configured: boolean;
+  /** Logical calls made by adapters (a call may take several HTTP attempts). */
+  calls: number;
+  /** HTTP attempts, including retries. */
   requests: number;
+  /** Calls that ultimately failed (after retries). */
   failures: number;
   rateLimited: number;
   consecutiveFailures: number;

@@ -39,6 +39,11 @@ export interface RequestOptions<T> {
   nullOnStatus?: number[];
   timeoutMs?: number;
   retries?: number;
+  /**
+   * An error response that is a meaningful answer rather than a provider failure (e.g. a
+   * swap quote's "no route"). It is still thrown, but not counted against the provider's health.
+   */
+  isAnswer?: (err: ProviderError) => boolean;
 }
 
 /**
@@ -55,6 +60,7 @@ export class HttpClient {
   private readonly bucket: TokenBucket;
   private readonly fetchImpl: FetchLike;
   private readonly stats = {
+    calls: 0,
     requests: 0,
     failures: 0,
     rateLimited: 0,
@@ -75,6 +81,7 @@ export class HttpClient {
     return {
       name: this.name,
       configured: this.opts.configured ?? true,
+      calls: this.stats.calls,
       requests: this.stats.requests,
       failures: this.stats.failures,
       rateLimited: this.stats.rateLimited,
@@ -118,6 +125,7 @@ export class HttpClient {
     const url = this.buildUrl(path, options.query);
     const safeUrl = sanitizeUrl(url);
     const timeoutMs = options.timeoutMs ?? this.opts.timeoutMs ?? 15_000;
+    this.stats.calls += 1;
 
     try {
       const result = await retry<T>(
@@ -160,7 +168,10 @@ export class HttpClient {
           }
           if (res.status === 429) {
             this.stats.rateLimited += 1;
-            const retryAfterMs = parseRetryAfter(res.headers.get('retry-after'));
+            // Retry-After, or X/Twitter-style x-rate-limit-reset (epoch seconds).
+            const retryAfterMs =
+              parseRetryAfter(res.headers.get('retry-after')) ??
+              parseRateLimitReset(res.headers.get('x-rate-limit-reset'));
             this.bucket.penalize(retryAfterMs ?? 2_000);
             await res.body?.cancel().catch(() => undefined);
             throw new RateLimitedError(this.name, retryAfterMs);
@@ -210,6 +221,10 @@ export class HttpClient {
       this.onSuccess();
       return result;
     } catch (err) {
+      if (err instanceof ProviderError && options.isAnswer?.(err)) {
+        this.onSuccess();
+        throw err;
+      }
       this.onFailure(err);
       throw err;
     }
@@ -255,6 +270,14 @@ export function parseRetryAfter(value: string | null): number | null {
   const date = Date.parse(value);
   if (Number.isFinite(date)) return Math.max(0, date - Date.now());
   return null;
+}
+
+/** Milliseconds until an epoch-seconds reset time (capped at 15 minutes). */
+export function parseRateLimitReset(value: string | null): number | null {
+  if (!value) return null;
+  const epoch = Number(value);
+  if (!Number.isFinite(epoch) || epoch <= 0) return null;
+  return Math.min(15 * 60_000, Math.max(0, epoch * 1000 - Date.now()));
 }
 
 /** Registry of HTTP clients so the status endpoint can report provider health. */

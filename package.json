@@ -25,7 +25,8 @@
     "db:generate": "npm run db:generate -w @memeguard/backend",
     "db:migrate": "npm run db:migrate -w @memeguard/backend",
     "scan": "npm run scan -w @memeguard/backend --",
-    "backtest": "npm run backtest -w @memeguard/backend --"
+    "backtest": "npm run backtest -w @memeguard/backend --",
+    "soak": "npm run soak -w @memeguard/backend --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
