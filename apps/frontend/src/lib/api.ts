@@ -78,6 +78,15 @@ export function authHeaders(): Record<string, string> {
   return k ? { authorization: `Bearer ${k}` } : {};
 }
 
+/** Nothing answers at all: the MemeGuard window was closed, or MemeGuard stopped. */
+export const UNREACHABLE_MESSAGE =
+  "Can't reach MemeGuard. Its window must stay open while you use the dashboard. If you closed it, " +
+  'start MemeGuard again; if the window shows an error, copy it and ask for help.';
+/** The dashboard server answers but the bot behind it does not (still starting, or it stopped). */
+export const BOT_DOWN_MESSAGE =
+  "The MemeGuard bot isn't answering. It may still be starting; if this stays, check the MemeGuard " +
+  'window for an error.';
+
 async function request<T>(
   method: 'GET' | 'POST',
   path: string,
@@ -90,18 +99,31 @@ async function request<T>(
     if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
   }
   const qs = params.toString();
-  const res = await fetch(`${API_BASE}${path}${qs ? `?${qs}` : ''}`, {
-    method,
-    headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), ...authHeaders() },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}${qs ? `?${qs}` : ''}`, {
+      method,
+      headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), ...authHeaders() },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    // Browsers report this as "Failed to fetch" / "Load failed", which explains nothing.
+    throw new ApiError(0, 'unreachable', UNREACHABLE_MESSAGE);
+  }
   const text = await res.text();
-  const data = text ? (JSON.parse(text) as unknown) : null;
   if (!res.ok) {
-    const d = (data ?? {}) as { error?: string; message?: string; issues?: string[] };
+    let d: { error?: string; message?: string; issues?: string[] } = {};
+    try {
+      d = text ? (JSON.parse(text) as typeof d) : {};
+    } catch {
+      /* not JSON: an error page from the dashboard server's proxy */
+    }
+    if (!d.error && [502, 503, 504].includes(res.status)) {
+      throw new ApiError(res.status, 'bot_unreachable', BOT_DOWN_MESSAGE);
+    }
     throw new ApiError(res.status, d.error ?? 'error', d.message ?? res.statusText, d.issues);
   }
-  return data as T;
+  return (text ? JSON.parse(text) : null) as T;
 }
 
 export interface TokenQuery {

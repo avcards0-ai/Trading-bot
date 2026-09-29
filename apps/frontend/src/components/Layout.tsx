@@ -19,7 +19,7 @@ import {
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useLive } from '../hooks/useLive';
-import { api } from '../lib/api';
+import { ApiError, api } from '../lib/api';
 
 const NAV = [
   { to: '/', label: 'Dashboard', Icon: LayoutDashboard, end: true },
@@ -179,7 +179,10 @@ export function Layout({ children }: { children: ReactNode }) {
             className="border-b border-critical/40 bg-critical/15 px-4 py-2 text-sm text-ink lg:px-6"
             role="alert"
           >
-            Backend unreachable — is the API running?
+            {status.error instanceof ApiError &&
+            (status.error.code === 'unreachable' || status.error.code === 'bot_unreachable')
+              ? status.error.message
+              : `The bot answered with an error: ${status.error instanceof Error ? status.error.message : String(status.error)}`}
           </div>
         )}
         <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-5 lg:px-6">{children}</main>
