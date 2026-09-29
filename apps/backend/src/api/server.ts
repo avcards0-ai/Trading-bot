@@ -233,6 +233,7 @@ export async function buildServer(app: App): Promise<FastifyInstance> {
   });
 
   server.get('/sniper', read, async () => app.sniper.status());
+  server.get('/social', read, async () => app.xTracker.status());
 
   server.get('/backtests', read, async () => ({ items: await app.repos.backtests.list(50) }));
   server.get('/backtests/:id', read, async (req) => {

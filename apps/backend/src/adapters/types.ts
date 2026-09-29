@@ -44,6 +44,8 @@ export interface MarketQuote {
   symbol: string | null;
   /** Liquidity is controlled by a launchpad bonding-curve program rather than withdrawable LP. */
   programControlledLiquidity: boolean;
+  /** The token's own X (Twitter) account, when the listing names one. */
+  xHandle?: string | null;
 }
 
 export interface MarketDataProvider {

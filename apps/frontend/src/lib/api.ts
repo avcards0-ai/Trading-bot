@@ -12,6 +12,7 @@ import type {
   ScanRequest,
   ScanResponse,
   SniperStatus,
+  SocialStatus,
   StrategyUpdateRequest,
   SystemStatus,
   TokenDetail,
@@ -174,6 +175,7 @@ export const api = {
     request<Paginated<Trade>>('GET', '/trades', undefined, { limit, offset }),
   performance: () => request<PerformanceSummary>('GET', '/performance'),
   sniper: () => request<SniperStatus>('GET', '/sniper'),
+  social: () => request<SocialStatus>('GET', '/social'),
   decisions: (limit = 50, action?: Decision['action']) =>
     request<{ items: Decision[] }>('GET', '/decisions', undefined, { limit, action }),
   alerts: (q: {

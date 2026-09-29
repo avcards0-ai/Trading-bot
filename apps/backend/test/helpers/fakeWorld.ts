@@ -7,6 +7,7 @@ import type { Chain } from '@memeguard/shared';
 
 import bs58 from 'bs58';
 import { FakeSolana } from './fakeSolana';
+import { FakeX } from './fakeX';
 
 export const SOL = 'So11111111111111111111111111111111111111112';
 
@@ -33,6 +34,8 @@ export interface FakeToken {
   /** Holder share of the largest non-pool wallet (percent). */
   topHolderPct: number;
   creator: string;
+  /** The token's own X account, listed in its DexScreener socials. */
+  xHandle?: string;
 }
 
 export function makeToken(overrides: Partial<FakeToken> & Pick<FakeToken, 'address' | 'chain'>): FakeToken {
@@ -86,6 +89,8 @@ export class FakeWorld {
   readonly rateLimitOnce = new Map<string, number>();
   /** Solana JSON-RPC node at FAKE_RPC_URL (used when a test sets RPC_URL to it). */
   readonly solana = new FakeSolana();
+  /** X API v2 at api.x.com (used when a test sets X_BEARER_TOKEN). */
+  readonly x = new FakeX();
 
   add(t: FakeToken): FakeToken {
     this.tokens.set(t.address, t);
@@ -120,6 +125,8 @@ export class FakeWorld {
         return this.honeypotIs(url);
       case 'lite-api.jup.ag':
         return this.jupiter(url);
+      case 'api.x.com':
+        return this.x.handle(url);
       case 'rpc.fake.test':
         return this.solana.handle(String(init?.body ?? '{}'));
       case 'api.telegram.org':
@@ -160,6 +167,7 @@ export class FakeWorld {
       fdv: t.priceUsd * 1_000_000_000,
       marketCap: t.priceUsd * 1_000_000_000,
       pairCreatedAt: t.pairCreatedAtMs,
+      ...(t.xHandle ? { info: { socials: [{ type: 'twitter', url: `https://x.com/${t.xHandle}` }] } } : {}),
     };
   }
 

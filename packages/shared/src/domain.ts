@@ -258,6 +258,32 @@ export interface TokenSnapshot {
   /** Provider explicitly reports that the token has already been rugged. */
   reportedRugged: boolean | null;
   sources: SourceStatus[];
+  /** X (Twitter) activity around the token. Optional: absent when X is not configured. */
+  social?: SocialData | null;
+}
+
+/** Who is posting about a token on X, and how organic it looks. */
+export interface SocialData {
+  source: 'x';
+  fetchedAt: string;
+  /** Recent posts that mention the contract address (one page, newest first). */
+  mentions: { lastHour: number; last24h: number; sampleSize: number; sampleTruncated: boolean };
+  uniqueAuthors: number;
+  /** Share of posting accounts younger than 30 days (bot / burner accounts). */
+  freshAuthorShare: number | null;
+  /** Share of posting accounts with fewer than 50 followers. */
+  lowFollowerAuthorShare: number | null;
+  /** Share of posts whose text, ignoring links, numbers and handles, repeats another post. */
+  duplicateTextShare: number | null;
+  topAuthors: { username: string; followers: number; verified: boolean; accountAgeDays: number | null }[];
+  /** The X account the token itself lists (e.g. on DexScreener), if any. */
+  officialAccount: {
+    username: string;
+    status: 'ok' | 'not_found';
+    followers: number | null;
+    accountAgeDays: number | null;
+    verified: boolean | null;
+  } | null;
 }
 
 // ---------------------------------------------------------------------------

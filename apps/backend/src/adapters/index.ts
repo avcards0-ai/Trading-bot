@@ -11,6 +11,7 @@ import { GOPLUS_BASE_URL, GoPlusAdapter } from './goplus';
 import { HONEYPOT_IS_BASE_URL, HoneypotIsAdapter } from './honeypotis';
 import { JupiterAdapter } from './jupiter';
 import { RUGCHECK_BASE_URL, RugCheckAdapter } from './rugcheck';
+import { XAdapter } from './x';
 import { SolanaInspector } from './solana/inspector';
 import { SolanaRpc } from './solana/rpc';
 import { SolanaWalletProfiler } from './solana/walletProfiler';
@@ -39,6 +40,8 @@ export interface Providers {
   deployerHistory: DeployerHistorySource[];
   solanaRpc: SolanaRpc | null;
   jupiter: JupiterAdapter;
+  /** Official X API (read-only); null when X_BEARER_TOKEN is not set. */
+  x: XAdapter | null;
 }
 
 export interface ProviderDeps {
@@ -132,6 +135,19 @@ export function createProviders({ config, logger, registerSecret, fetchImpl }: P
     registry.register({ name: 'etherscan', health: () => notConfigured('etherscan') });
   }
 
+  let x: XAdapter | null = null;
+  if (config.x.bearerToken) {
+    x = new XAdapter(
+      http('x', config.x.apiUrl, config.x.rpm, {
+        headers: { authorization: `Bearer ${config.x.bearerToken}` },
+        burst: 3,
+        retries: 2,
+      }),
+    );
+  } else {
+    registry.register({ name: 'x', health: () => notConfigured('x') });
+  }
+
   const discovery: DiscoveryProvider[] = [];
   for (const src of config.engine.discoverySources) {
     if (src === 'geckoterminal') discovery.push(gecko);
@@ -152,6 +168,7 @@ export function createProviders({ config, logger, registerSecret, fetchImpl }: P
     deployerHistory,
     solanaRpc,
     jupiter,
+    x,
   };
 }
 

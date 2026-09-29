@@ -27,16 +27,17 @@ errors, the system treats that as risk and does not trade (it fails closed).
 3. [Configuration](#configuration)
 4. [Paper trading](#paper-trading)
 5. [Launch sniper (paper only)](#launch-sniper-paper-only)
-6. [Rug scanner](#rug-scanner)
-7. [Backtesting](#backtesting)
-8. [Tests and quality checks](#tests-and-quality-checks)
-9. [Enabling live trading](#enabling-live-trading)
-10. [Architecture](#architecture)
-11. [Rug-risk model](#rug-risk-model)
-12. [Risk management](#risk-management)
-13. [API reference](#api-reference)
-14. [Security](#security)
-15. [Known limitations](#known-limitations)
+6. [X (Twitter) tracker](#x-twitter-tracker)
+7. [Rug scanner](#rug-scanner)
+8. [Backtesting](#backtesting)
+9. [Tests and quality checks](#tests-and-quality-checks)
+10. [Enabling live trading](#enabling-live-trading)
+11. [Architecture](#architecture)
+12. [Rug-risk model](#rug-risk-model)
+13. [Risk management](#risk-management)
+14. [API reference](#api-reference)
+15. [Security](#security)
+16. [Known limitations](#known-limitations)
 
 ---
 
@@ -260,6 +261,42 @@ as the launch. This bot typically arrives seconds later.
 
 `GET /sniper` returns the same status as JSON.
 
+## X (Twitter) tracker
+
+Read-only tracking of X, using the official X API v2 (no scraping). It never posts, likes,
+follows or sends messages. Off unless `X_BEARER_TOKEN` is set.
+
+```bash
+X_BEARER_TOKEN=<app-only bearer token from the X developer portal>
+X_TRACKED_ACCOUNTS=handle1,handle2      # accounts whose posts you want watched
+```
+
+It does two things:
+
+1. **Watches accounts for token calls.** Every `X_POLL_SECONDS` it reads the listed accounts' new
+   posts and pulls out contract addresses, both typed ones and ones inside DexScreener,
+   pump.fun or similar links. Addresses seen only in links are confirmed as tokens first (a
+   link can point at a pool). EVM addresses are matched to their chain. Each new call is recorded
+   and raises a `SOCIAL_MENTION` alert. The token is then queued for the **full analysis**; it is
+   bought only if every rug and risk check passes, exactly like any other token.
+2. **Checks who is posting a token.** For tokens being analysed, it searches recent posts that
+   mention the contract address (up to `X_MAX_SEARCHES_PER_HOUR`), and looks up the X account
+   the token lists on DexScreener. The rug model uses this only to **raise** risk, in the
+   market-integrity category:
+   - the listed account doesn't exist or was suspended;
+   - the listed account is under a week old;
+   - coordinated promotion: most posting accounts are under 30 days old, or most posts are
+     copy-pasted.
+
+   Missing X data is never counted against a token, because X is optional.
+
+The **X tracker** page shows each watched account's status and the latest calls, with the
+bot's own rug score and decision next to every one. It also lists the most-called tokens of the
+last 24 hours. Each token page has a **Social (X)** tab. `GET /social` returns the same data.
+
+Promoted tokens are often paid placements or pump-and-dumps: treat a call as a lead to check,
+never as a reason to buy.
+
 ## Rug scanner
 
 Analyse any token without trading:
@@ -466,32 +503,33 @@ liquidation proceeds. Exits are never blocked by entry checks.
 Reads are public unless `REQUIRE_AUTH_FOR_READS=true`. Admin routes need
 `Authorization: Bearer <API_KEY>` (or `X-API-Key`). If `API_KEY` is unset, admin routes return 503.
 
-| Method & path                                  | Description                                                                                                               |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health`                                  | liveness                                                                                                                  |
-| `GET /status`                                  | engine, loops, providers, notifiers, queue, DB                                                                            |
-| `GET /config`                                  | effective limits/strategy and a redacted system config                                                                    |
-| `GET /tokens`                                  | `?limit&offset&sort&order&chain&risk&search&analyzedOnly`                                                                 |
-| `GET /tokens/:address`                         | detail: snapshot, risk report, price/liquidity/risk history, decisions, positions, alerts                                 |
-| `GET /tokens/:address/wallets`                 | holders, clusters, deployer, developer activity, transfers                                                                |
-| `GET /risk/:address`                           | latest rug-risk report                                                                                                    |
-| `GET /positions`                               | `?status=open\|closed\|all`                                                                                               |
-| `GET /trades`                                  | paginated trade log                                                                                                       |
-| `GET /performance`                             | equity, P/L, drawdown, win rate, equity curve, daily P/L                                                                  |
-| `GET /decisions`                               | `?action=BUY\|SELL\|HOLD\|SKIP`                                                                                           |
-| `GET /alerts`                                  | `?severity&type&unacknowledged`                                                                                           |
-| `GET /logs`                                    | engine event log (skipped opportunities, errors, config changes)                                                          |
-| `GET /backtests`, `GET /backtests/:id`         | saved backtests                                                                                                           |
-| `GET /sniper`                                  | launch sniper status, limits, recent launches with every check, sniper positions                                          |
-| `GET /events`                                  | Server-Sent Events: `token.analyzed`, `decision`, `trade`, `position`, `alert`, `performance`, `status`, `sniper.attempt` |
-| `POST /scan`                                   | `{chain,address,allowTrade?}` analyse now, or `{discover:true}`                                                           |
-| `POST /paper-trade`                            | `{chain,address,side,amountUsd?,positionId?}` (paper mode only)                                                           |
-| `POST /positions/:id/close`                    | manual close                                                                                                              |
-| `POST /strategy`                               | `{limits?,strategy?}`; values looser than the hard env limits are rejected                                                |
-| `POST /engine/start`, `POST /engine/stop`      | engine control                                                                                                            |
-| `POST /risk/resume`                            | clear a drawdown halt                                                                                                     |
-| `POST /alerts/:id/ack`, `POST /alerts/ack-all` | acknowledge alerts                                                                                                        |
-| `POST /backtest`                               | run a synthetic or DB backtest and save it                                                                                |
+| Method & path                                  | Description                                                                                                                                 |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                                  | liveness                                                                                                                                    |
+| `GET /status`                                  | engine, loops, providers, notifiers, queue, DB                                                                                              |
+| `GET /config`                                  | effective limits/strategy and a redacted system config                                                                                      |
+| `GET /tokens`                                  | `?limit&offset&sort&order&chain&risk&search&analyzedOnly`                                                                                   |
+| `GET /tokens/:address`                         | detail: snapshot, risk report, price/liquidity/risk history, decisions, positions, alerts                                                   |
+| `GET /tokens/:address/wallets`                 | holders, clusters, deployer, developer activity, transfers                                                                                  |
+| `GET /risk/:address`                           | latest rug-risk report                                                                                                                      |
+| `GET /positions`                               | `?status=open\|closed\|all`                                                                                                                 |
+| `GET /trades`                                  | paginated trade log                                                                                                                         |
+| `GET /performance`                             | equity, P/L, drawdown, win rate, equity curve, daily P/L                                                                                    |
+| `GET /decisions`                               | `?action=BUY\|SELL\|HOLD\|SKIP`                                                                                                             |
+| `GET /alerts`                                  | `?severity&type&unacknowledged`                                                                                                             |
+| `GET /logs`                                    | engine event log (skipped opportunities, errors, config changes)                                                                            |
+| `GET /backtests`, `GET /backtests/:id`         | saved backtests                                                                                                                             |
+| `GET /sniper`                                  | launch sniper status, limits, recent launches with every check, sniper positions                                                            |
+| `GET /social`                                  | X tracker: watched accounts, latest calls with the bot's verdict, most-called tokens, search budget                                         |
+| `GET /events`                                  | Server-Sent Events: `token.analyzed`, `decision`, `trade`, `position`, `alert`, `performance`, `status`, `sniper.attempt`, `social.mention` |
+| `POST /scan`                                   | `{chain,address,allowTrade?}` analyse now, or `{discover:true}`                                                                             |
+| `POST /paper-trade`                            | `{chain,address,side,amountUsd?,positionId?}` (paper mode only)                                                                             |
+| `POST /positions/:id/close`                    | manual close                                                                                                                                |
+| `POST /strategy`                               | `{limits?,strategy?}`; values looser than the hard env limits are rejected                                                                  |
+| `POST /engine/start`, `POST /engine/stop`      | engine control                                                                                                                              |
+| `POST /risk/resume`                            | clear a drawdown halt                                                                                                                       |
+| `POST /alerts/:id/ack`, `POST /alerts/ack-all` | acknowledge alerts                                                                                                                          |
+| `POST /backtest`                               | run a synthetic or DB backtest and save it                                                                                                  |
 
 ---
 
@@ -516,6 +554,11 @@ Reads are public unless `REQUIRE_AUTH_FOR_READS=true`. Admin routes need
   token metadata as untrusted input and can only raise risk.
 
 ## Known limitations
+
+- **The X tracker is untested against the real X API**; it was built to the documented v2
+  formats and tested against a simulated API. Reading posts requires an X API plan that includes
+  it, and plans and rate limits change. The mention search samples one page of posts (up to 100)
+  per lookup.
 
 - **The launch sniper is untested against mainnet.** Its program ids, log markers and
   transaction parsing follow the programs' public behaviour and were tested against a simulated

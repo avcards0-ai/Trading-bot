@@ -201,6 +201,15 @@ const envSchema = z.object({
   STRATEGY_EXIT_RUG_SCORE: num(50, { min: 0, max: 100 }),
   STRATEGY_EXIT_LIQUIDITY_DROP_PERCENT: num(30, { min: 1, max: 100 }),
 
+  // X (Twitter) tracker: official X API v2 with an app-only bearer token
+  X_BEARER_TOKEN: optStr,
+  X_API_URL: z.string().optional().default('https://api.x.com/2'),
+  X_TRACKED_ACCOUNTS: z.string().optional().default(''),
+  X_POLL_SECONDS: num(120, { min: 30 }),
+  X_MENTION_SEARCH: bool(true),
+  X_MAX_SEARCHES_PER_HOUR: num(30, { min: 0, int: true }),
+  X_RPM: num(30, { min: 1 }),
+
   // Launch sniper (paper only; off by default)
   SNIPER_ENABLED: bool(false),
   SNIPER_SOURCES: z.string().optional().default(DEFAULT_LAUNCH_SOURCES),
@@ -315,6 +324,20 @@ export interface AppConfig {
     timeoutMs: number;
   };
   sniper: SniperConfig;
+  x: XConfig;
+}
+
+export interface XConfig {
+  /** App-only bearer token for the official X API. The tracker is off without it. */
+  bearerToken: string | null;
+  apiUrl: string;
+  /** Handles (without @) whose posts are watched for token contract addresses. */
+  trackedAccounts: string[];
+  pollIntervalMs: number;
+  /** Search recent posts mentioning each analysed token's contract address. */
+  mentionSearch: boolean;
+  maxSearchesPerHour: number;
+  rpm: number;
 }
 
 export interface SniperConfig {
@@ -365,6 +388,7 @@ export function collectSecrets(config: AppConfig): string[] {
     // RPC URLs frequently embed provider API keys.
     config.rpc.solana,
     config.sniper.wsUrl,
+    config.x.bearerToken,
     ...Object.values(config.rpc.evm),
     passwordFromUrl(config.database.url),
   ];
@@ -476,6 +500,13 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env, version = '1
       );
     }
   }
+
+  const trackedAccounts = e.X_TRACKED_ACCOUNTS.split(',')
+    .map((h) => h.trim().replace(/^@/, ''))
+    .filter(Boolean);
+  const badHandle = trackedAccounts.find((h) => !/^[A-Za-z0-9_]{1,15}$/.test(h));
+  if (badHandle) throw new ConfigError(`X_TRACKED_ACCOUNTS: "${badHandle}" is not a valid X handle.`);
+  if (!/^https:\/\//.test(e.X_API_URL)) throw new ConfigError('X_API_URL must be an https URL.');
 
   const hardLimits: RiskLimits = {
     maxPositionPercent: e.MAX_POSITION_PERCENT,
@@ -597,6 +628,15 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env, version = '1
       required: e.LLM_REVIEW_REQUIRED,
       timeoutMs: e.LLM_REVIEW_TIMEOUT_MS,
     },
+    x: {
+      bearerToken: e.X_BEARER_TOKEN,
+      apiUrl: e.X_API_URL.replace(/\/+$/, ''),
+      trackedAccounts: [...new Set(trackedAccounts.map((h) => h.toLowerCase()))],
+      pollIntervalMs: e.X_POLL_SECONDS * 1000,
+      mentionSearch: e.X_MENTION_SEARCH,
+      maxSearchesPerHour: e.X_MAX_SEARCHES_PER_HOUR,
+      rpm: e.X_RPM,
+    },
     sniper: {
       enabled: e.SNIPER_ENABLED,
       wsUrl,
@@ -654,5 +694,10 @@ export function safeConfigView(config: AppConfig): Record<string, unknown> {
     },
     llm: { enabled: config.llm.enabled, model: config.llm.enabled ? config.llm.model : null },
     sniper: { enabled: config.sniper.enabled, sources: config.sniper.sources.map((p) => p.name) },
+    x: {
+      configured: config.x.bearerToken !== null,
+      trackedAccounts: config.x.trackedAccounts,
+      mentionSearch: config.x.mentionSearch,
+    },
   };
 }

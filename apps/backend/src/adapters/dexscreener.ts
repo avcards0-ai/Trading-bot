@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { handleFromUrl } from '../social/analysis';
 import type { Chain, MarketData, TxnCounts } from '@memeguard/shared';
 import type { HttpClient } from '../lib/http';
 import { toNum } from '../lib/math';
@@ -34,8 +35,40 @@ export const dexPairSchema = z.object({
   fdv: numLike,
   marketCap: numLike,
   pairCreatedAt: numLike,
+  info: z
+    .object({
+      socials: z
+        .array(
+          z
+            .object({
+              type: z.string().nullish(),
+              platform: z.string().nullish(),
+              handle: z.string().nullish(),
+              url: z.string().nullish(),
+            })
+            .passthrough(),
+        )
+        .nullish(),
+    })
+    .passthrough()
+    .nullish(),
 });
 export type DexPair = z.infer<typeof dexPairSchema>;
+
+/** The token's own X account from a pair's listed socials (profile links only). */
+export function xHandleFromPairs(pairs: DexPair[]): string | null {
+  for (const p of pairs) {
+    for (const s of p.info?.socials ?? []) {
+      const kind = (s.type ?? s.platform ?? '').toLowerCase();
+      if (kind !== 'twitter' && kind !== 'x') continue;
+      const fromHandle =
+        s.handle && /^@?[A-Za-z0-9_]{1,15}$/.test(s.handle) ? s.handle.replace(/^@/, '') : null;
+      const h = fromHandle ?? handleFromUrl(s.url);
+      if (h) return h;
+    }
+  }
+  return null;
+}
 
 const pairsResponse = z.array(dexPairSchema);
 const profilesResponse = z.array(
@@ -98,6 +131,7 @@ export function quoteFromPairs(
     name: main.baseToken.name ?? null,
     symbol: main.baseToken.symbol ?? null,
     programControlledLiquidity: BONDING_CURVE_DEXES.has((main.dexId ?? '').toLowerCase()),
+    xHandle: xHandleFromPairs(sorted),
   };
 }
 

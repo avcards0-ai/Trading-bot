@@ -16,6 +16,7 @@ import {
   levelFromScore,
   liquidityFactors,
   marketFactors,
+  socialFactors,
   type RiskContext,
 } from './factors';
 
@@ -143,6 +144,7 @@ export class RugDetector {
       ...concentrationFactors(snapshot),
       ...developerFactors(snapshot),
       ...marketFactors(snapshot),
+      ...socialFactors(snapshot),
       ...dataFactors(snapshot, ctx),
     ];
     const llm = context.llmReview ?? null;

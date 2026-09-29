@@ -8,6 +8,7 @@ import {
   TransactionsRepository,
   WalletsRepository,
 } from './misc';
+import { SocialRepository } from './social';
 import { TokensRepository } from './tokens';
 import { AccountsRepository, PerformanceRepository, PositionsRepository, TradesRepository } from './trading';
 
@@ -26,6 +27,7 @@ export interface Repositories {
   backtests: BacktestRepository;
   wallets: WalletsRepository;
   transactions: TransactionsRepository;
+  social: SocialRepository;
 }
 
 export function createRepositories(db: Database): Repositories {
@@ -44,10 +46,12 @@ export function createRepositories(db: Database): Repositories {
     backtests: new BacktestRepository(db),
     wallets: new WalletsRepository(db),
     transactions: new TransactionsRepository(db),
+    social: new SocialRepository(db),
   };
 }
 
 export * from './analysis';
 export * from './misc';
+export * from './social';
 export * from './tokens';
 export * from './trading';

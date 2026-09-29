@@ -2,6 +2,7 @@ import type {
   Chain,
   DeveloperActivity,
   HolderInfo,
+  SocialData,
   SourceStatus,
   TokenSnapshot,
   TradeActivity,
@@ -68,6 +69,10 @@ export interface CollectorDeps {
   timeoutMs: number;
   walletAnalysisTopN: number;
   freshWalletAgeHours: number;
+  /** Optional X (Twitter) lookup. Its failures are not "missing data": X is optional. */
+  social?: {
+    lookup(args: { chain: Chain; address: string; xHandle: string | null }): Promise<SocialData | null>;
+  } | null;
   now?: () => Date;
 }
 
@@ -212,6 +217,21 @@ export class SnapshotCollector {
       }
     }
 
+    // 5. Social activity on X (optional; keeps the previous reading when the budget is used up)
+    let social: SocialData | null = prev?.social ?? null;
+    if (!opts.lightweight && this.deps.social) {
+      try {
+        const fresh = await withTimeout(
+          this.deps.social.lookup({ chain, address, xHandle: quote?.xHandle ?? null }),
+          this.deps.timeoutMs,
+          'social:x',
+        );
+        if (fresh) social = fresh;
+      } catch (err) {
+        this.deps.logger.debug({ err: errorMessage(err) }, 'x lookup failed');
+      }
+    }
+
     const nameSrc = contributions.find((c) => c.name);
     const symSrc = contributions.find((c) => c.symbol);
     const decSrc = contributions.find((c) => typeof c.decimals === 'number');
@@ -234,6 +254,7 @@ export class SnapshotCollector {
       warnings,
       reportedRugged,
       sources: statuses,
+      social,
     };
   }
 

@@ -23,6 +23,7 @@ import { SecretRedactor } from './lib/redact';
 import { RiskManager } from './risk/riskManager';
 import type { WebSocketFactory } from './sniper/listener';
 import { SniperService } from './sniper/sniperService';
+import { XTracker } from './social/xTracker';
 import { Portfolio } from './trading/portfolio';
 import { TradeService } from './trading/tradeService';
 
@@ -43,6 +44,7 @@ export interface App {
   pipeline: DecisionPipeline;
   engine: TradingEngine;
   sniper: SniperService;
+  xTracker: XTracker;
   llm: LlmReviewer | null;
   startedAt: Date;
   close(): Promise<void>;
@@ -196,6 +198,20 @@ export async function createApp(config: AppConfig, o: AppOverrides = {}): Promis
   });
   await portfolio.init();
 
+  // The tracker queues tokens through the engine, which is created below.
+  let engineRef: TradingEngine | null = null;
+  const xTracker = new XTracker({
+    config: config.x,
+    chains: config.engine.chains,
+    x: providers.x,
+    repos,
+    market: providers.market,
+    alerts,
+    bus,
+    logger,
+    onToken: (tokenId) => void engineRef?.enqueue(tokenId, 'discovery'),
+  });
+
   const collector = new SnapshotCollector({
     providers,
     logger,
@@ -203,6 +219,7 @@ export async function createApp(config: AppConfig, o: AppOverrides = {}): Promis
     timeoutMs: config.engine.sourceTimeoutMs,
     walletAnalysisTopN: config.engine.walletAnalysisTopN,
     freshWalletAgeHours: config.engine.freshWalletAgeHours,
+    social: xTracker,
   });
   const detector = new RugDetector({ freshWalletAgeHours: config.engine.freshWalletAgeHours });
   const llm =
@@ -276,7 +293,9 @@ export async function createApp(config: AppConfig, o: AppOverrides = {}): Promis
     logger,
     settings: config.engine,
     sniper,
+    xTracker,
   });
+  engineRef = engine;
 
   return {
     config,
@@ -295,6 +314,7 @@ export async function createApp(config: AppConfig, o: AppOverrides = {}): Promis
     pipeline,
     engine,
     sniper,
+    xTracker,
     llm,
     startedAt: new Date(),
     async close() {

@@ -379,6 +379,27 @@ export const strategyConfigs = pgTable('strategy_configs', {
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 
+/** Posts by tracked X accounts that contained a token's contract address. */
+export const socialMentions = pgTable(
+  'social_mentions',
+  {
+    id: serial('id').primaryKey(),
+    tokenId: integer('token_id').references(() => tokens.id, { onDelete: 'set null' }),
+    chain: text('chain').notNull(),
+    address: text('address').notNull(),
+    tweetId: text('tweet_id').notNull(),
+    authorHandle: text('author_handle').notNull(),
+    authorFollowers: integer('author_followers'),
+    text: text('text').notNull(),
+    tweetedAt: ts('tweeted_at').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('social_mentions_tweet_address_idx').on(t.tweetId, t.address),
+    index('social_mentions_tweeted_idx').on(t.tweetedAt),
+  ],
+);
+
 /** Engine event log: errors, skipped opportunities, lifecycle events. */
 export const eventLog = pgTable(
   'event_log',

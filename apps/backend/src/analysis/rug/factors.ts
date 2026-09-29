@@ -1008,6 +1008,54 @@ export function marketFactors(s: TokenSnapshot): RiskFactor[] {
 }
 
 // ---------------------------------------------------------------------------
+// SOCIAL (X): signs of manufactured hype. Optional data: its absence is never scored.
+// ---------------------------------------------------------------------------
+export function socialFactors(s: TokenSnapshot): RiskFactor[] {
+  const x = s.social;
+  if (!x) return [];
+  const f = new FactorList('market');
+  const src = ['x'];
+  const off = x.officialAccount;
+  if (off?.status === 'not_found') {
+    f.add(
+      'x_account_missing',
+      'Listed X account missing',
+      35,
+      off.username,
+      null,
+      `The token lists @${off.username} as its X account, but that account does not exist or was suspended.`,
+      src,
+    );
+  } else if (off && off.accountAgeDays !== null && off.accountAgeDays < 7) {
+    f.add(
+      'x_account_new',
+      'Brand-new X account',
+      off.accountAgeDays < 2 ? 35 : 20,
+      round3(off.accountAgeDays),
+      7,
+      `The token's X account @${off.username} is only ${off.accountAgeDays.toFixed(1)} days old.`,
+      src,
+    );
+  }
+  if (x.uniqueAuthors >= 5) {
+    const fresh = x.freshAuthorShare ?? 0;
+    const dup = x.duplicateTextShare ?? 0;
+    if (fresh >= 0.6 || dup >= 0.5) {
+      f.add(
+        'x_coordinated_promotion',
+        'Coordinated promotion on X',
+        fresh >= 0.8 || dup >= 0.7 ? 45 : 30,
+        round3(Math.max(fresh, dup)),
+        0.5,
+        `Of ${x.uniqueAuthors} accounts posting the contract, ${fmtPct(fresh * 100, 0)} are under 30 days old and ${fmtPct(dup * 100, 0)} of posts are copy-pasted: a pattern typical of bot or paid promotion.`,
+        src,
+      );
+    }
+  }
+  return f.items;
+}
+
+// ---------------------------------------------------------------------------
 // DATA QUALITY: missing data is treated as risk (fail closed)
 // ---------------------------------------------------------------------------
 export function dataFactors(s: TokenSnapshot, ctx: RiskContext): RiskFactor[] {

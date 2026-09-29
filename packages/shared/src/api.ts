@@ -221,6 +221,7 @@ export type AlertType =
   | 'TAKE_PROFIT'
   | 'DAILY_LOSS_LIMIT'
   | 'MAX_DRAWDOWN'
+  | 'SOCIAL_MENTION'
   | 'SYSTEM_ERROR';
 
 export type AlertSeverity = 'info' | 'warning' | 'critical';
@@ -403,7 +404,8 @@ export type ServerEvent =
       data: Pick<PerformanceSummary, 'equityUsd' | 'dailyPnlUsd' | 'drawdownPct' | 'halted'>;
     }
   | { type: 'status'; data: Pick<SystemStatus, 'engineRunning' | 'halted' | 'haltReason'> }
-  | { type: 'sniper.attempt'; data: SniperAttempt };
+  | { type: 'sniper.attempt'; data: SniperAttempt }
+  | { type: 'social.mention'; data: SocialMention };
 
 // ---------------------------------------------------------------------------
 // Launch sniper (paper only)
@@ -491,4 +493,52 @@ export interface SniperStatus {
   };
   recent: SniperAttempt[];
   positions: Position[];
+}
+
+// ---------------------------------------------------------------------------
+// X (Twitter) tracker
+// ---------------------------------------------------------------------------
+
+/** A tracked account posted a token's contract address. */
+export interface SocialMention {
+  id: number;
+  tweetId: string;
+  url: string;
+  authorHandle: string;
+  authorFollowers: number | null;
+  text: string;
+  tweetedAt: string;
+  chain: Chain;
+  address: string;
+  tokenId: number | null;
+  symbol: string | null;
+  rugScore: number | null;
+  overallRisk: RiskLevel | null;
+  lastDecisionLabel: string | null;
+}
+
+export interface SocialStatus {
+  enabled: boolean;
+  disabledReason: string | null;
+  trackedAccounts: {
+    handle: string;
+    found: boolean | null;
+    followers: number | null;
+    lastPolledAt: string | null;
+    lastError: string | null;
+  }[];
+  mentionSearch: { enabled: boolean; usedLastHour: number; maxPerHour: number };
+  mentions: SocialMention[];
+  /** Tokens posted by the most tracked accounts in the last 24 hours. */
+  mostMentioned: {
+    chain: Chain;
+    address: string;
+    tokenId: number | null;
+    symbol: string | null;
+    mentions: number;
+    accounts: string[];
+    rugScore: number | null;
+    overallRisk: RiskLevel | null;
+    lastDecisionLabel: string | null;
+  }[];
 }

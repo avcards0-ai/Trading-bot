@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import {
   Activity,
+  AtSign,
   Bell,
   Briefcase,
   Crosshair,
@@ -26,6 +27,7 @@ const NAV = [
   { to: '/leaderboard', label: 'Risk leaderboard', Icon: ListOrdered },
   { to: '/positions', label: 'Positions & trades', Icon: Briefcase },
   { to: '/sniper', label: 'Launch sniper', Icon: Crosshair },
+  { to: '/social', label: 'X tracker', Icon: AtSign },
   { to: '/performance', label: 'Performance', Icon: Gauge },
   { to: '/backtest', label: 'Backtesting', Icon: FlaskConical },
   { to: '/alerts', label: 'Alert center', Icon: Bell },

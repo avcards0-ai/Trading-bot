@@ -29,6 +29,7 @@ const INVALIDATES: Record<ServerEvent['type'], string[][]> = {
   performance: [['performance']],
   status: [['status']],
   'sniper.attempt': [['sniper']],
+  'social.mention': [['social'], ['tokens']],
 };
 
 export function LiveProvider({ children }: { children: ReactNode }) {
@@ -57,7 +58,9 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       if (
         e.type === 'alert' &&
         (e.data.severity === 'critical' ||
-          ['POSITION_OPENED', 'POSITION_CLOSED', 'STOP_LOSS', 'TAKE_PROFIT'].includes(e.data.type))
+          ['POSITION_OPENED', 'POSITION_CLOSED', 'STOP_LOSS', 'TAKE_PROFIT', 'SOCIAL_MENTION'].includes(
+            e.data.type,
+          ))
       ) {
         setToasts((t) => [e.data, ...t].slice(0, 4));
         window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== e.data.id)), 12_000);

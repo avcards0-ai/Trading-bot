@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { LineSeriesChart, TimeSeriesChart } from '../components/charts';
 import { DecisionBadge, RiskBadge } from '../components/RiskBadge';
 import { CategoryBars, RiskExplanation, RugScoreMeter } from '../components/RugRiskPanel';
+import { SocialPanel } from '../components/SocialPanel';
 import { DecisionView, PositionsTable } from '../components/tables';
 import { Button, Card, ChartCard, Empty, ErrorBox, Pill, Spinner, StatTile, Td, Th } from '../components/ui';
 import { AlertList } from './Alerts';
@@ -327,7 +328,9 @@ export function TokenDetailPage() {
   const [params] = useSearchParams();
   const chain = (params.get('chain') ?? undefined) as Chain | undefined;
   const qc = useQueryClient();
-  const [tab, setTab] = useState<'risk' | 'wallets' | 'contract' | 'decisions' | 'activity'>('risk');
+  const [tab, setTab] = useState<'risk' | 'wallets' | 'contract' | 'social' | 'decisions' | 'activity'>(
+    'risk',
+  );
   const detail = useQuery({
     queryKey: ['token', address, chain],
     queryFn: () => api.token(address, chain),
@@ -547,6 +550,7 @@ export function TokenDetailPage() {
             ['risk', 'Risk explanation'],
             ['wallets', 'Wallet analysis'],
             ['contract', 'Contract'],
+            ['social', 'Social (X)'],
             ['decisions', `Decisions (${d.decisions.length})`],
             ['activity', 'Positions & alerts'],
           ] as const
@@ -616,6 +620,11 @@ export function TokenDetailPage() {
       {tab === 'wallets' && (
         <Card title="Wallet analysis">
           <WalletAnalysis address={t.address} chain={t.chain} />
+        </Card>
+      )}
+      {tab === 'social' && (
+        <Card title="Social activity on X" subtitle="Who is posting this token, and how organic it looks">
+          <SocialPanel social={s?.social} />
         </Card>
       )}
       {tab === 'contract' && (

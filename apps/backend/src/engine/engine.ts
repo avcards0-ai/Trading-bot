@@ -17,6 +17,7 @@ import { Loop } from './loop';
 import type { AnalysisTrigger, DecisionPipeline } from './pipeline';
 import { WorkQueue } from './queue';
 import type { SniperService } from '../sniper/sniperService';
+import type { XTracker } from '../social/xTracker';
 
 const PRIORITY: Record<AnalysisTrigger, number> = { manual: 100, monitor: 80, discovery: 50, watchlist: 10 };
 
@@ -70,6 +71,8 @@ export class TradingEngine {
       settings: EngineSettings;
       /** Optional launch sniper; follows the engine's start/stop like the discovery loops. */
       sniper?: SniperService | null;
+      /** Optional X tracker (watched accounts are a discovery source). */
+      xTracker?: XTracker | null;
     },
   ) {
     const s = d.settings;
@@ -120,6 +123,7 @@ export class TradingEngine {
     return [
       ...[...this.protectiveLoops, ...this.tradingLoops].map((l) => l.snapshot()),
       ...(this.d.sniper?.loopStatus() ?? []),
+      ...(this.d.xTracker?.loopStatus() ?? []),
     ];
   }
 
@@ -139,6 +143,7 @@ export class TradingEngine {
     this.running = true;
     for (const l of this.tradingLoops) l.start(true);
     this.d.sniper?.start();
+    this.d.xTracker?.start();
     await this.d.repos.events.log('info', 'engine', 'engine started').catch(() => undefined);
     this.d.bus.publish({ type: 'status', data: { engineRunning: true, halted: false, haltReason: null } });
     this.d.logger.info('trading engine started');
@@ -153,6 +158,7 @@ export class TradingEngine {
     this.running = false;
     for (const l of this.tradingLoops) l.stop();
     this.d.sniper?.stop();
+    this.d.xTracker?.stop();
     // Awaited: closing the database with a write in flight must never happen.
     await this.d.repos.events
       .log('info', 'engine', 'engine stopped (position protection remains active)')
@@ -171,6 +177,7 @@ export class TradingEngine {
     // Let in-flight loop iterations (which may be mid-write) finish before the DB closes.
     await Promise.all([...this.protectiveLoops, ...this.tradingLoops].map((l) => l.idle(10_000)));
     await this.d.sniper?.shutdown();
+    await this.d.xTracker?.shutdown();
   }
 
   enqueue(tokenId: number, trigger: AnalysisTrigger, forceSecurityRefresh = false): boolean {
