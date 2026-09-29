@@ -55,6 +55,10 @@ and the dashboard, and opens http://localhost:5173 in your browser. The password
 clipboard (it is also the `API_KEY` line in `.env`): paste it on the **Configuration** page to use
 the buttons. Keep the window open; press Ctrl+C or close it to stop MemeGuard.
 
+While no Solana `RPC_URL` is set, the launcher also offers to save one: paste a link (free from
+providers such as [Helius](https://www.helius.dev)) and it checks that the link works, then saves
+it and turns on the launch sniper (paper only). Press Enter to skip.
+
 - Windows may warn about a downloaded file: click **More info → Run anyway**.
 - macOS may refuse to open `start.command` from the internet: right-click it and choose **Open**,
   or allow it under **System Settings → Privacy & Security**. You can also open Terminal, type

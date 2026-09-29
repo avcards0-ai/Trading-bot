@@ -2,14 +2,17 @@
  * One-step launcher, for running MemeGuard without typing commands. It:
  *   1. installs dependencies on the first run,
  *   2. creates .env (paper trading) with a random dashboard password (API_KEY) if there is none,
- *   3. starts the bot and the dashboard, and opens the dashboard in the browser.
+ *   3. offers to save a Solana RPC link, which turns on the launch sniper (paper) and the deeper
+ *      Solana checks,
+ *   4. starts the bot and the dashboard, and opens the dashboard in the browser.
  * Started by start.bat (Windows), start.command (macOS) or `npm run launch`.
- * It never prints the password: it copies it to the clipboard and points at .env.
+ * It never prints the password or the RPC link (which usually contains an API key).
  */
 import { exec, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { chmodSync, copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -52,6 +55,60 @@ function parseEnv(text) {
     out[m[1]] = /^(["']).*\1$/.test(raw) ? raw.slice(1, -1) : raw.replace(/\s+#.*$/, '');
   }
   return out;
+}
+
+/** Sets KEY=value in .env text: rewrites every line for the key (the last one wins), or adds one. */
+function setEnvValues(text, updates) {
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  for (const [key, value] of Object.entries(updates)) {
+    const re = new RegExp(`^\\s*${key}\\s*=`);
+    let found = false;
+    for (let i = 0; i < lines.length; i++) {
+      if (re.test(lines[i])) {
+        lines[i] = `${key}=${value}`;
+        found = true;
+      }
+    }
+    if (found) continue;
+    if (lines.at(-1) === '') lines.splice(lines.length - 1, 0, `${key}=${value}`);
+    else lines.push(`${key}=${value}`);
+  }
+  return lines.join(eol);
+}
+
+/** One question in this window. No keyboard, or no answer within `ms`, counts as skipping. */
+async function ask(question, ms) {
+  if (!process.stdin.isTTY) return '';
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  rl.on('SIGINT', () => {
+    rl.close();
+    process.exit(130);
+  });
+  try {
+    return (await rl.question(question, { signal: AbortSignal.timeout(ms) })).trim();
+  } catch {
+    say('\n(No answer: skipped for now.)');
+    return '';
+  } finally {
+    rl.close();
+  }
+}
+
+/** True when the link answers a Solana JSON-RPC call. */
+async function isSolanaRpc(url) {
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getSlot' }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = await res.json();
+    return typeof body?.result === 'number';
+  } catch {
+    return false;
+  }
 }
 
 async function isUp(url) {
@@ -117,16 +174,13 @@ if (!existsSync(envPath)) {
 }
 let envText = readFileSync(envPath, 'utf8');
 let env = parseEnv(envText);
-if (!env.API_KEY) {
-  const eol = envText.includes('\r\n') ? '\r\n' : '\n';
-  const lines = envText.split(/\r?\n/);
-  const key = randomBytes(24).toString('hex');
-  const i = lines.findIndex((l) => /^\s*API_KEY\s*=/.test(l));
-  if (i >= 0) lines[i] = `API_KEY=${key}`;
-  else lines.push(`API_KEY=${key}`);
-  envText = lines.join(eol);
+const saveEnv = (updates) => {
+  envText = setEnvValues(envText, updates);
   writeFileSync(envPath, envText);
   env = parseEnv(envText);
+};
+if (!env.API_KEY) {
+  saveEnv({ API_KEY: randomBytes(24).toString('hex') });
   say('Created a dashboard password (the API_KEY line in .env).');
 }
 try {
@@ -145,7 +199,29 @@ if (await isUp(`${backendUrl}/health`)) {
   process.exit(0);
 }
 
-// 3. Start the bot and the dashboard as plain Node processes (no npm or shell in between, and no
+// 3. Optional Solana RPC link: turns on the launch sniper (paper only) and the deeper Solana
+//    checks (wallet ages, developer activity). Asked on each start until one is saved.
+if (!env.RPC_URL && !live) {
+  const link = await ask(
+    '\nOptional: paste a Solana RPC link to turn on the launch sniper and the full Solana checks.\n' +
+      'Get one free at https://www.helius.dev (sign up, then copy your Mainnet RPC URL).\n' +
+      'Paste it and press Enter, or just press Enter to skip: ',
+    120_000,
+  );
+  if (link) {
+    const localRpc = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(link);
+    if (!/^https:\/\/\S+$/.test(link) && !localRpc) {
+      say("That doesn't look like a link starting with https://, so it was not saved.");
+    } else if (!(await isSolanaRpc(link))) {
+      say("That link didn't answer like a Solana RPC, so it was not saved. Check it and start again.");
+    } else {
+      saveEnv({ RPC_URL: link, SNIPER_ENABLED: 'true' });
+      say('Saved. The launch sniper is on (paper trading: fake money).');
+    }
+  }
+}
+
+// 4. Start the bot and the dashboard as plain Node processes (no npm or shell in between, and no
 //    watch mode), so a crash ends the launcher with a message and stopping reaches them directly.
 //    Warnings and errors only, so this window stays readable; the dashboard shows the full log.
 say('\nStarting MemeGuard...');

@@ -237,10 +237,23 @@ export function SniperPage() {
           <div className="space-y-2 text-sm text-ink-2">
             <p>{s.disabledReason}</p>
             <p>
-              In <code className="rounded bg-surface-3 px-1 text-ink">.env</code> set{' '}
-              <code className="rounded bg-surface-3 px-1 text-ink">SNIPER_ENABLED=true</code> and a Solana{' '}
-              <code className="rounded bg-surface-3 px-1 text-ink">RPC_URL</code>, then restart and start the
-              engine. It refuses to run in live mode.
+              To turn it on, get a free Solana RPC link at{' '}
+              <a
+                href="https://www.helius.dev"
+                target="_blank"
+                rel="noreferrer"
+                className="text-series-1 hover:underline"
+              >
+                helius.dev
+              </a>
+              . Then close the MemeGuard window and start MemeGuard again: it asks for the link. Paste it and
+              press Enter.
+            </p>
+            <p>
+              Or set <code className="rounded bg-surface-3 px-1 text-ink">SNIPER_ENABLED=true</code> and{' '}
+              <code className="rounded bg-surface-3 px-1 text-ink">RPC_URL</code> in{' '}
+              <code className="rounded bg-surface-3 px-1 text-ink">.env</code> yourself and restart. The
+              sniper trades fake money only; it refuses to run in live mode.
             </p>
           </div>
         </Card>
