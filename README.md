@@ -1,3 +1,10 @@
+# Trading-bot
+
+This repo holds two independent tools:
+
+- **[stockpicks](stockpicks/README.md)**: a subscription website ($10/month) that scores large US companies from their SEC filings and publishes a list of long-term stock picks with plain-English reasons.
+- **rugguard** (below): rug-pull protection for Solana memecoins.
+
 # rugguard: rug-pull protection for Solana memecoins
 
 `rugguard` does two jobs:
