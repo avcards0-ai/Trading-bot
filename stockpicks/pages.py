@@ -272,9 +272,11 @@ def home(settings: Settings, data: dict | None, user: User | None, csrf: str) ->
 latest prices. Each company gets a score for quality, growth, financial strength and value, and the
 {settings.picks_count} best long-term candidates make the list{f" ({settings.total_picks} with Premium)" if settings.premium_offered else ""},
 each with plain-English reasons.</p>
-<div class="actions"><a class="btn" href="{cta_href}">{e(cta_label)}</a>
-<a class="btn secondary" href="/methodology">How the scoring works</a></div>
-<p class="muted small">Cancel anytime in two clicks. No hype and no hot tips, just the numbers.</p>
+</section>
+<section>
+{_plan_cards(settings, user, data["covered"] if data else None)}
+<p class="muted small" style="margin-top:12px">Cancel anytime in two clicks. No hype and no hot tips, just the numbers.
+<a href="/methodology">How the scoring works</a></p>
 </section>
 <section>{stats}</section>
 {preview}
@@ -289,10 +291,6 @@ cash flow, growth, debt, buybacks and valuation) are ranked against every other 
 <div class="card"><h3>Filter the red flags</h3><p class="muted">Companies that lost money, burned cash,
 carry too much debt or have shrinking sales can't make the list, however cheap they look.</p></div>
 </div>
-</section>
-<section>
-<h2>Simple pricing</h2>
-{_plan_cards(settings, user, data["covered"] if data else None)}
 </section>
 <section class="prose">
 <h2>Questions</h2>
