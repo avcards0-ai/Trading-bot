@@ -9,7 +9,7 @@ import threading
 import time
 from collections import Counter
 
-from .checks import format_checks, run_checks
+from .checks import LOCAL_HOSTS, format_checks, run_checks
 from .config import Settings, load_dotenv
 from .db import Database
 from .net import FetchError
@@ -83,7 +83,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
         else:
             _log("SEC_USER_AGENT isn't set, so the daily refresh is off. See .env.example.")
     threading.Thread(target=_log_checks, args=(settings,), daemon=True, name="check").start()
-    _log(f"{settings.site_name} running on http://{args.host}:{args.port} (public address: {settings.base_url})")
+    if settings.base_url.startswith(LOCAL_HOSTS):
+        _log(f"{settings.site_name} is running. Open http://localhost:{args.port} in your browser. "
+             "That address only works on this computer; to share the site, put it online (see README).")
+    else:
+        _log(f"{settings.site_name} is live. Share this address: {settings.base_url}")
     try:
         import waitress  # production-grade server, used when installed
     except ImportError:
