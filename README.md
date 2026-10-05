@@ -77,6 +77,7 @@ file list on the left.
 A codespace stops after 30 minutes without activity (adjustable in your GitHub settings), and the
 bot stops with it. Free accounts include a monthly allowance of codespace hours. For real-money
 trading, prefer a computer you control, so your wallet key never leaves it.
+
 - macOS may refuse to open `start.command` from the internet: right-click it and choose **Open**,
   or allow it under **System Settings → Privacy & Security**. You can also open Terminal, type
   `bash ` (with a space), drag `start.command` into the window and press Enter.
