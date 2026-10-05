@@ -60,6 +60,9 @@ providers such as [Helius](https://www.helius.dev)) and it checks that the link 
 it and turns on the launch sniper (paper only). Press Enter to skip.
 
 - Windows may warn about a downloaded file: click **More info → Run anyway**.
+- If **Smart App Control** blocks `start.bat` (it has no per-file exception), install Node.js
+  first, then open Command Prompt in the folder (type `cmd` in File Explorer's address bar and
+  press Enter) and run `npm run launch`. That runs the same launcher through Node.js itself.
 - macOS may refuse to open `start.command` from the internet: right-click it and choose **Open**,
   or allow it under **System Settings → Privacy & Security**. You can also open Terminal, type
   `bash ` (with a space), drag `start.command` into the window and press Enter.
