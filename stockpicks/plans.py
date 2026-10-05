@@ -6,6 +6,8 @@ from .config import Settings
 from .db import User
 
 VISITOR, BASIC, PREMIUM = "visitor", "basic", "premium"
+FREE = "free"  # the $0 plan: an account without a subscription (sees what visitors see)
+SIGNUP_PLANS = (FREE, BASIC, PREMIUM)
 
 
 def tier_for(user: User | None, settings: Settings) -> str:

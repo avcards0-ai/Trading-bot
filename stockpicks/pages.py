@@ -162,15 +162,29 @@ def _plan_cards(settings: Settings, user: User | None, covered: int | None) -> s
     when = settings.schedule_phrase
 
     def button(plan: str) -> str:
-        if tier == plan:
+        on_free = user is not None and tier == plans.VISITOR
+        if tier == plan or (plan == plans.FREE and on_free):
             return '<a class="btn block secondary" href="/picks">Your plan: see the picks</a>'
+        if plan == plans.FREE:
+            return "" if user else '<a class="btn block" href="/signup?plan=free">Start with Free</a>'
         if tier == plans.PREMIUM:
             return ""
         if tier == plans.BASIC:  # only the Premium card reaches here
             return '<a class="btn block" href="/account">Upgrade to Premium</a>'
-        href = "/account" if user else "/signup"
+        href = "/account" if user else f"/signup?plan={plan}"
         return f'<a class="btn block" href="{href}">Start with {plan.title()}</a>'
 
+    free_items = []
+    if settings.free_picks:
+        free_items.append(f"{settings.free_picks} picks from every new list, with full scorecards")
+    free_items += [
+        "See where every pick ranks, with its sector and score",
+        "How the scoring works, explained in plain English",
+        "No card needed",
+    ]
+    free = f"""<div class="card price-card">
+<h3>Free</h3><div class="amount">$0</div>
+<ul class="ticks">{"".join(f"<li>{e(item)}</li>" for item in free_items)}</ul>{button(plans.FREE)}</div>"""
     basic = f"""<div class="card price-card">
 <h3>Basic</h3><div class="amount">{e(settings.price_label)}</div>
 <ul class="ticks">
@@ -180,7 +194,7 @@ def _plan_cards(settings: Settings, user: User | None, covered: int | None) -> s
 <li>Cancel anytime from your account page</li>
 </ul>{button(plans.BASIC)}</div>"""
     if not settings.premium_offered:
-        return basic
+        return f'<div class="grid two">{free}{basic}</div>'
     scorecards = f"all {covered} companies we analyze" if covered else "every company we analyze"
     premium = f"""<div class="card price-card">
 <h3>Premium <span class="pill">Most picks</span></h3><div class="amount">{e(settings.premium_price_label)}</div>
@@ -190,7 +204,7 @@ def _plan_cards(settings: Settings, user: User | None, covered: int | None) -> s
 <li>Everything in Basic</li>
 <li>Switch plans or cancel anytime</li>
 </ul>{button(plans.PREMIUM)}</div>"""
-    return f'<div class="grid two">{basic}{premium}</div>'
+    return f'<div class="grid three">{free}{basic}{premium}</div>'
 
 
 
@@ -583,9 +597,18 @@ def _auth_page(settings: Settings, title: str, inner: str, user: User | None, cs
     return layout(settings, title, body, user=user, csrf=csrf, active=active)
 
 
-def signup(settings: Settings, csrf: str, error: str = "", email: str = "") -> str:
+def signup(settings: Settings, csrf: str, error: str = "", email: str = "", plan: str = "") -> str:
+    if plan == plans.FREE:
+        next_step = "The Free plan is $0 forever, and no card is needed. You can upgrade anytime."
+    else:
+        premium = f" or {e(settings.premium_price_label)} for Premium" if settings.premium_offered else ""
+        next_step = (
+            f"Next you'll choose a plan ({e(settings.price_label)}{premium}) and pay securely with Stripe, "
+            "or stay on the Free plan."
+        )
     inner = f"""{notice(error, error=True)}
 <form class="stack" method="post" action="/signup">{csrf_field(csrf)}
+<input type="hidden" name="plan" value="{e(plan)}">
 <label>Email<input type="email" name="email" value="{e(email)}" required autocomplete="email" maxlength="254"></label>
 <label>Password<input type="password" name="password" required minlength="8" maxlength="200" autocomplete="new-password">
 <span class="muted small" style="font-weight:400">At least 8 characters.</span></label>
@@ -594,11 +617,10 @@ def signup(settings: Settings, csrf: str, error: str = "", email: str = "") -> s
 <a href="/terms">terms</a>.</span></label>
 <button class="btn block" type="submit">Create account</button>
 </form>
-<p class="muted small" style="margin-top:16px">Next you'll choose a plan
-({e(settings.price_label)}{f" or {e(settings.premium_price_label)} for Premium" if settings.premium_offered else ""})
-and pay securely with Stripe.
+<p class="muted small" style="margin-top:16px">{next_step}
 Already have an account? <a href="/login">Log in</a>.</p>"""
-    return _auth_page(settings, "Create your account", inner, None, csrf, "signup")
+    title = "Create your free account" if plan == plans.FREE else "Create your account"
+    return _auth_page(settings, title, inner, None, csrf, "signup")
 
 
 def login(settings: Settings, csrf: str, error: str = "", email: str = "", next_url: str = "", message: str = "") -> str:
@@ -673,7 +695,8 @@ def account(settings: Settings, user: User, csrf: str, message: str = "", error:
     elif user.subscription_status == "incomplete":
         status = "Your first payment didn't go through. Please try subscribing again."
     else:
-        status = "No subscription yet."
+        free = f"{settings.free_picks} picks from every new list" if settings.free_picks else "the locked list"
+        status = f"Free plan: {free}. Upgrade anytime to see more."
 
     actions = []
     if user.has_access:

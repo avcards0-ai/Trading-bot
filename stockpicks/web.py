@@ -362,12 +362,17 @@ class App:
     def signup_form(self, ctx: Context) -> Response:
         if ctx.user:
             return Response.redirect("/account")
-        return ctx.html(pages.signup(self.settings, ctx.csrf))
+        return ctx.html(pages.signup(self.settings, ctx.csrf, plan=self._signup_plan(ctx.req.arg("plan"))))
+
+    @staticmethod
+    def _signup_plan(value: str) -> str:
+        return value if value in plans.SIGNUP_PLANS else ""
 
     def signup(self, ctx: Context) -> Response:
         form = ctx.req.form
         email = form.get("email", "").strip()
         password = form.get("password", "")
+        plan = self._signup_plan(form.get("plan", ""))
         error = ""
         if not EMAIL_RE.match(email) or len(email) > 254:
             error = "Please enter a valid email address."
@@ -378,13 +383,15 @@ class App:
         elif self.ip_throttle.blocked("signup:" + ctx.req.client_ip):
             raise HttpError(429, "Too many sign-ups from your network. Please try again later.")
         if error:
-            return ctx.html(pages.signup(self.settings, ctx.csrf, error, email), 400)
+            return ctx.html(pages.signup(self.settings, ctx.csrf, error, email, plan), 400)
         self.ip_throttle.hit("signup:" + ctx.req.client_ip)
         user = self.db.create_user(email, password)
         if user is None:
             msg = "There's already an account with that email. Try logging in."
-            return ctx.html(pages.signup(self.settings, ctx.csrf, msg, email), 400)
-        return self.login_session(user, Response.redirect("/account?new=1"))
+            return ctx.html(pages.signup(self.settings, ctx.csrf, msg, email, plan), 400)
+        # Free sign-ups go straight to the picks; paid ones choose a plan on the account page.
+        target = "/picks?welcome=1" if plan == plans.FREE else "/account?new=1"
+        return self.login_session(user, Response.redirect(target))
 
     def login_form(self, ctx: Context) -> Response:
         if ctx.user:
@@ -571,6 +578,8 @@ class App:
             message = f"You're on Premium now. Here are all {self.settings.total_picks} picks."
         elif tier != plans.VISITOR and ctx.req.arg("welcome"):
             message = "Welcome aboard! Here's the list."
+        elif ctx.user is not None and ctx.req.arg("welcome"):
+            message = "Welcome! You're on the Free plan. Here are this week's free picks."
         return ctx.html(pages.picks(self.settings, data, ctx.user, ctx.csrf, message))
 
     def all_stocks(self, ctx: Context) -> Response:

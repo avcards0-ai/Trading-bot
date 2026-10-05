@@ -598,6 +598,31 @@ class PlanTests(Site):
         self.client.request("POST", "/stripe/webhook", body=payload, headers={"HTTP_STRIPE_SIGNATURE": sign(payload)})
         self.assertEqual(self.db.get_user(user.id).plan, "premium")
 
+    def test_free_plan_card_and_signup(self):
+        home = self.client.get("/").text
+        self.assertIn("<h3>Free</h3>", home)
+        self.assertIn("$0", home)
+        self.assertIn('href="/signup?plan=free">Start with Free', home)
+        self.assertIn("3 picks from every new list, with full scorecards", home)
+        self.assertIn('class="grid three"', home)
+        self.assertIn("Create your free account", self.client.get("/signup?plan=free").text)
+        r = self.client.post("/signup", {"email": "free@example.com", "password": "longenough",
+                                         "agree": "1", "plan": "free"})
+        self.assertEqual(r.header("Location"), "/picks?welcome=1")
+        self.assertIn("You&#x27;re on the Free plan", self.client.get("/picks?welcome=1").text)
+        self.assertIn("Free plan: 3 picks from every new list", self.client.get("/account").text)
+        home = self.client.get("/").text
+        self.assertIn("Your plan: see the picks", home)
+        self.assertNotIn("Start with Free", home)
+
+    def test_unknown_signup_plan_is_ignored(self):
+        r = self.client.post("/signup", {"email": "x@example.com", "password": "longenough",
+                                         "agree": "1", "plan": "<script>"})
+        self.assertEqual(r.header("Location"), "/account?new=1")
+        page = Client(self.app).get("/signup?plan=%3Cscript%3E").text
+        self.assertIn('name="plan" value=""', page)
+        self.assertNotIn("<script>", page)
+
     def test_one_plan_only(self):
         self.app.settings.premium_picks_count = 0
         self.subscriber("basic")
