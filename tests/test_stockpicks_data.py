@@ -193,14 +193,45 @@ class RefreshTests(unittest.TestCase):
         self.assertIn("Not in the SEC", reasons["NOPE"])
         self.assertIn("BRK-B", reasons)
         picks = [s["ticker"] for s in sorted(data["stocks"], key=lambda s: s["rank"] or 99) if s["rank"]]
-        self.assertEqual(len(picks), 3)
+        # Enough picks are ranked for the Premium list (all 6 eligible here); Basic shows the top 3.
+        self.assertEqual(len(picks), 6)
+        self.assertFalse(any(s.get("new") for s in data["stocks"]))  # no earlier list to compare with
         self.assertEqual(picks[0], "GRT")
         for bad in ("LOSS", "DEBT", "SHRK"):
             self.assertNotIn(bad, picks)
         stock = next(s for s in data["stocks"] if s["ticker"] == "GRT")
         self.assertEqual(stock["filings"][0]["form"], "10-Q")
         with open(settings.history_path) as fh:
-            self.assertEqual(len(json.loads(fh.readline())["picks"]), 3)
+            self.assertEqual(len(json.loads(fh.readline())["picks"]), 6)
+
+    def test_new_picks_are_marked_against_last_weeks_list(self):
+        from datetime import date
+
+        settings = temp_settings()
+        with open(settings.history_path, "w") as fh:
+            fh.write(json.dumps({"as_of": "2026-09-24", "picks": [{"ticker": "GRT"}, {"ticker": "STDY"}]}) + "\n")
+        http = FakeHttp()
+        # Thursday, Oct 1 2026; last week's list was published Sep 24.
+        data = refresh(settings, sec_http=http, price_http=http, log=lambda m: None, today=date(2026, 10, 1))
+        new = {s["ticker"] for s in data["stocks"] if s.get("new")}
+        ranked = {s["ticker"] for s in data["stocks"] if s["rank"]}
+        self.assertEqual(new, ranked - {"GRT", "STDY"})
+        # Re-running later the same week still compares with last week, not with itself.
+        data = refresh(settings, sec_http=http, price_http=http, log=lambda m: None, today=date(2026, 10, 4))
+        self.assertEqual({s["ticker"] for s in data["stocks"] if s.get("new")}, new)
+
+    def test_weekly_and_daily_publish_times(self):
+        from datetime import datetime, timezone
+        from stockpicks.cli import last_publish_time
+
+        def at(*args):
+            return datetime(*args, tzinfo=timezone.utc)
+
+        # 2026-10-05 is a Monday.
+        self.assertEqual(last_publish_time(at(2026, 10, 5, 7), "weekly"), at(2026, 10, 5, 6))
+        self.assertEqual(last_publish_time(at(2026, 10, 5, 5), "weekly"), at(2026, 9, 28, 6))
+        self.assertEqual(last_publish_time(at(2026, 10, 8, 12), "weekly"), at(2026, 10, 5, 6))
+        self.assertEqual(last_publish_time(at(2026, 10, 8, 5), "daily"), at(2026, 10, 7, 6))
 
     def test_facts_are_cached_until_a_new_report(self):
         settings = temp_settings()

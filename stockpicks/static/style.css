@@ -144,6 +144,10 @@ td .name { display: block; color: var(--muted); font-size: .85rem; }
 .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .78rem; font-weight: 650; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
 .pill.bad { background: color-mix(in srgb, var(--bad) 14%, var(--surface)); color: var(--bad); }
 .pill.muted { background: var(--bar); color: var(--muted); }
+.pill.new { background: var(--accent); color: var(--accent-fg); margin-left: 6px; font-size: .7rem; }
+.price-card { display: flex; flex-direction: column; }
+.grid .price-card { max-width: none; }
+.price-card ul.ticks { flex: 1; }
 .big-score { font-size: 3rem; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
 .stock-head { display: flex; gap: 20px; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; margin-bottom: 24px; }
 .stock-head > div:first-child { flex: 1 1 360px; }

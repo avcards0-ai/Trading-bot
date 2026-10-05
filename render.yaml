@@ -1,6 +1,7 @@
 # One-click hosting on Render (https://render.com): New > Blueprint, pick this
 # repo, fill in the values it asks for. Starter plan + 1 GB disk is about
 # $7.25/month. Leave the Stripe values blank until you've set up Stripe.
+# The site publishes a new list every Monday.
 services:
   - type: web
     name: longhold
@@ -17,6 +18,8 @@ services:
         value: LongHold
       - key: PRICE_LABEL
         value: $10/month
+      - key: PREMIUM_PRICE_LABEL
+        value: $25/month
       - key: PRICE_SOURCE
         value: stooq
       - key: SEC_USER_AGENT
@@ -26,6 +29,8 @@ services:
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_PRICE_ID
+        sync: false
+      - key: STRIPE_PREMIUM_PRICE_ID
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false

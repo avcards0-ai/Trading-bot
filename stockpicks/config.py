@@ -26,12 +26,18 @@ class Settings:
     price_source: str = "stooq"
     finnhub_api_key: str = ""
     universe_file: str = DEFAULT_UNIVERSE
-    picks_count: int = 25
+    picks_count: int = 25  # Basic plan
+    premium_picks_count: int = 50  # Premium plan; 0 offers only the Basic plan
+    # How many picks anyone can see without paying (taken from the bottom of the Basic list).
+    free_picks: int = 3
+    refresh: str = "weekly"  # weekly (Mondays), daily, or off
     min_market_cap: float = 2e9
     price_label: str = "$10/month"
+    premium_price_label: str = "$25/month"
     support_email: str = ""
     stripe_secret_key: str = ""
     stripe_price_id: str = ""
+    stripe_premium_price_id: str = ""
     stripe_webhook_secret: str = ""
     smtp_host: str = ""
     smtp_port: int = 587
@@ -55,11 +61,16 @@ class Settings:
             finnhub_api_key=env.get("FINNHUB_API_KEY", ""),
             universe_file=env.get("UNIVERSE_FILE") or d.universe_file,
             picks_count=int(env.get("PICKS_COUNT") or d.picks_count),
+            premium_picks_count=int(env.get("PREMIUM_PICKS_COUNT") or d.premium_picks_count),
+            free_picks=int(env.get("FREE_PICKS") or d.free_picks),
+            refresh=(env.get("REFRESH") or d.refresh).lower(),
             min_market_cap=float(env.get("MIN_MARKET_CAP") or d.min_market_cap),
             price_label=env.get("PRICE_LABEL", d.price_label),
+            premium_price_label=env.get("PREMIUM_PRICE_LABEL", d.premium_price_label),
             support_email=env.get("SUPPORT_EMAIL", ""),
             stripe_secret_key=env.get("STRIPE_SECRET_KEY", ""),
             stripe_price_id=env.get("STRIPE_PRICE_ID", ""),
+            stripe_premium_price_id=env.get("STRIPE_PREMIUM_PRICE_ID", ""),
             stripe_webhook_secret=env.get("STRIPE_WEBHOOK_SECRET", ""),
             smtp_host=env.get("SMTP_HOST", ""),
             smtp_port=int(env.get("SMTP_PORT") or d.smtp_port),
@@ -89,6 +100,24 @@ class Settings:
     def stripe_enabled(self) -> bool:
         # Prefix checks ignore placeholders like "later" typed into a host's dashboard.
         return self.stripe_secret_key.startswith(("sk_", "rk_")) and self.stripe_price_id.startswith("price_")
+
+    @property
+    def premium_offered(self) -> bool:
+        return self.premium_picks_count > self.picks_count
+
+    @property
+    def total_picks(self) -> int:
+        """How many picks get ranked: enough for the biggest plan."""
+        return self.premium_picks_count if self.premium_offered else self.picks_count
+
+    @property
+    def premium_enabled(self) -> bool:
+        """Premium can actually be bought."""
+        return self.premium_offered and self.stripe_enabled and self.stripe_premium_price_id.startswith("price_")
+
+    @property
+    def schedule_phrase(self) -> str:
+        return {"daily": "every day", "off": "regularly"}.get(self.refresh, "every Monday")
 
     @property
     def email_enabled(self) -> bool:

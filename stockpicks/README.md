@@ -1,12 +1,22 @@
 # stockpicks: a subscription website for long-term stock picks
 
-A complete website you can charge for (default **$10/month**). Every day it:
+A complete website you can charge for, with two plans: **Basic ($10/month, 25 picks)** and **Premium ($25/month, 50 picks)**. Every Monday it:
 
 1. Reads the financial reports that ~220 large US companies file with the SEC (sales, profits, cash flow, debt, share buybacks) from [SEC EDGAR](https://www.sec.gov/search-filings/edgar-application-programming-interfaces), plus each company's recent filings (auditor changes, restatements, cyber incidents and so on).
 2. Gets the latest share price to judge valuation.
-3. Scores every company on **quality, growth, financial strength and value**, removes anything with a red flag, and publishes the top 25 as "picks", each with plain-English reasons.
+3. Scores every company on **quality, growth, financial strength and value**, removes anything with a red flag, and publishes the top 50 as a new weekly list, each pick with plain-English reasons. Picks that weren't on last week's list are marked **NEW**.
 
-Visitors see a landing page with a locked preview and two free sample picks. Subscribers pay through Stripe and get the full list, a scorecard for every company and a page explaining why it made the cut (or didn't).
+Who sees what:
+
+| | Picks | Scorecards |
+|---|---|---|
+| Visitors | 3 free picks (from the bottom of the Basic list); the rest are locked | The free picks only |
+| Basic ($10/month) | The top 25; picks 26-50 are shown locked with an *Upgrade* link | Their 25 picks |
+| Premium ($25/month) | All 50 | Every company analyzed, including why each did or didn't make the list |
+
+Locked rows show only rank, sector and score; nothing that identifies the company reaches the browser. Basic members can upgrade with one click on their account page.
+
+The list isn't forced to be 25 brand-new stocks every week. Only about 100 of the ~220 companies pass the red-flag checks, so forcing all-new picks would run out of good companies within a month, and long-term picks are meant to be held. Good companies stay on the list, and newcomers get the NEW badge.
 
 Python 3.10+ and the standard library only. [waitress](https://pypi.org/project/waitress/) is used as the web server if it's installed (the Docker image installs it).
 
@@ -51,14 +61,14 @@ Each measure is ranked against every covered company as a percentile (0-100). Me
 
 **Not covered:** banks, insurers and REITs (SIC 6000-6799), foreign 20-F filers, and companies with fewer than 4 years of 10-K data.
 
-Fundamentals come from audited annual 10-K numbers. Each company's data is cached and only downloaded again when it files a new 10-K or 10-Q, so the daily refresh mostly just updates prices.
+Fundamentals come from audited annual 10-K numbers. Each company's data is cached and only downloaded again when it files a new 10-K or 10-Q, so the weekly refresh mostly just updates prices.
 
 To change which companies are analyzed, edit `stockpicks/universe.txt` (one ticker per line), or point `UNIVERSE_FILE` at your own list. To change the weights or thresholds, edit `stockpicks/scoring.py`.
 
 ## Taking payments with Stripe
 
 1. Create a [Stripe](https://dashboard.stripe.com) account and stay in **test mode** while you set up.
-2. **Product catalog → Add product**: name it, choose *Recurring*, $10, monthly. Copy the price ID (`price_...`) into `STRIPE_PRICE_ID`.
+2. **Product catalog → Add product**: name it "Basic", choose *Recurring*, $10, monthly. Copy the price ID (`price_...`) into `STRIPE_PRICE_ID`. Add a second product, "Premium", at $25 monthly, and copy its price ID into `STRIPE_PREMIUM_PRICE_ID`. (To offer one plan only, set `PREMIUM_PICKS_COUNT=0`.)
 3. **Developers → API keys**: copy the secret key (`sk_test_...`) into `STRIPE_SECRET_KEY`.
 4. **Developers → Webhooks → Add endpoint**: URL `https://YOUR-DOMAIN/stripe/webhook`, with these events:
    - `checkout.session.completed`
@@ -67,7 +77,7 @@ To change which companies are analyzed, edit `stockpicks/universe.txt` (one tick
    - `customer.subscription.paused`, `customer.subscription.resumed`
 
    Copy the signing secret (`whsec_...`) into `STRIPE_WEBHOOK_SECRET`.
-5. **Settings → Billing → Customer portal**: turn it on and allow customers to cancel and update their card. The site's *Manage billing* button opens this portal.
+5. **Settings → Billing → Customer portal**: turn it on and allow customers to cancel and update their card. To let Premium members switch down to Basic, also allow switching plans and add both products. The site's *Manage billing* button opens this portal. (Upgrades from Basic happen on the site itself and charge the price difference for the rest of the month.)
 6. Subscribe on your site with the test card `4242 4242 4242 4242`. When it all works, repeat steps 2-4 in live mode and swap in the live keys.
 
 Access is granted while a subscription is `active`, `trialing` or `past_due` (Stripe retries failed cards for a while). It ends automatically when Stripe cancels the subscription. Stripe handles card details, receipts, failed-payment emails, tax settings and promo codes (enabled at checkout).
@@ -85,10 +95,10 @@ The repo includes `render.yaml`, so Render sets everything up for you:
 3. Fill in the values it asks for:
    - `SEC_USER_AGENT`: your site name and email, e.g. `LongHold you@example.com`
    - `SUPPORT_EMAIL`: where customers can reach you
-   - Leave the three `STRIPE_` values blank for now.
+   - Leave the four `STRIPE_` values blank for now.
 4. Click **Apply**. After a few minutes the site is live at `https://longhold.onrender.com` (or a similar name; Render shows it).
 5. Open the service's **Logs** tab. At startup it prints a setup check with `[ok]` or `[FIX]` next to each part, and the first stock analysis finishes within a few minutes.
-6. Set up Stripe (above) using `https://YOUR-RENDER-ADDRESS/stripe/webhook`. Then go to **Environment**, fill in the three `STRIPE_` values and save. Render restarts the site, and the log should show `[ok] Payments`.
+6. Set up Stripe (above) using `https://YOUR-RENDER-ADDRESS/stripe/webhook`. Then go to **Environment**, fill in the four `STRIPE_` values and save. Render restarts the site, and the log should show `[ok] Payments` and `[ok] Premium plan`.
 7. To give yourself free access, sign up on your site, then open the **Shell** tab and run `python -m stockpicks grant you@example.com`.
 
 The address comes from Render automatically. Set `BASE_URL` only if you add your own domain (**Settings → Custom Domains**).
@@ -113,7 +123,7 @@ yourdomain.com {
 
 **A platform host** (Render, Railway, Fly.io): deploy this repo's `Dockerfile`, add a persistent disk mounted at `/data`, and set the variables from `.env.example` in their dashboard.
 
-Either way, set `BASE_URL=https://yourdomain.com`. The server re-runs the analysis every 24 hours in the background (`REFRESH_HOURS`), so you don't need cron. If a refresh fails (SEC or the price source is down), the site keeps showing the previous day's list and tries again 30 minutes later.
+Either way, set `BASE_URL=https://yourdomain.com`. The server publishes a new list every Monday at 06:00 UTC, before US markets open (`REFRESH=weekly`; `daily` and `off` also work), so you don't need cron. If a refresh fails (SEC or the price source is down), the site keeps showing the previous day's list and tries again 30 minutes later.
 
 Back up `DATA_DIR/site.db`; it holds your subscribers' accounts.
 
@@ -127,7 +137,7 @@ python -m stockpicks revoke friend@x.com
 python -m stockpicks refresh             # re-run the analysis now
 ```
 
-Every refresh appends the day's picks and prices to `DATA_DIR/history.jsonl`, so you can build a track record later.
+Every list is appended with its prices to `DATA_DIR/history.jsonl`. That's how NEW badges are worked out, and you can use it to show a track record later.
 
 ## Before you charge money
 
@@ -147,12 +157,14 @@ All settings are environment variables (or lines in `.env`). See `.env.example` 
 | `SEC_USER_AGENT` | (required) | Name and contact email the SEC asks every client to send |
 | `BASE_URL` | `http://localhost:8000` | Public address, used for Stripe redirects and email links. An `https://` URL turns on secure cookies |
 | `SITE_NAME` | `LongHold` | Shown in the header, emails and page titles |
-| `PRICE_LABEL` | `$10/month` | Text only. The real price is the Stripe price |
-| `PICKS_COUNT` / `MIN_MARKET_CAP` | `25` / `2e9` | Size of the list and the smallest company allowed |
+| `PRICE_LABEL` / `PREMIUM_PRICE_LABEL` | `$10/month` / `$25/month` | Text only. The real prices are the Stripe prices |
+| `PICKS_COUNT` / `PREMIUM_PICKS_COUNT` | `25` / `50` | Picks per plan. `PREMIUM_PICKS_COUNT=0` offers one plan |
+| `FREE_PICKS` | `3` | Picks anyone can see, taken from the bottom of the Basic list |
+| `MIN_MARKET_CAP` | `2e9` | Smallest company allowed on the list |
 | `PRICE_SOURCE` | `stooq` | `stooq` (no key) or `finnhub` (`FINNHUB_API_KEY`) |
 | `STRIPE_*` | | See *Taking payments* |
 | `SMTP_*` | | For password-reset emails. Without them, the reset page shows `SUPPORT_EMAIL` |
-| `REFRESH_HOURS` | `24` | How often `serve` re-runs the analysis. `0` turns it off |
+| `REFRESH` | `weekly` | `weekly` (Mondays), `daily`, or `off` |
 
 ## Security
 
@@ -178,7 +190,8 @@ The tests run offline against fixtures shaped like SEC EDGAR, Stooq and Stripe r
 stockpicks/
   cli.py              refresh / serve / check / grant / revoke / users
   checks.py           setup checks (also printed to the log at startup)
-  refresh.py          daily job: SEC + prices -> scores -> data/picks.json
+  refresh.py          weekly job: SEC + prices -> scores -> data/picks.json
+  plans.py            who sees what: visitors, Basic, Premium
   sources/sec.py      EDGAR tickers, filings and XBRL financials
   sources/prices.py   Stooq and Finnhub prices
   metrics.py          growth, margins, return on capital, debt, valuation

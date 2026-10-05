@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
 from . import metrics as metrics_mod
@@ -50,6 +50,24 @@ def write_json_atomic(path: str, data: object) -> None:
         if os.path.exists(tmp):
             os.unlink(tmp)
         raise
+
+
+def previous_week_picks(history_path: str, as_of: date) -> set[str] | None:
+    """Tickers on the most recent list published before this week, or None if there isn't one."""
+    week_start = as_of - timedelta(days=as_of.weekday())
+    previous = None
+    try:
+        with open(history_path, encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    entry = json.loads(line)
+                    if date.fromisoformat(entry["as_of"]) < week_start:
+                        previous = entry
+                except (ValueError, KeyError, TypeError):
+                    continue
+    except FileNotFoundError:
+        return None
+    return None if previous is None else {p["ticker"] for p in previous.get("picks", [])}
 
 
 def _read_cache(path: str) -> dict:
@@ -151,7 +169,10 @@ def refresh(
             "metrics": metrics_mod.compute(financials, prices.get(company.ticker)),
             "warnings": profile.warnings(today),
         })
-    scored, more_not_covered = score_all(rows, settings.min_market_cap, settings.picks_count, today)
+    scored, more_not_covered = score_all(rows, settings.min_market_cap, settings.total_picks, today)
+    last_week = previous_week_picks(settings.history_path, today)
+    for s in scored:
+        s["new"] = bool(s["rank"]) and last_week is not None and s["ticker"] not in last_week
     not_covered = sorted(not_covered + more_not_covered, key=lambda n: n["ticker"])
     if not scored:
         raise RefreshError("No company could be scored; keeping the previous list.")

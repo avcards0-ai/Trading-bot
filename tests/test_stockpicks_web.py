@@ -1,5 +1,7 @@
 import hashlib
 import hmac
+import html
+import sqlite3
 import io
 import json
 import time
@@ -44,10 +46,17 @@ class FakeStripe:
         if method == "POST" and path == "/billing_portal/sessions":
             return 200, json.dumps({"url": "https://billing.stripe.com/p/session/1"}).encode()
         if path.startswith("/prices/"):
-            if path.endswith("/price_missing"):
+            price_id = path.rsplit("/", 1)[1]
+            if price_id == "price_missing":
                 return 404, b'{"error": {"message": "No such price"}}'
-            return 200, json.dumps({"id": "price_123", "active": True, "currency": "usd", "unit_amount": 1000,
+            amount = 2500 if price_id == "price_premium" else 1000
+            return 200, json.dumps({"id": price_id, "active": True, "currency": "usd", "unit_amount": amount,
                                     "recurring": {"interval": "month"}}).encode()
+        if method == "POST" and path.startswith("/subscriptions/"):
+            sub = self.subscriptions[path.rsplit("/", 1)[1]]
+            params = dict(urllib.parse.parse_qsl(body.decode()))
+            sub["items"]["data"][0]["price"] = {"id": params["items[0][price]"]}
+            return 200, json.dumps(sub).encode()
         if path.startswith("/subscriptions/"):
             return 200, json.dumps(self.subscriptions[path.rsplit("/", 1)[1]]).encode()
         if path.startswith("/checkout/sessions/"):
@@ -139,13 +148,14 @@ class Site(unittest.TestCase):
             smtp_host="smtp.example.com",
             smtp_from="hello@example.com",
             cookie_secure=True,
+            stripe_premium_price_id="price_premium",
         )
         self.stripe_api = FakeStripe()
         self.mail = []
         self.logs = []
         self.app = App(
             self.settings,
-            stripe=Stripe("sk_test_x", "price_123", transport=self.stripe_api),
+            stripe=Stripe("sk_test_x", "price_123", transport=self.stripe_api, premium_price_id="price_premium"),
             mailer=lambda settings, to, subject, text: self.mail.append((to, subject, text)),
             log=self.logs.append,
         )
@@ -153,7 +163,18 @@ class Site(unittest.TestCase):
         self.client = Client(self.app)
 
     def picks(self):
-        return sorted((s for s in self.data["stocks"] if s["rank"]), key=lambda s: s["rank"])
+        """The Basic list (ranks 1-5 in these tests)."""
+        return sorted((s for s in self.data["stocks"] if s["rank"] and s["rank"] <= 5), key=lambda s: s["rank"])
+
+    def premium_only(self):
+        return [s for s in self.data["stocks"] if s["rank"] and s["rank"] > 5]
+
+    def subscriber(self, plan, email="sub@example.com"):
+        self.signup(email)
+        user = self.db.get_user_by_email(email)
+        self.db.update_subscription(user.id, customer_id="cus_9", subscription_id="sub_9", status="active",
+                                    current_period_end=1_800_000_000, cancel_at_period_end=False, plan=plan)
+        return user
 
     def signup(self, email="sam@example.com", password="correct horse"):
         return self.client.post("/signup", {"email": email, "password": password, "agree": "1"})
@@ -170,8 +191,9 @@ class PublicPageTests(Site):
         picks = self.picks()
         self.assertNotIn(picks[0]["name"], r.text)
         self.assertIn("members only", r.text)
-        for s in picks[-2:]:
+        for s in picks[-self.settings.free_picks:]:
             self.assertIn(f'/stock/{s["ticker"]}', r.text)
+        self.assertIn("3 picks from this week's list are free", r.text)
         self.assertIn("$10/month", r.text)
         self.assertIn("not personalized investment advice", r.text)
 
@@ -208,7 +230,7 @@ class PublicPageTests(Site):
         sample = self.picks()[-1]["ticker"]
         r = self.client.get(f"/stock/{sample}")
         self.assertEqual(r.status, 200)
-        self.assertIn("free sample", r.text)
+        self.assertIn("one of this week&#x27;s free picks", r.text)
         r = self.client.get(f"/stock/{self.picks()[0]['ticker']}")
         self.assertEqual(r.status, 303)
         self.assertTrue(r.header("Location").startswith("/login?next=/stock/"))
@@ -216,18 +238,47 @@ class PublicPageTests(Site):
 
 class AccountTests(Site):
     def test_members_only_pages_redirect(self):
-        r = self.client.get("/picks")
-        self.assertEqual((r.status, r.header("Location")), (303, "/login?next=/picks"))
+        r = self.client.get("/stocks")
+        self.assertEqual((r.status, r.header("Location")), (303, "/login?next=/stocks"))
         self.signup()
+        r = self.client.get("/stocks")
+        self.assertEqual((r.status, r.header("Location")), (303, "/account?upgrade=1"))
+
+    def test_visitors_see_free_picks_and_the_rest_locked(self):
+        picks = self.picks()
+        free, locked = picks[-3:], picks[:-3]
+        for who in ("visitor", "signed up but not paying"):
+            if who != "visitor":
+                self.signup()
+            r = self.client.get("/picks")
+            self.assertEqual(r.status, 200, who)
+            self.assertIn("You're seeing 3 of 5 picks for free", html.unescape(r.text))
+            for s in self.premium_only():
+                self.assertNotIn(s["name"], r.text)
+            for s in free:
+                self.assertIn(f'/stock/{s["ticker"]}', r.text)
+            for s in locked:
+                # Nothing that identifies a locked pick may reach the page.
+                self.assertNotIn(s["ticker"], r.text.replace("Members Only Inc", ""))
+                self.assertNotIn(s["name"], r.text)
+                self.assertNotIn(s["strengths"][0] if s["strengths"] else s["summary"], r.text)
+            self.assertEqual(r.text.count("Subscribe to unlock</a>"), len(locked))
+
+    def test_free_picks_setting(self):
+        self.app.settings.free_picks = 0
         r = self.client.get("/picks")
-        self.assertEqual((r.status, r.header("Location")), (303, "/account"))
+        self.assertIn("You're seeing 0 of 5 picks", html.unescape(r.text))
+        self.assertEqual(r.text.count("Subscribe to unlock</a>"), 5)
+        self.app.settings.free_picks = 5  # never give away the whole list
+        self.assertEqual(self.client.get("/picks").text.count("Subscribe to unlock</a>"), 5)
 
     def test_signup_logs_in_and_offers_subscription(self):
         r = self.signup()
         self.assertEqual((r.status, r.header("Location")), (303, "/account?new=1"))
         page = self.client.get("/account?new=1").text
         self.assertIn("sam@example.com", page)
-        self.assertIn("Subscribe for $10/month", page)
+        self.assertIn("Basic: $10/month for 5 picks", page)
+        self.assertIn("Premium: $25/month for 50 picks", page)
 
     def test_signup_validation(self):
         self.assertEqual(self.client.post("/signup", {"email": "bad", "password": "longenough", "agree": "1"}).status, 400)
@@ -290,13 +341,14 @@ class MemberTests(Site):
         self.member()
         r = self.client.get("/picks")
         self.assertEqual(r.status, 200)
+        self.assertNotIn("Subscribe to unlock", r.text)
         for s in self.picks():
             self.assertIn(f'/stock/{s["ticker"]}', r.text)
         top = self.picks()[0]
         page = self.client.get(f"/stock/{top['ticker']}").text
         self.assertIn("Overall score", page)
         self.assertIn("What it told the SEC recently", page)
-        self.assertNotIn("free sample", page)
+        self.assertNotIn("free picks", page)
         stocks = self.client.get("/stocks").text
         self.assertIn("Not covered", stocks)
         self.assertIn("different yardsticks", stocks)
@@ -323,14 +375,14 @@ class MemberTests(Site):
 
 
 class BillingTests(Site):
-    def active_subscription(self, sub_id="sub_1", customer="cus_1", user_id=None, status="active"):
+    def active_subscription(self, sub_id="sub_1", customer="cus_1", user_id=None, status="active", price="price_123"):
         sub = {
             "id": sub_id,
             "object": "subscription",
             "customer": customer,
             "status": status,
             "cancel_at_period_end": False,
-            "items": {"data": [{"current_period_end": 1_800_000_000}]},
+            "items": {"data": [{"id": "si_1", "price": {"id": price}, "current_period_end": 1_800_000_000}]},
             "metadata": {"user_id": str(user_id or "")},
         }
         self.stripe_api.subscriptions[sub_id] = sub
@@ -402,7 +454,8 @@ class BillingTests(Site):
                    "data": {"object": {"id": "sub_1", "customer": "cus_1", "status": "canceled"}}}
         self.post_event(deleted)
         self.assertFalse(self.db.get_user(user.id).has_access)
-        self.assertEqual(self.client.get("/picks").header("Location"), "/account")
+        self.assertEqual(self.client.get("/stocks").header("Location"), "/account?upgrade=1")
+        self.assertIn("Subscribe to unlock", self.client.get("/picks").text)
 
     def test_old_subscription_ending_does_not_cut_off_new_one(self):
         self.signup()
@@ -476,9 +529,101 @@ class UnitTests(unittest.TestCase):
             stripe.retrieve_subscription("sub_1")
 
 
+class PlanTests(Site):
+    def test_basic_sees_its_list_and_premium_rows_locked(self):
+        self.subscriber("basic")
+        r = self.client.get("/picks")
+        for s in self.picks():
+            self.assertIn(f'/stock/{s["ticker"]}', r.text)
+        premium = self.premium_only()
+        self.assertTrue(premium)
+        for s in premium:
+            self.assertNotIn(s["name"], r.text)
+            self.assertEqual(self.client.get(f'/stock/{s["ticker"]}').header("Location"), "/account?upgrade=1")
+        self.assertEqual(r.text.count("Upgrade to unlock</a>"), len(premium))
+        self.assertIn("Premium members see 1 more pick on this list", r.text)
+        self.assertNotIn('href="/stocks"', r.text)
+        self.assertEqual(self.client.get("/stocks").header("Location"), "/account?upgrade=1")
+        self.assertIn("That&#x27;s part of Premium", self.client.get("/account?upgrade=1").text)
+
+    def test_premium_sees_everything(self):
+        self.subscriber("premium")
+        r = self.client.get("/picks")
+        for s in self.picks() + self.premium_only():
+            self.assertIn(f'/stock/{s["ticker"]}', r.text)
+        self.assertNotIn("to unlock</a>", r.text)
+        self.assertEqual(self.client.get("/stocks").status, 200)
+        self.assertEqual(self.client.get(f'/stock/{self.premium_only()[0]["ticker"]}').status, 200)
+
+    def test_subscribe_to_premium_uses_premium_price(self):
+        self.signup()
+        self.client.post("/subscribe", {"plan": "premium"})
+        params = urllib.parse.parse_qs(self.stripe_api.requests[-1][2])
+        self.assertEqual(params["line_items[0][price]"], ["price_premium"])
+        self.client.post("/subscribe", {"plan": "basic"})
+        params = urllib.parse.parse_qs(self.stripe_api.requests[-1][2])
+        self.assertEqual(params["line_items[0][price]"], ["price_123"])
+
+    def test_upgrade_moves_subscription_to_premium(self):
+        user = self.subscriber("basic")
+        self.stripe_api.subscriptions["sub_9"] = {
+            "id": "sub_9", "customer": "cus_9", "status": "active", "cancel_at_period_end": False,
+            "items": {"data": [{"id": "si_9", "price": {"id": "price_123"}, "current_period_end": 1_800_000_000}]},
+        }
+        self.assertIn("Upgrade to Premium", self.client.get("/account").text)
+        r = self.client.post("/upgrade")
+        self.assertEqual(r.header("Location"), "/picks?upgraded=1")
+        method, url, body = self.stripe_api.requests[-1]
+        params = urllib.parse.parse_qs(body)
+        self.assertEqual((method, params["items[0][id]"], params["items[0][price]"]), ("POST", ["si_9"], ["price_premium"]))
+        self.assertEqual(params["proration_behavior"], ["always_invoice"])
+        self.assertEqual(self.db.get_user(user.id).plan, "premium")
+        self.assertIn("You&#x27;re on Premium now", self.client.get("/picks?upgraded=1").text)
+
+    def test_failed_upgrade_keeps_basic(self):
+        user = self.subscriber("basic")
+        self.stripe_api.fail = True
+        r = self.client.post("/upgrade")
+        self.assertTrue(r.header("Location").startswith("/account?error="))
+        self.assertEqual(self.db.get_user(user.id).plan, "basic")
+
+    def test_webhook_records_plan_from_price(self):
+        self.signup()
+        user = self.db.get_user_by_email("sam@example.com")
+        self.db.update_subscription(user.id, customer_id="cus_1", subscription_id="sub_1", status="active",
+                                    current_period_end=None, cancel_at_period_end=False)
+        BillingTests.active_subscription(self, price="price_premium")
+        payload = json.dumps({"id": "evt_p", "type": "customer.subscription.updated",
+                              "data": {"object": {"id": "sub_1", "customer": "cus_1", "status": "active"}}}).encode()
+        self.client.request("POST", "/stripe/webhook", body=payload, headers={"HTTP_STRIPE_SIGNATURE": sign(payload)})
+        self.assertEqual(self.db.get_user(user.id).plan, "premium")
+
+    def test_one_plan_only(self):
+        self.app.settings.premium_picks_count = 0
+        self.subscriber("basic")
+        r = self.client.get("/picks")
+        self.assertNotIn("Premium", r.text)
+        self.assertNotIn("to unlock</a>", r.text)
+
+    def test_old_database_gets_plan_column(self):
+        path = temp_settings().db_path
+        import os
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with sqlite3.connect(path) as conn:
+            conn.execute("""CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                password_hash TEXT NOT NULL, created_at INTEGER NOT NULL, stripe_customer_id TEXT UNIQUE,
+                stripe_subscription_id TEXT, subscription_status TEXT NOT NULL DEFAULT 'none',
+                current_period_end INTEGER, cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+                comped INTEGER NOT NULL DEFAULT 0)""")
+            conn.execute("INSERT INTO users (email, password_hash, created_at) VALUES ('old@example.com', 'x', 0)")
+        db = Database(path)
+        self.assertEqual(db.get_user_by_email("old@example.com").plan, "basic")
+
+
 class SetupCheckTests(unittest.TestCase):
     def test_everything_configured(self):
         settings = temp_settings(stripe_secret_key="sk_test_x", stripe_price_id="price_123",
+                                 stripe_premium_price_id="price_premium",
                                  stripe_webhook_secret="whsec_x", support_email="help@example.com")
         http = FakeHttp()
         refresh(settings, sec_http=http, price_http=http, log=lambda m: None, today=TODAY)
@@ -487,9 +632,10 @@ class SetupCheckTests(unittest.TestCase):
         checks = {c.name: c for c in run_checks(settings, sec_http=http, price_http=http, stripe=stripe)}
         self.assertTrue(all(c.ok is not False for c in checks.values()), format_checks(list(checks.values())))
         self.assertIn("10.00 USD per month", checks["Payments"].detail)
+        self.assertIn("25.00 USD per month", checks["Premium plan"].detail)
         self.assertIn("TEST mode", checks["Payments"].detail)
         self.assertIn("/stripe/webhook", checks["Payment updates"].detail)
-        self.assertIn("3 picks", checks["Stock analysis"].detail)
+        self.assertIn("6 picks", checks["Stock analysis"].detail)
         self.assertTrue(format_checks(list(checks.values())).endswith("All set."))
 
     def test_problems_are_explained(self):
@@ -498,7 +644,7 @@ class SetupCheckTests(unittest.TestCase):
         down = FakeHttp(prices={})
         stripe = Stripe("sk_live_x", "price_missing", transport=FakeStripe())
         checks = {c.name: c for c in run_checks(settings, sec_http=down, price_http=down, stripe=stripe)}
-        for name in ("SEC data", "Share prices", "Web address", "Payments", "Payment updates"):
+        for name in ("SEC data", "Share prices", "Web address", "Payments", "Payment updates", "Premium plan"):
             self.assertIs(checks[name].ok, False, name)
         self.assertIn("finnhub", checks["Share prices"].detail)
         self.assertIn("No such price", checks["Payments"].detail)

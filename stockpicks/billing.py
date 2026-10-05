@@ -50,9 +50,12 @@ def _urllib_transport(method: str, url: str, headers: dict[str, str], body: byte
 
 
 class Stripe:
-    def __init__(self, secret_key: str, price_id: str, transport: Transport | None = None):
+    def __init__(
+        self, secret_key: str, price_id: str, transport: Transport | None = None, premium_price_id: str = ""
+    ):
         self.secret_key = secret_key
         self.price_id = price_id
+        self.premium_price_id = premium_price_id
         self.transport = transport or _urllib_transport
 
     def _request(self, method: str, path: str, params: list[tuple[str, str]] | None = None) -> dict:
@@ -77,10 +80,10 @@ class Stripe:
             raise StripeError(f"Stripe {method} {path}: {message}")
         return data
 
-    def create_checkout_session(self, user: User, base_url: str) -> str:
+    def create_checkout_session(self, user: User, base_url: str, price_id: str | None = None) -> str:
         params = [
             ("mode", "subscription"),
-            ("line_items[0][price]", self.price_id),
+            ("line_items[0][price]", price_id or self.price_id),
             ("line_items[0][quantity]", "1"),
             ("success_url", f"{base_url}/welcome?session_id={{CHECKOUT_SESSION_ID}}"),
             ("cancel_url", f"{base_url}/account"),
@@ -114,6 +117,22 @@ class Stripe:
 
     def retrieve_subscription(self, subscription_id: str) -> dict:
         return self._request("GET", f"/subscriptions/{urllib.parse.quote(subscription_id, safe='')}")
+
+    def change_price(self, subscription_id: str, price_id: str) -> dict:
+        """Move a subscription to another price, charging the prorated difference now.
+
+        If the charge fails, Stripe leaves the subscription unchanged.
+        """
+        sub = self.retrieve_subscription(subscription_id)
+        items = (sub.get("items") or {}).get("data") or []
+        if not items:
+            raise StripeError("Subscription has no items to change")
+        return self._request("POST", f"/subscriptions/{urllib.parse.quote(subscription_id, safe='')}", [
+            ("items[0][id]", items[0]["id"]),
+            ("items[0][price]", price_id),
+            ("proration_behavior", "always_invoice"),
+            ("payment_behavior", "error_if_incomplete"),
+        ])
 
 
 def verify_webhook(payload: bytes, signature_header: str, secret: str, now: float | None = None) -> dict:
@@ -153,7 +172,19 @@ def _period_end(sub: dict) -> int | None:
     return max(ends) if ends else None
 
 
-def _apply_subscription(db: Database, user_id: int, sub: dict, customer_id: str | None) -> None:
+def plan_for(sub: dict, premium_price_id: str) -> str:
+    """"premium" if the subscription is for the Premium price, else "basic"."""
+    for item in (sub.get("items") or {}).get("data") or []:
+        price = item.get("price") or item.get("plan") or {}
+        price_id = price.get("id") if isinstance(price, dict) else price
+        if premium_price_id and price_id == premium_price_id:
+            return "premium"
+    return "basic"
+
+
+def apply_subscription(
+    db: Database, user_id: int, sub: dict, customer_id: str | None, premium_price_id: str = ""
+) -> None:
     status = sub.get("status") or "none"
     db.update_subscription(
         user_id,
@@ -162,6 +193,7 @@ def _apply_subscription(db: Database, user_id: int, sub: dict, customer_id: str 
         status=status,
         current_period_end=_period_end(sub),
         cancel_at_period_end=bool(sub.get("cancel_at_period_end")),
+        plan=plan_for(sub, premium_price_id),
     )
 
 
@@ -190,7 +222,7 @@ def sync_checkout_session(db: Database, stripe: Stripe, session: dict, expect_us
         sub = stripe.retrieve_subscription(sub)
     if not isinstance(sub, dict):
         return False
-    _apply_subscription(db, user_id, sub, session.get("customer"))
+    apply_subscription(db, user_id, sub, session.get("customer"), stripe.premium_price_id)
     return (sub.get("status") or "") in ("active", "trialing")
 
 
@@ -223,7 +255,7 @@ def handle_event(db: Database, stripe: Stripe, event: dict) -> str:
             sub = obj
             if kind != "customer.subscription.deleted" and obj.get("id"):
                 sub = stripe.retrieve_subscription(obj["id"])
-            _apply_subscription(db, user.id, sub, obj.get("customer"))
+            apply_subscription(db, user.id, sub, obj.get("customer"), stripe.premium_price_id)
             result = f"subscription {sub.get('status')}"
     else:
         result = "ignored"

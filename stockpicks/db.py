@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS users (
     subscription_status TEXT NOT NULL DEFAULT 'none',
     current_period_end INTEGER,
     cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
-    comped INTEGER NOT NULL DEFAULT 0
+    comped INTEGER NOT NULL DEFAULT 0,
+    plan TEXT NOT NULL DEFAULT 'basic'
 );
 CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
@@ -60,6 +61,7 @@ class User:
     current_period_end: int | None
     cancel_at_period_end: bool
     comped: bool
+    plan: str = "basic"
 
     @property
     def has_access(self) -> bool:
@@ -108,6 +110,10 @@ class Database:
             os.makedirs(os.path.dirname(path), exist_ok=True)
         with self.connect() as conn:
             conn.executescript(SCHEMA)
+            # Databases created before the Premium plan existed lack this column.
+            columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+            if "plan" not in columns:
+                conn.execute("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'basic'")
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -138,6 +144,7 @@ class Database:
             current_period_end=row["current_period_end"],
             cancel_at_period_end=bool(row["cancel_at_period_end"]),
             comped=bool(row["comped"]),
+            plan=row["plan"],
         )
 
     # Users
@@ -191,14 +198,15 @@ class Database:
         status: str,
         current_period_end: int | None,
         cancel_at_period_end: bool,
+        plan: str = "basic",
     ) -> None:
         with self.connect() as conn:
             conn.execute(
                 """UPDATE users SET stripe_customer_id = COALESCE(?, stripe_customer_id),
                        stripe_subscription_id = COALESCE(?, stripe_subscription_id),
-                       subscription_status = ?, current_period_end = ?, cancel_at_period_end = ?
+                       subscription_status = ?, current_period_end = ?, cancel_at_period_end = ?, plan = ?
                    WHERE id = ?""",
-                (customer_id, subscription_id, status, current_period_end, int(cancel_at_period_end), user_id),
+                (customer_id, subscription_id, status, current_period_end, int(cancel_at_period_end), plan, user_id),
             )
 
     def set_customer(self, user_id: int, customer_id: str) -> None:

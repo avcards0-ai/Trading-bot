@@ -6,8 +6,8 @@ import argparse
 import os
 import sys
 import threading
-import time
 from collections import Counter
+from datetime import datetime, timedelta, timezone
 
 from .checks import LOCAL_HOSTS, format_checks, run_checks
 from .config import Settings, load_dotenv
@@ -47,24 +47,40 @@ def _log_checks(settings: Settings) -> None:
         _log(f"Setup check failed to run: {e}")
 
 
-def run_scheduler(settings: Settings, hours: float, stop: threading.Event, log=_log) -> None:
-    """Refresh whenever picks.json is older than `hours`, until `stop` is set."""
-    interval = hours * 3600
+# New lists come out at 06:00 UTC: before US markets open, after the weekend.
+PUBLISH_HOUR_UTC = 6
+
+
+def last_publish_time(now: datetime, schedule: str) -> datetime:
+    """The most recent scheduled publish time at or before `now` (Mondays for weekly)."""
+    slot = now.replace(hour=PUBLISH_HOUR_UTC, minute=0, second=0, microsecond=0)
+    if schedule == "weekly":
+        slot -= timedelta(days=now.weekday())
+    if slot > now:
+        slot -= timedelta(days=7 if schedule == "weekly" else 1)
+    return slot
+
+
+def run_scheduler(settings: Settings, schedule: str, stop: threading.Event, log=_log) -> None:
+    """Publish a new list on schedule (and right away if there's none yet), until `stop` is set."""
+    period = timedelta(days=7 if schedule == "weekly" else 1)
     while not stop.is_set():
+        now = datetime.now(timezone.utc)
+        slot = last_publish_time(now, schedule)
         try:
-            age = time.time() - os.path.getmtime(settings.picks_path)
+            published = datetime.fromtimestamp(os.path.getmtime(settings.picks_path), timezone.utc)
         except OSError:
-            age = float("inf")
-        if age < interval:
-            wait = interval - age
+            published = None
+        if published is not None and published >= slot:
+            wait = (slot + period - now).total_seconds()
         else:
             try:
                 refresh(settings, log=log)
-                wait = interval
+                wait = (slot + period - datetime.now(timezone.utc)).total_seconds()
             except Exception as e:  # noqa: BLE001 - keep the site up whatever happens
                 log(f"Scheduled refresh failed: {e}. Retrying in {RETRY_AFTER_FAILURE // 60} minutes.")
                 wait = RETRY_AFTER_FAILURE
-        stop.wait(min(wait, 3600))
+        stop.wait(max(1.0, min(wait, 3600)))
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -72,16 +88,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     settings = Settings.from_env()
     app = App(settings, log=_log)
-    if args.refresh_hours > 0:
+    if args.refresh != "off":
         if "@" in settings.sec_user_agent:
             threading.Thread(
                 target=run_scheduler,
-                args=(settings, args.refresh_hours, threading.Event()),
+                args=(settings, args.refresh, threading.Event()),
                 daemon=True,
                 name="refresh",
             ).start()
         else:
-            _log("SEC_USER_AGENT isn't set, so the daily refresh is off. See .env.example.")
+            _log("SEC_USER_AGENT isn't set, so new lists won't be published. See .env.example.")
     threading.Thread(target=_log_checks, args=(settings,), daemon=True, name="check").start()
     if settings.base_url.startswith(LOCAL_HOSTS):
         _log(f"{settings.site_name} is running. Open http://localhost:{args.port} in your browser. "
@@ -147,8 +163,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="address to listen on (default: %(default)s; use 0.0.0.0 on a server)")
     p.add_argument("--port", type=int, default=int(os.environ.get("PORT") or 8000),
                    help="port to listen on (default: %(default)s)")
-    p.add_argument("--refresh-hours", type=float, default=float(os.environ.get("REFRESH_HOURS") or 24),
-                   help="re-run the analysis this often in the background; 0 turns it off (default: %(default)g)")
+    p.add_argument("--refresh", choices=["weekly", "daily", "off"],
+                   default=(os.environ.get("REFRESH") or "weekly").lower(),
+                   help="publish a new list every Monday (weekly), every day, or never (default: %(default)s)")
     p.set_defaults(func=cmd_serve)
 
     for name, text in (("grant", "give an account free access"), ("revoke", "remove free access")):

@@ -92,6 +92,21 @@ def _picks(settings: Settings) -> Check:
     )
 
 
+def _price_check(name: str, variable: str, price_id: str, stripe: Stripe, mode: str) -> Check:
+    try:
+        price = stripe.retrieve_price(price_id)
+    except StripeError as e:
+        return Check(name, False, f"Stripe rejected the key or {variable}: {e}")
+    recurring = price.get("recurring") or {}
+    if not recurring:
+        return Check(name, False, f"{variable} is a one-time price. Create a recurring (monthly) price instead.")
+    if not price.get("active", True):
+        return Check(name, False, f"The {variable} price is archived. Use an active price.")
+    amount = (price.get("unit_amount") or 0) / 100
+    currency = (price.get("currency") or "usd").upper()
+    return Check(name, True, f"Charging {amount:,.2f} {currency} per {recurring.get('interval', 'month')}, {mode}")
+
+
 def _stripe(settings: Settings, stripe: Stripe | None) -> list[Check]:
     if not settings.stripe_enabled:
         return [Check(
@@ -100,21 +115,16 @@ def _stripe(settings: Settings, stripe: Stripe | None) -> list[Check]:
         )]
     stripe = stripe or Stripe(settings.stripe_secret_key, settings.stripe_price_id)
     mode = "TEST mode (use card 4242 4242 4242 4242)" if settings.stripe_secret_key.startswith(("sk_test", "rk_test")) else "LIVE mode"
-    checks = []
-    try:
-        price = stripe.retrieve_price(settings.stripe_price_id)
-    except StripeError as e:
-        checks.append(Check("Payments", False, f"Stripe rejected the key or price ID: {e}"))
-    else:
-        recurring = price.get("recurring") or {}
-        if not recurring:
-            checks.append(Check("Payments", False, "STRIPE_PRICE_ID is a one-time price. Create a recurring (monthly) price instead."))
-        elif not price.get("active", True):
-            checks.append(Check("Payments", False, "That Stripe price is archived. Use an active price."))
+    checks = [_price_check("Payments", "STRIPE_PRICE_ID", settings.stripe_price_id, stripe, mode)]
+    if settings.premium_offered:
+        if settings.stripe_premium_price_id.startswith("price_"):
+            checks.append(_price_check("Premium plan", "STRIPE_PREMIUM_PRICE_ID", settings.stripe_premium_price_id, stripe, mode))
         else:
-            amount = (price.get("unit_amount") or 0) / 100
-            currency = (price.get("currency") or "usd").upper()
-            checks.append(Check("Payments", True, f"Charging {amount:,.2f} {currency} per {recurring.get('interval', 'month')}, {mode}"))
+            checks.append(Check(
+                "Premium plan", False,
+                f"Create a {settings.premium_price_label} monthly price in Stripe and set STRIPE_PREMIUM_PRICE_ID, "
+                "or set PREMIUM_PICKS_COUNT=0 to offer only one plan.",
+            ))
     if settings.stripe_webhook_secret.startswith("whsec_"):
         checks.append(Check("Payment updates", True, f"Webhook secret set. Stripe should send events to {settings.base_url}/stripe/webhook"))
     else:

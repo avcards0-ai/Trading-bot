@@ -15,8 +15,16 @@ from collections import defaultdict, deque
 from http.cookies import CookieError, SimpleCookie
 from typing import Callable, Iterable
 
-from . import pages
-from .billing import Stripe, StripeError, WebhookError, handle_event, sync_checkout_session, verify_webhook
+from . import pages, plans
+from .billing import (
+    Stripe,
+    StripeError,
+    WebhookError,
+    apply_subscription,
+    handle_event,
+    sync_checkout_session,
+    verify_webhook,
+)
 from .config import PACKAGE_DIR, Settings
 from .db import Database, User
 from .mailer import send_email
@@ -216,7 +224,9 @@ class App:
         self.db = db or Database(settings.db_path)
         self.store = store or PicksStore(settings.picks_path)
         if stripe is None and settings.stripe_enabled:
-            stripe = Stripe(settings.stripe_secret_key, settings.stripe_price_id)
+            stripe = Stripe(
+                settings.stripe_secret_key, settings.stripe_price_id, premium_price_id=settings.stripe_premium_price_id
+            )
         self.stripe = stripe
         self.mailer = mailer
         self.log = log
@@ -243,6 +253,7 @@ class App:
             ("POST", "/subscribe"): self.subscribe,
             ("GET", "/welcome"): self.welcome,
             ("POST", "/billing"): self.billing,
+            ("POST", "/upgrade"): self.upgrade,
             ("POST", "/stripe/webhook"): self.webhook,
             ("GET", "/picks"): self.picks,
             ("GET", "/stocks"): self.all_stocks,
@@ -323,13 +334,6 @@ class App:
         if ctx.user is None:
             target = ctx.req.path
             return Response.redirect("/login?next=" + urllib.parse.quote(target))
-        return None
-
-    def require_member(self, ctx: Context) -> Response | None:
-        if (redirect := self.require_login(ctx)) is not None:
-            return redirect
-        if not ctx.user.has_access:
-            return Response.redirect("/account")
         return None
 
     # Public pages
@@ -463,6 +467,11 @@ class App:
             message = "Your account is ready. Subscribe below to unlock the full list."
         elif ctx.req.arg("pending"):
             message = "We're waiting for Stripe to confirm your payment. Refresh this page in a minute."
+        elif ctx.req.arg("upgrade"):
+            message = (
+                f"That's part of Premium, which unlocks all {self.settings.total_picks} picks "
+                "and every company's scorecard."
+            )
         return ctx.html(pages.account(self.settings, ctx.user, ctx.csrf, message, ctx.req.arg("error")))
 
     # Billing
@@ -474,12 +483,34 @@ class App:
             return Response.redirect("/picks")
         if self.stripe is None:
             return Response.redirect("/account")
+        price_id = self.settings.stripe_price_id
+        if ctx.req.form.get("plan") == plans.PREMIUM:
+            if not self.settings.premium_enabled:
+                return Response.redirect("/account?error=" + urllib.parse.quote("Premium isn't available yet."))
+            price_id = self.settings.stripe_premium_price_id
         try:
-            url = self.stripe.create_checkout_session(ctx.user, self.settings.base_url)
+            url = self.stripe.create_checkout_session(ctx.user, self.settings.base_url, price_id)
         except StripeError as err:
             self.log(f"checkout for user {ctx.user.id} failed: {err}")
             return Response.redirect("/account?error=" + urllib.parse.quote("We couldn't reach the payment page. Please try again."))
         return Response.redirect(url)
+
+    def upgrade(self, ctx: Context) -> Response:
+        if (redirect := self.require_login(ctx)) is not None:
+            return redirect
+        tier = plans.tier_for(ctx.user, self.settings)
+        if tier == plans.PREMIUM:
+            return Response.redirect("/picks")
+        if tier != plans.BASIC or not self.settings.premium_enabled or not ctx.user.stripe_subscription_id:
+            return Response.redirect("/account")
+        try:
+            sub = self.stripe.change_price(ctx.user.stripe_subscription_id, self.settings.stripe_premium_price_id)
+        except StripeError as err:
+            self.log(f"upgrade for user {ctx.user.id} failed: {err}")
+            msg = "We couldn't upgrade you, and you haven't been charged. Check your card under Manage billing."
+            return Response.redirect("/account?error=" + urllib.parse.quote(msg))
+        apply_subscription(self.db, ctx.user.id, sub, None, self.settings.stripe_premium_price_id)
+        return Response.redirect("/picks?upgraded=1")
 
     def welcome(self, ctx: Context) -> Response:
         if (redirect := self.require_login(ctx)) is not None:
@@ -530,17 +561,24 @@ class App:
     # Members-only pages
 
     def picks(self, ctx: Context) -> Response:
-        if (redirect := self.require_member(ctx)) is not None:
-            return redirect
+        # Open to everyone: visitors see the free picks and the rest locked.
         data = self.store.get()
         if not data:
             return ctx.html(pages.layout(self.settings, "Picks", pages.no_data(self.settings), user=ctx.user, csrf=ctx.csrf))
-        message = "Welcome aboard! Here's today's list." if ctx.req.arg("welcome") else ""
+        tier = plans.tier_for(ctx.user, self.settings)
+        message = ""
+        if tier == plans.PREMIUM and ctx.req.arg("upgraded"):
+            message = f"You're on Premium now. Here are all {self.settings.total_picks} picks."
+        elif tier != plans.VISITOR and ctx.req.arg("welcome"):
+            message = "Welcome aboard! Here's the list."
         return ctx.html(pages.picks(self.settings, data, ctx.user, ctx.csrf, message))
 
     def all_stocks(self, ctx: Context) -> Response:
-        if (redirect := self.require_member(ctx)) is not None:
+        # Every company's scorecard would reveal the Premium picks, so it's Premium-only.
+        if (redirect := self.require_login(ctx)) is not None:
             return redirect
+        if plans.tier_for(ctx.user, self.settings) != plans.PREMIUM:
+            return Response.redirect("/account?upgrade=1")
         data = self.store.get()
         if not data:
             return ctx.html(pages.layout(self.settings, "All stocks", pages.no_data(self.settings), user=ctx.user, csrf=ctx.csrf))
@@ -551,14 +589,17 @@ class App:
         if not TICKER_RE.match(ticker):
             raise HttpError(404, "We couldn't find that page.")
         data = self.store.get()
-        is_sample = ticker in pages.sample_tickers(data)
-        if not is_sample and (redirect := self.require_member(ctx)) is not None:
-            return redirect
         s = self.store.stock(ticker)
         if not data or s is None:
             raise HttpError(404, f"We don't cover {ticker}.")
-        member = ctx.user is not None and ctx.user.has_access
-        return ctx.html(pages.stock(self.settings, data, s, ctx.user, ctx.csrf, is_sample=is_sample and not member))
+        tier = plans.tier_for(ctx.user, self.settings)
+        free = plans.free_tickers(data, self.settings)
+        if not plans.can_view(s, tier, self.settings, free):
+            if ctx.user is None:
+                return Response.redirect("/login?next=" + urllib.parse.quote(ctx.req.path))
+            return Response.redirect("/account?upgrade=1" if tier == plans.BASIC else "/account")
+        is_sample = tier == plans.VISITOR
+        return ctx.html(pages.stock(self.settings, data, s, ctx.user, ctx.csrf, is_sample=is_sample))
 
 
 def create_app(settings: Settings | None = None) -> App:
