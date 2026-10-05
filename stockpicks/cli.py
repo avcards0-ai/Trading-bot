@@ -9,6 +9,7 @@ import threading
 import time
 from collections import Counter
 
+from .checks import format_checks, run_checks
 from .config import Settings, load_dotenv
 from .db import Database
 from .net import FetchError
@@ -18,7 +19,9 @@ RETRY_AFTER_FAILURE = 1800  # seconds
 
 
 def _log(message: str) -> None:
-    print(message, flush=True)
+    # One write per message so lines from the web and refresh threads don't interleave.
+    sys.stdout.write(message + "\n")
+    sys.stdout.flush()
 
 
 def cmd_refresh(args: argparse.Namespace) -> int:
@@ -29,6 +32,19 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         print(f"Refresh failed: {e}", file=sys.stderr)
         return 1
     return 0
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    checks = run_checks(Settings.from_env())
+    print(format_checks(checks))
+    return 1 if any(c.ok is False for c in checks) else 0
+
+
+def _log_checks(settings: Settings) -> None:
+    try:
+        _log("Setup check:\n" + format_checks(run_checks(settings)))
+    except Exception as e:  # noqa: BLE001 - a failed check must never stop the site
+        _log(f"Setup check failed to run: {e}")
 
 
 def run_scheduler(settings: Settings, hours: float, stop: threading.Event, log=_log) -> None:
@@ -66,9 +82,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
             ).start()
         else:
             _log("SEC_USER_AGENT isn't set, so the daily refresh is off. See .env.example.")
-    if not settings.stripe_enabled:
-        _log("Stripe isn't configured, so visitors can sign up but can't pay yet. See .env.example.")
-    _log(f"{settings.site_name} running on http://{args.host}:{args.port}")
+    threading.Thread(target=_log_checks, args=(settings,), daemon=True, name="check").start()
+    _log(f"{settings.site_name} running on http://{args.host}:{args.port} (public address: {settings.base_url})")
     try:
         import waitress  # production-grade server, used when installed
     except ImportError:
@@ -119,6 +134,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("refresh", help="analyze every company now and rewrite the picks")
     p.set_defaults(func=cmd_refresh)
+
+    p = sub.add_parser("check", help="test your settings: SEC, prices, Stripe, storage")
+    p.set_defaults(func=cmd_check)
 
     p = sub.add_parser("serve", help="run the website")
     p.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"),

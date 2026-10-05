@@ -8,6 +8,8 @@ import urllib.parse
 from wsgiref.util import setup_testing_defaults
 
 from stockpicks.billing import Stripe, StripeError, handle_event, verify_webhook, WebhookError
+from stockpicks.checks import format_checks, run_checks
+from stockpicks.config import Settings
 from stockpicks.db import Database, hash_password, verify_password
 from stockpicks.refresh import refresh
 from stockpicks.web import App, PicksStore, safe_next
@@ -41,6 +43,11 @@ class FakeStripe:
             return 200, json.dumps({"id": "cs_1", "url": "https://checkout.stripe.com/c/pay/cs_1"}).encode()
         if method == "POST" and path == "/billing_portal/sessions":
             return 200, json.dumps({"url": "https://billing.stripe.com/p/session/1"}).encode()
+        if path.startswith("/prices/"):
+            if path.endswith("/price_missing"):
+                return 404, b'{"error": {"message": "No such price"}}'
+            return 200, json.dumps({"id": "price_123", "active": True, "currency": "usd", "unit_amount": 1000,
+                                    "recurring": {"interval": "month"}}).encode()
         if path.startswith("/subscriptions/"):
             return 200, json.dumps(self.subscriptions[path.rsplit("/", 1)[1]]).encode()
         if path.startswith("/checkout/sessions/"):
@@ -467,6 +474,56 @@ class UnitTests(unittest.TestCase):
         stripe = Stripe("sk", "price", transport=lambda *a: (402, b'{"error": {"message": "Card declined"}}'))
         with self.assertRaisesRegex(StripeError, "Card declined"):
             stripe.retrieve_subscription("sub_1")
+
+
+class SetupCheckTests(unittest.TestCase):
+    def test_everything_configured(self):
+        settings = temp_settings(stripe_secret_key="sk_test_x", stripe_price_id="price_123",
+                                 stripe_webhook_secret="whsec_x", support_email="help@example.com")
+        http = FakeHttp()
+        refresh(settings, sec_http=http, price_http=http, log=lambda m: None, today=TODAY)
+        http.prices.update(AAPL=227.5, MSFT=480.1)  # the check samples these two
+        stripe = Stripe("sk_test_x", "price_123", transport=FakeStripe())
+        checks = {c.name: c for c in run_checks(settings, sec_http=http, price_http=http, stripe=stripe)}
+        self.assertTrue(all(c.ok is not False for c in checks.values()), format_checks(list(checks.values())))
+        self.assertIn("10.00 USD per month", checks["Payments"].detail)
+        self.assertIn("TEST mode", checks["Payments"].detail)
+        self.assertIn("/stripe/webhook", checks["Payment updates"].detail)
+        self.assertIn("3 picks", checks["Stock analysis"].detail)
+        self.assertTrue(format_checks(list(checks.values())).endswith("All set."))
+
+    def test_problems_are_explained(self):
+        settings = temp_settings(sec_user_agent="", base_url="http://example.com",
+                                 stripe_secret_key="sk_live_x", stripe_price_id="price_missing")
+        down = FakeHttp(prices={})
+        stripe = Stripe("sk_live_x", "price_missing", transport=FakeStripe())
+        checks = {c.name: c for c in run_checks(settings, sec_http=down, price_http=down, stripe=stripe)}
+        for name in ("SEC data", "Share prices", "Web address", "Payments", "Payment updates"):
+            self.assertIs(checks[name].ok, False, name)
+        self.assertIn("finnhub", checks["Share prices"].detail)
+        self.assertIn("No such price", checks["Payments"].detail)
+        self.assertIsNone(checks["Stock analysis"].ok)
+
+    def test_render_address_and_placeholder_keys(self):
+        settings = Settings.from_env({"RENDER_EXTERNAL_URL": "https://longhold.onrender.com",
+                                      "STRIPE_SECRET_KEY": "later", "STRIPE_PRICE_ID": "later"})
+        self.assertEqual(settings.base_url, "https://longhold.onrender.com")
+        self.assertTrue(settings.cookie_secure)
+        self.assertFalse(settings.stripe_enabled)
+        custom = Settings.from_env({"RENDER_EXTERNAL_URL": "https://x.onrender.com", "BASE_URL": "https://picks.com/"})
+        self.assertEqual(custom.base_url, "https://picks.com")
+
+
+class ClientIpTests(unittest.TestCase):
+    def ip(self, **environ):
+        from stockpicks.web import Request
+        return Request({"REQUEST_METHOD": "GET", **environ}).client_ip
+
+    def test_client_ip(self):
+        self.assertEqual(self.ip(REMOTE_ADDR="10.0.0.1"), "10.0.0.1")
+        self.assertEqual(self.ip(REMOTE_ADDR="10.0.0.1", HTTP_X_FORWARDED_FOR="1.1.1.1, 2.2.2.2"), "2.2.2.2")
+        self.assertEqual(self.ip(HTTP_X_FORWARDED_FOR="1.1.1.1, 2.2.2.2", HTTP_TRUE_CLIENT_IP="3.3.3.3"), "3.3.3.3")
+        self.assertEqual(self.ip(HTTP_CF_CONNECTING_IP="4.4.4.4"), "4.4.4.4")
 
 
 if __name__ == "__main__":

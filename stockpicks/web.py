@@ -69,7 +69,15 @@ class Request:
 
     @property
     def client_ip(self) -> str:
-        # Behind a reverse proxy the right-most X-Forwarded-For entry is the one it added.
+        """Best guess at the visitor's address, used only for rate limiting.
+
+        Hosts fronted by Cloudflare (Render among them) pass the visitor in
+        True-Client-IP or CF-Connecting-IP. Behind a plain reverse proxy the
+        right-most X-Forwarded-For entry is the one the proxy added.
+        """
+        for header in ("HTTP_TRUE_CLIENT_IP", "HTTP_CF_CONNECTING_IP"):
+            if self.environ.get(header):
+                return self.environ[header].strip()
         forwarded = self.environ.get("HTTP_X_FORWARDED_FOR", "")
         if forwarded:
             return forwarded.split(",")[-1].strip()
@@ -212,7 +220,10 @@ class App:
         self.stripe = stripe
         self.mailer = mailer
         self.log = log
-        self.throttle = Throttle()
+        # Per-email limits protect accounts. Per-IP limits are looser because
+        # many visitors can share an address (offices, phone networks, proxies).
+        self.throttle = Throttle(limit=10)
+        self.ip_throttle = Throttle(limit=30)
         with open(os.path.join(PACKAGE_DIR, "static", "style.css"), "rb") as fh:
             self.css = fh.read()
         self.routes: dict[tuple[str, str], Handler] = {
@@ -360,11 +371,11 @@ class App:
             error = "Your password needs at least 8 characters."
         elif form.get("agree") != "1":
             error = "Please confirm you've read the terms."
-        elif self.throttle.blocked("signup:" + ctx.req.client_ip):
+        elif self.ip_throttle.blocked("signup:" + ctx.req.client_ip):
             raise HttpError(429, "Too many sign-ups from your network. Please try again later.")
         if error:
             return ctx.html(pages.signup(self.settings, ctx.csrf, error, email), 400)
-        self.throttle.hit("signup:" + ctx.req.client_ip)
+        self.ip_throttle.hit("signup:" + ctx.req.client_ip)
         user = self.db.create_user(email, password)
         if user is None:
             msg = "There's already an account with that email. Try logging in."
@@ -381,12 +392,13 @@ class App:
         form = ctx.req.form
         email = form.get("email", "").strip()
         next_url = form.get("next", "")
-        keys = ("ip:" + ctx.req.client_ip, "email:" + email.lower())
-        if self.throttle.blocked(*keys):
+        ip_key, email_key = "ip:" + ctx.req.client_ip, "email:" + email.lower()
+        if self.throttle.blocked(email_key) or self.ip_throttle.blocked(ip_key):
             raise HttpError(429, "Too many failed attempts. Please wait 15 minutes and try again.")
         user = self.db.authenticate(email, form.get("password", ""))
         if user is None:
-            self.throttle.hit(*keys)
+            self.throttle.hit(email_key)
+            self.ip_throttle.hit(ip_key)
             error = "That email and password don't match."
             return ctx.html(pages.login(self.settings, ctx.csrf, error, email, next_url), 400)
         default = "/picks" if user.has_access else "/account"
@@ -408,9 +420,9 @@ class App:
             return ctx.html(pages.forgot(self.settings, ctx.csrf))
         email = ctx.req.form.get("email", "").strip()
         key = "reset:" + ctx.req.client_ip
-        if self.throttle.blocked(key):
+        if self.ip_throttle.blocked(key):
             raise HttpError(429, "Too many reset requests. Please try again later.")
-        self.throttle.hit(key)
+        self.ip_throttle.hit(key)
         user = self.db.get_user_by_email(email) if EMAIL_RE.match(email) else None
         if user:
             token = self.db.create_reset_token(user.id)

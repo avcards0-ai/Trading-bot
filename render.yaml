@@ -1,0 +1,31 @@
+# One-click hosting on Render (https://render.com): New > Blueprint, pick this
+# repo, fill in the values it asks for. Starter plan + 1 GB disk is about
+# $7.25/month. Leave the Stripe values blank until you've set up Stripe.
+services:
+  - type: web
+    name: longhold
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: SITE_NAME
+        value: LongHold
+      - key: PRICE_LABEL
+        value: $10/month
+      - key: PRICE_SOURCE
+        value: stooq
+      - key: SEC_USER_AGENT
+        sync: false
+      - key: SUPPORT_EMAIL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PRICE_ID
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false

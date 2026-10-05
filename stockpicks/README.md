@@ -8,7 +8,7 @@ A complete website you can charge for (default **$10/month**). Every day it:
 
 Visitors see a landing page with a locked preview and two free sample picks. Subscribers pay through Stripe and get the full list, a scorecard for every company and a page explaining why it made the cut (or didn't).
 
-Python 3.9+ and the standard library only. [waitress](https://pypi.org/project/waitress/) is used as the web server if it's installed (the Docker image installs it).
+Python 3.10+ and the standard library only. [waitress](https://pypi.org/project/waitress/) is used as the web server if it's installed (the Docker image installs it).
 
 > **Not financial advice.** The site publishes the same mechanical, impersonal list to every subscriber, and its pages, footer and terms say so. Read [Before you charge money](#before-you-charge-money).
 
@@ -17,6 +17,7 @@ Python 3.9+ and the standard library only. [waitress](https://pypi.org/project/w
 ```bash
 cp .env.example .env
 # Edit .env: set SEC_USER_AGENT to your name/site and email, e.g. "LongHold you@example.com"
+python -m stockpicks check        # tests your settings and says what to fix
 python -m stockpicks refresh      # takes 1-3 minutes the first time
 python -m stockpicks serve        # then open http://localhost:8000
 ```
@@ -73,7 +74,26 @@ Access is granted while a subscription is `active`, `trialing` or `past_due` (St
 
 ## Putting it online
 
-You need a server that stays on, a disk that survives restarts (for `DATA_DIR`), and HTTPS. Two easy options, each roughly $5-7 a month:
+You need a server that stays on, a disk that survives restarts (for `DATA_DIR`), and HTTPS.
+
+### Easiest: Render (about $7.25/month)
+
+The repo includes `render.yaml`, so Render sets everything up for you:
+
+1. Sign up at [render.com](https://render.com) with your GitHub account and add a payment card.
+2. **New → Blueprint**, pick this repository and branch, and click **Connect**.
+3. Fill in the values it asks for:
+   - `SEC_USER_AGENT`: your site name and email, e.g. `LongHold you@example.com`
+   - `SUPPORT_EMAIL`: where customers can reach you
+   - Leave the three `STRIPE_` values blank for now.
+4. Click **Apply**. After a few minutes the site is live at `https://longhold.onrender.com` (or a similar name; Render shows it).
+5. Open the service's **Logs** tab. At startup it prints a setup check with `[ok]` or `[FIX]` next to each part, and the first stock analysis finishes within a few minutes.
+6. Set up Stripe (above) using `https://YOUR-RENDER-ADDRESS/stripe/webhook`. Then go to **Environment**, fill in the three `STRIPE_` values and save. Render restarts the site, and the log should show `[ok] Payments`.
+7. To give yourself free access, sign up on your site, then open the **Shell** tab and run `python -m stockpicks grant you@example.com`.
+
+The address comes from Render automatically. Set `BASE_URL` only if you add your own domain (**Settings → Custom Domains**).
+
+### Other hosts
 
 **A small VPS** (Hetzner, DigitalOcean, Linode...) with Docker:
 
@@ -100,6 +120,7 @@ Back up `DATA_DIR/site.db`; it holds your subscribers' accounts.
 ## Running the site
 
 ```bash
+python -m stockpicks check               # re-test settings, SEC, prices and Stripe
 python -m stockpicks users --list        # accounts and subscription status
 python -m stockpicks grant friend@x.com  # free access (friends, reviewers, refunds)
 python -m stockpicks revoke friend@x.com
@@ -155,7 +176,8 @@ The tests run offline against fixtures shaped like SEC EDGAR, Stooq and Stripe r
 
 ```
 stockpicks/
-  cli.py              refresh / serve / grant / revoke / users
+  cli.py              refresh / serve / check / grant / revoke / users
+  checks.py           setup checks (also printed to the log at startup)
   refresh.py          daily job: SEC + prices -> scores -> data/picks.json
   sources/sec.py      EDGAR tickers, filings and XBRL financials
   sources/prices.py   Stooq and Finnhub prices

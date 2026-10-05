@@ -44,7 +44,8 @@ class Settings:
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
         env = os.environ if env is None else env
         d = cls()
-        base_url = env.get("BASE_URL", d.base_url).rstrip("/")
+        # Render sets RENDER_EXTERNAL_URL, so BASE_URL is only needed for a custom domain.
+        base_url = (env.get("BASE_URL") or env.get("RENDER_EXTERNAL_URL") or d.base_url).rstrip("/")
         return cls(
             site_name=env.get("SITE_NAME", d.site_name),
             base_url=base_url,
@@ -86,7 +87,8 @@ class Settings:
 
     @property
     def stripe_enabled(self) -> bool:
-        return bool(self.stripe_secret_key and self.stripe_price_id)
+        # Prefix checks ignore placeholders like "later" typed into a host's dashboard.
+        return self.stripe_secret_key.startswith(("sk_", "rk_")) and self.stripe_price_id.startswith("price_")
 
     @property
     def email_enabled(self) -> bool:

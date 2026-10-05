@@ -109,6 +109,9 @@ class Stripe:
     def retrieve_checkout_session(self, session_id: str) -> dict:
         return self._request("GET", f"/checkout/sessions/{urllib.parse.quote(session_id, safe='')}")
 
+    def retrieve_price(self, price_id: str) -> dict:
+        return self._request("GET", f"/prices/{urllib.parse.quote(price_id, safe='')}")
+
     def retrieve_subscription(self, subscription_id: str) -> dict:
         return self._request("GET", f"/subscriptions/{urllib.parse.quote(subscription_id, safe='')}")
 
