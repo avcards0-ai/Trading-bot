@@ -1,0 +1,15 @@
+{
+  // GitHub Codespaces / dev containers: MemeGuard in the browser, with nothing to install locally.
+  // Dependencies install when the codespace is created; the launcher starts the bot and the
+  // dashboard each time you open it, and the dashboard opens in a new tab.
+  "name": "MemeGuard",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "postCreateCommand": "npm ci --no-audit --no-fund",
+  "postAttachCommand": "npm run launch",
+  "forwardPorts": [5173],
+  "portsAttributes": {
+    "5173": { "label": "MemeGuard dashboard", "onAutoForward": "openBrowser" }
+  },
+  "otherPortsAttributes": { "onAutoForward": "silent" },
+  "hostRequirements": { "cpus": 2 }
+}

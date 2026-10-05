@@ -18,7 +18,13 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const envPath = path.join(root, '.env');
 const isWindows = process.platform === 'win32';
-const DASHBOARD_URL = 'http://localhost:5173';
+// In GitHub Codespaces the dashboard is reached through the codespace's forwarded address, which
+// the editor opens in a new tab by itself (see .devcontainer/devcontainer.json).
+const CODESPACE_URL =
+  process.env.CODESPACE_NAME && process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
+    ? `https://${process.env.CODESPACE_NAME}-5173.${process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}`
+    : null;
+const DASHBOARD_URL = CODESPACE_URL ?? 'http://localhost:5173';
 const DASHBOARD_CHECK = 'http://127.0.0.1:5173/';
 
 const say = (msg = '') => console.log(msg);
@@ -129,6 +135,7 @@ async function waitFor(url, ms) {
 }
 
 function openBrowser(url) {
+  if (CODESPACE_URL) return; // no local browser here: the codespace opens the forwarded port
   const cmd = isWindows
     ? `start "" "${url}"`
     : process.platform === 'darwin'
@@ -282,7 +289,10 @@ say(
     ? '  MemeGuard is running in LIVE mode: it trades REAL MONEY from your wallet.'
     : '  MemeGuard is running in PAPER mode: it trades fake money only.',
 );
-say(`  Dashboard: ${DASHBOARD_URL}${ready ? ' (opened in your browser)' : ''}`);
+const opened = CODESPACE_URL
+  ? ' (opens in a new tab; if not, use the Ports tab)'
+  : ' (opened in your browser)';
+say(`  Dashboard: ${DASHBOARD_URL}${ready ? opened : ''}`);
 say(
   copied
     ? '  Dashboard password: copied to your clipboard. Paste it on the Configuration page\n' +

@@ -62,7 +62,21 @@ it and turns on the launch sniper (paper only). Press Enter to skip.
 - Windows may warn about a downloaded file: click **More info → Run anyway**.
 - If **Smart App Control** blocks `start.bat` (it has no per-file exception), install Node.js
   first, then open Command Prompt in the folder (type `cmd` in File Explorer's address bar and
-  press Enter) and run `npm run launch`. That runs the same launcher through Node.js itself.
+  press Enter) and run `npm run launch`. That runs the same launcher through Node.js itself. If
+  it then blocks the helper programs installed with the dependencies, run MemeGuard in your
+  browser instead (below).
+
+### In your browser (GitHub Codespaces)
+
+Nothing to install, and Windows Smart App Control does not apply. On this repository's GitHub
+page, pick the branch, then **Code → Codespaces → Create codespace**. The first start installs
+for a few minutes; then MemeGuard starts by itself and the dashboard opens in a new tab (or open
+port 5173 from the **Ports** tab). The dashboard password is the `API_KEY` line in `.env`, in the
+file list on the left.
+
+A codespace stops after 30 minutes without activity (adjustable in your GitHub settings), and the
+bot stops with it. Free accounts include a monthly allowance of codespace hours. For real-money
+trading, prefer a computer you control, so your wallet key never leaves it.
 - macOS may refuse to open `start.command` from the internet: right-click it and choose **Open**,
   or allow it under **System Settings → Privacy & Security**. You can also open Terminal, type
   `bash ` (with a space), drag `start.command` into the window and press Enter.
