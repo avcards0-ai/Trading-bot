@@ -7,6 +7,7 @@
 local CollectionService = game:GetService("CollectionService")
 local Zones = require(game:GetService("ReplicatedStorage").Shared.Config.Zones)
 local Kit = require(script.Parent.Kit)
+local Props = require(script.Parent.Props)
 
 local C = Kit.Colors
 local rgb = Kit.rgb
@@ -210,8 +211,8 @@ return function(root: Instance)
 	end
 
 	-- Tank farm in the side yard
-	for i, z in { -38, -16 } do
-		local base = o * CFrame.new(-68, 0, z)
+	for i, z in { -46, -66 } do
+		local base = o * CFrame.new(-74, 0, z)
 		Kit.cyl(folder, 1, 16, base * CFrame.new(0, 0.5, 0), rgb(150, 150, 150), Enum.Material.Concrete)
 		Kit.cyl(folder, 18, 13, base * CFrame.new(0, 10, 0), rgb(232, 234, 236), Enum.Material.Metal, "ChemTank")
 		Kit.ball(folder, 13, base * CFrame.new(0, 19, 0), rgb(232, 234, 236), Enum.Material.Metal)
@@ -529,6 +530,67 @@ return function(root: Instance)
 	for _, p in { { 0, 50 }, { -50, 20 }, { 50, 20 }, { -20, -2 }, { 20, -2 }, { 0, -30 }, { -60, -40 }, { 60, -40 } } do
 		table.insert(patrol, (o * CFrame.new(p[1], 3, p[2])).Position)
 	end
+
+	-- Story: abandoned in a hurry. Taped-off side doors, smashed and boarded windows, weeds
+	-- pushing through the asphalt, papers blown against the fence, a barrel on its side.
+	Props.cautionTape(folder, bCenter * CFrame.new(-46.2, 0.5, 0) * CFrame.Angles(0, math.rad(90), 0), 12, 11)
+	Props.cautionTape(folder, bCenter * CFrame.new(46.2, 0.5, 0) * CFrame.Angles(0, math.rad(-90), 0), 10, 11)
+	for _, spec in { { -28, 31.3 }, { 6, 31.3 }, { 33, 31.3 }, { -12, -31.3 }, { 24, -31.3 } } do
+		Kit.detail(
+			Kit.block(
+				folder,
+				Vector3.new(2.8, 2.6, 0.2),
+				bCenter * CFrame.new(spec[1], 18.4, spec[2]),
+				rgb(18, 20, 22),
+				Enum.Material.SmoothPlastic
+			)
+		)
+	end
+	for _, x in { -14, 20 } do
+		for k = -1, 1, 2 do
+			Kit.detail(
+				Kit.block(
+					folder,
+					Vector3.new(4, 0.7, 0.2),
+					bCenter * CFrame.new(x, 18.5 + k * 0.6, 31.45) * CFrame.Angles(0, 0, math.rad(k * 14)),
+					rgb(140, 116, 86),
+					Enum.Material.WoodPlanks
+				)
+			)
+		end
+	end
+	local weedSeed = 41
+	for i = 1, 26 do
+		local along = Props.between(weedSeed + i, -86, 86)
+		local spot = if i % 3 == 0
+			then Vector3.new(Props.between(weedSeed + i * 2, -80, 80), 0, Props.between(weedSeed + i * 3, -78, 70))
+			elseif i % 3 == 1 then Vector3.new(along, 0, 72.5)
+			else Vector3.new(i % 2 == 0 and -88.5 or 88.5, 0, along * 0.85 - 5)
+		if not (spot.Z > 70 and math.abs(spot.X) < 16) then
+			local tuft = Kit.ball(
+				folder,
+				Props.between(weedSeed + i * 5, 0.9, 1.9),
+				o * CFrame.new(spot.X, 0.25, spot.Z),
+				rgb(86, 108, 54):Lerp(rgb(120, 116, 64), Kit.hash(weedSeed + i)),
+				Enum.Material.LeafyGrass
+			)
+			Kit.detail(tuft)
+		end
+	end
+	for i = 1, 9 do
+		local base = if i <= 5 then Vector3.new(58, 0, 8) else Vector3.new(-40, 0, 66)
+		local at = o
+			* CFrame.new(base.X + Props.between(i * 7, -9, 9), 0.23, base.Z + Props.between(i * 11, -7, 7))
+			* CFrame.Angles(0, Kit.hash(i * 13) * 6.28, 0)
+		Kit.detail(Kit.block(folder, Vector3.new(1.1, 0.03, 1.5), at, rgb(226, 222, 210), Enum.Material.SmoothPlastic))
+	end
+	local tipped = Kit.barrel(
+		folder,
+		o * CFrame.new(-62, 1.5, 63) * CFrame.Angles(math.rad(90), 0, math.rad(25)),
+		rgb(60, 104, 60),
+		false
+	)
+	tipped.Name = "TippedBarrel"
 
 	return {
 		Id = "Laboratory",

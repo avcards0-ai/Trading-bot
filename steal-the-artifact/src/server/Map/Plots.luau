@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Kit = require(script.Parent.Kit)
+local Props = require(script.Parent.Props)
 
 local C = Kit.Colors
 local rgb = Kit.rgb
@@ -62,7 +63,7 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 		folder,
 		Vector3.new(96, 2, 96),
 		plotCF * CFrame.new(0, 0, 0),
-		rgb(112, 168, 84),
+		rgb(98, 130, 70),
 		Enum.Material.Grass,
 		"Platform"
 	)
@@ -112,7 +113,7 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 		Kit.cyl(folder, 0.3, 11, plotCF * CFrame.new(0, 1.2, -30), rgb(236, 232, 222), Enum.Material.Marble, "SpawnPad")
 	spawnPad.CastShadow = false
 	local spawnRing =
-		Kit.cyl(folder, 0.25, 12.2, plotCF * CFrame.new(0, 1.15, -30), ACCENT, Enum.Material.Neon, "SpawnRing")
+		Kit.cyl(folder, 0.25, 11.8, plotCF * CFrame.new(0, 1.15, -30), ACCENT, Enum.Material.Neon, "SpawnRing")
 	Kit.detail(spawnRing)
 	tag(spawnRing, "Accent")
 	local spawnEmblem = Kit.cyl(folder, 0.34, 4, plotCF * CFrame.new(0, 1.21, -30), SECONDARY, Enum.Material.Metal)
@@ -256,7 +257,6 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 			"Lantern"
 		)
 		Kit.detail(lantern)
-		tag(lantern, "Accent")
 		Kit.detail(
 			Kit.block(
 				folder,
@@ -303,21 +303,6 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 			Enum.Material.Metal
 		)
 	)
-	-- Accent strip along the cornice (front)
-	tag(
-		Kit.detail(
-			Kit.block(
-				folder,
-				Vector3.new(60.2, 0.5, 0.5),
-				b * CFrame.new(0, 19.4, -26.2),
-				ACCENT,
-				Enum.Material.Neon,
-				"Trim"
-			)
-		),
-		"Accent"
-	)
-
 	-- Door (slides up into the wall when open)
 	local doorClosed = b * CFrame.new(0, 6.3, -24)
 	local door = Kit.block(
@@ -472,15 +457,23 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 		)
 		local beacon = Kit.block(
 			gate,
-			Vector3.new(1.6, 1.6, 1.6),
-			pillarCF * CFrame.new(0, 16.8, 0),
-			ACCENT,
+			Vector3.new(1.1, 1.3, 1.1),
+			pillarCF * CFrame.new(0, 16.65, 0),
+			rgb(255, 226, 178),
 			Enum.Material.Neon,
 			"GateLight"
 		)
 		Kit.detail(beacon)
-		tag(beacon, "Accent")
-		Kit.light(beacon, rgb(255, 220, 150), 1.2, 16)
+		Kit.detail(
+			Kit.block(
+				gate,
+				Vector3.new(1.7, 0.35, 1.7),
+				pillarCF * CFrame.new(0, 17.45, 0),
+				rgb(46, 48, 54),
+				Enum.Material.Metal
+			)
+		)
+		Kit.light(beacon, rgb(255, 220, 160), 0.9, 14)
 	end
 	local signPart = Kit.block(
 		gate,
@@ -496,12 +489,12 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 				gate,
 				Vector3.new(16.8, 4.6, 0.6),
 				plotCF * CFrame.new(0, 12.6, -45),
-				ACCENT,
-				Enum.Material.Neon,
+				SECONDARY,
+				Enum.Material.Metal,
 				"SignFrame"
 			)
 		),
-		"Accent"
+		"Secondary"
 	)
 	local _, signLabel =
 		Kit.label(signPart, "EMPTY LOT", { Face = Enum.NormalId.Front, TextColor = C.White, Name = "OwnerLabel" })
@@ -521,34 +514,121 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 		folder,
 		Vector3.new(2.4, 1.8, 0.2),
 		plotCF * CFrame.new(12, 4.6, -11.05),
-		rgb(80, 200, 255),
+		rgb(70, 150, 190),
 		Enum.Material.Neon,
 		"Screen"
 	)
 	screen.CastShadow = false
 	Kit.uiPrompt(terminal, "Vault Controls", "Terminal", "Vault")
 
-	-- Yard dressing: lamps and flower beds along the walk, trees and shrubs
+	-- Yard dressing: lamps and flower beds along the walk, then the things that make each
+	-- vault's yard its own (the gameplay layout above is identical on every plot).
+	local seed = index * 97.31
 	for side = -1, 1, 2 do
+		local sideSeed = seed + side * 13
 		Kit.lamp(folder, (plotCF * CFrame.new(side * 8.5, 1, -20)).Position, rgb(255, 230, 170), 9)
 		Kit.lamp(folder, (plotCF * CFrame.new(side * 8.5, 1, -38)).Position, rgb(255, 230, 170), 9)
 		Kit.flowerBed(folder, plotCF * CFrame.new(side * 12.5, 1, -29), Vector2.new(3.5, 12))
-		Kit.tree(folder, (plotCF * CFrame.new(side * 36, 1, -33)).Position, 1.05)
-		Kit.tree(folder, (plotCF * CFrame.new(side * 38, 1, 36)).Position, 0.95)
-		for _, z in { -42, -36, 40 } do
-			Kit.bush(folder, (plotCF * CFrame.new(side * 42, 1, z)).Position, 0.8)
+		local frontTree = plotCF
+			* CFrame.new(side * (36 + Props.between(sideSeed, -2, 2)), 1, -33 + Props.between(sideSeed + 1, -3, 3))
+		if Props.chance(sideSeed + 2, 0.35) then
+			Kit.pine(folder, frontTree.Position, Props.between(sideSeed + 3, 1, 1.25))
+		else
+			Kit.tree(
+				folder,
+				frontTree.Position,
+				Props.between(sideSeed + 4, 0.9, 1.2),
+				Props.pick({ rgb(74, 112, 56), rgb(88, 122, 60), rgb(102, 124, 64), rgb(150, 116, 56) }, sideSeed + 5)
+			)
+		end
+		Kit.tree(
+			folder,
+			(plotCF * CFrame.new(side * 38, 1, 36 + Props.between(sideSeed + 6, -3, 2))).Position,
+			Props.between(sideSeed + 7, 0.8, 1.05)
+		)
+		for k, z in { -42, -36, 40 } do
+			if Props.chance(sideSeed + k * 3, 0.75) then
+				Kit.bush(
+					folder,
+					(plotCF * CFrame.new(side * 42, 1, z + Props.between(sideSeed + k, -1.5, 1.5))).Position,
+					Props.between(sideSeed + k * 5, 0.65, 0.95)
+				)
+			end
 		end
 		local hedge = Kit.block(
 			folder,
 			Vector3.new(2.5, 3, 40),
 			plotCF * CFrame.new(side * 44, 2.5, 4),
-			rgb(70, 140, 62),
+			rgb(62, 104, 54),
 			Enum.Material.LeafyGrass,
 			"Hedge"
 		)
 		hedge.CastShadow = false
-		Kit.bench(folder, plotCF * CFrame.new(side * 24, 1, -40) * CFrame.Angles(0, math.pi, 0))
+		if side == -1 or Props.chance(seed + 9, 0.6) then
+			Kit.bench(
+				folder,
+				Kit.settle(plotCF * CFrame.new(side * 24, 1, -40) * CFrame.Angles(0, math.pi, 0), sideSeed + 8, 5, 0)
+			)
+		end
 	end
+	-- Personal touches in the side yards: one front-yard item per side, one by the building
+	local frontItems = {
+		function(at: CFrame, s: number)
+			Props.shed(folder, at * CFrame.Angles(0, math.rad(90), 0), s)
+		end,
+		function(at: CFrame, s: number)
+			Props.car(folder, at * CFrame.new(0, 0, -2), s)
+		end,
+		function(at: CFrame, s: number)
+			Props.doghouse(folder, at, s)
+		end,
+		function(at: CFrame, s: number)
+			Props.grill(folder, at, s)
+			Props.flowerPot(folder, (at * CFrame.new(2.5, 0, 1)).Position, s + 1)
+		end,
+		function(at: CFrame, s: number)
+			for i = 0, 2 do
+				Props.flowerPot(folder, (at * CFrame.new(i * 1.8 - 1.8, 0, (i % 2) * 0.9)).Position, s + i)
+			end
+		end,
+		function(at: CFrame, s: number)
+			Props.bike(folder, at * CFrame.Angles(0, Kit.hash(s) * 3, 0), s, Props.chance(s + 1, 0.5))
+		end,
+	}
+	local sideItems = {
+		function(at: CFrame, s: number)
+			Props.palletStack(folder, at, s)
+		end,
+		function(at: CFrame, s: number)
+			for i = 0, 2 do
+				Props.box(folder, at * CFrame.new(0, 0, i * 2.4 - 2.4), s + i)
+			end
+		end,
+		function(at: CFrame, s: number)
+			Props.wheelieBin(folder, at * CFrame.Angles(0, math.rad(90), 0), s)
+			Props.wheelieBin(folder, at * CFrame.new(0, 0, 3) * CFrame.Angles(0, math.rad(90), 0), s + 1)
+		end,
+		function(_at: CFrame, _s: number) end,
+	}
+	local first = math.floor(Kit.hash(seed + 20) * #frontItems) + 1
+	local second = (first + 1 + math.floor(Kit.hash(seed + 21) * (#frontItems - 1))) % #frontItems + 1
+	frontItems[first](plotCF * CFrame.new(-26, 1, -14), seed + 30)
+	frontItems[second](plotCF * CFrame.new(26, 1, -15), seed + 40)
+	local sideX = Props.chance(seed + 22, 0.5) and -37 or 37
+	Props.pick(sideItems, seed + 23)(plotCF * CFrame.new(sideX, 1, 20), seed + 50)
+	-- A worn line across the lawn where the owner always cuts the corner
+	local from = Vector3.new(Props.chance(seed + 24, 0.5) and 6.5 or -6.5, 0, -42)
+	local to = Vector3.new(from.X * 4, 0, -18)
+	local wornLength = (to - from).Magnitude
+	Kit.detail(
+		Kit.block(
+			folder,
+			Vector3.new(2.2, 0.04, wornLength),
+			plotCF * CFrame.lookAt((from + to) / 2, to) * CFrame.new(0, 1.02, 0),
+			rgb(118, 104, 80),
+			Enum.Material.Ground
+		)
+	)
 
 	return {
 		Index = index,

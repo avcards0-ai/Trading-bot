@@ -7,17 +7,18 @@
 local Zones = require(game:GetService("ReplicatedStorage").Shared.Config.Zones)
 local Kit = require(script.Parent.Kit)
 local Layout = require(script.Parent.Layout)
+local Props = require(script.Parent.Props)
 
 local C = Kit.Colors
 local rgb = Kit.rgb
 
 local STALL_COLORS = {
-	{ rgb(255, 90, 90), rgb(255, 255, 255) },
-	{ rgb(80, 170, 255), rgb(255, 255, 255) },
-	{ rgb(255, 200, 60), rgb(255, 120, 40) },
-	{ rgb(120, 220, 120), rgb(255, 255, 255) },
-	{ rgb(200, 120, 255), rgb(255, 230, 255) },
-	{ rgb(255, 140, 200), rgb(255, 255, 255) },
+	{ rgb(186, 74, 66), rgb(236, 230, 218) },
+	{ rgb(64, 108, 150), rgb(236, 230, 218) },
+	{ rgb(206, 160, 66), rgb(176, 96, 52) },
+	{ rgb(86, 132, 86), rgb(236, 230, 218) },
+	{ rgb(124, 96, 150), rgb(226, 214, 222) },
+	{ rgb(184, 112, 128), rgb(236, 230, 218) },
 }
 
 local function stall(parent: Instance, cf: CFrame, colors: { Color3 }, spawns: { CFrame })
@@ -42,8 +43,25 @@ local function stall(parent: Instance, cf: CFrame, colors: { Color3 }, spawns: {
 	end
 	table.insert(spawns, cf * CFrame.new(-3, 5.4, 0))
 	table.insert(spawns, cf * CFrame.new(3, 5.4, 0))
-	-- Goods for flavor
-	Kit.crate(m, cf * CFrame.new(-5, 1, -3.5), 2, rgb(190, 140, 90))
+	-- Goods for flavor: produce at the ends of the counter (loot shows up in the middle)
+	local produce = { rgb(170, 40, 36), rgb(214, 132, 40), rgb(108, 146, 52), rgb(222, 190, 72), rgb(110, 46, 90) }
+	for i, x in { -5, 5 } do
+		local box = cf * CFrame.new(x, 4.25, -0.9) * CFrame.Angles(0, (i - 1.5) * 0.18, 0)
+		Kit.block(m, Vector3.new(1.8, 0.7, 1.4), box, rgb(150, 116, 76), Enum.Material.WoodPlanks, "ProduceBox")
+		local fruit = produce[(#spawns + i * 2) % #produce + 1]
+		for j = 0, 5 do
+			Kit.detail(
+				Kit.ball(
+					m,
+					0.55,
+					box * CFrame.new(-0.55 + (j % 3) * 0.55, 0.45, -0.3 + math.floor(j / 3) * 0.6),
+					fruit:Lerp(rgb(0, 0, 0), (j % 2) * 0.1),
+					Enum.Material.SmoothPlastic
+				)
+			)
+		end
+	end
+	Kit.crate(m, Kit.settle(cf * CFrame.new(-5, 1, -3.5), #spawns * 3, 14, 0), 2, rgb(170, 128, 84))
 	Kit.barrel(m, cf * CFrame.new(5, 1.8, -3.5), colors[1])
 end
 
@@ -120,9 +138,8 @@ local function shopBooth(
 		Enum.Material.WoodPlanks,
 		"Counter"
 	)
-	local trim = Kit.block(m, Vector3.new(12.4, 0.3, 2.8), cf * CFrame.new(0, 4.75, -3), color, Enum.Material.Neon)
+	local trim = Kit.block(m, Vector3.new(12.4, 0.3, 2.8), cf * CFrame.new(0, 4.75, -3), C.DarkWood, Enum.Material.Wood)
 	trim.CastShadow = false
-	Kit.light(trim, color, 1.2, 16)
 	Kit.sign(m, Vector3.new(15, 3.6, 0.6), cf * CFrame.new(0, 15, -7.4), title, color:Lerp(C.Black, 0.6), C.White)
 	local blurbSign =
 		Kit.sign(m, Vector3.new(10, 2.2, 0.3), cf * CFrame.new(0, 9, 4.9), blurb, rgb(30, 30, 40), rgb(230, 230, 240))
@@ -189,7 +206,9 @@ return function(root: Instance)
 	-- their own vault as soon as it is assigned.
 	local spawnCF = origin * CFrame.new(0, 0, 52)
 	Kit.cyl(folder, 0.9, 14, spawnCF * CFrame.new(0, 0.45, 0), rgb(214, 208, 196), Enum.Material.Marble, "SpawnPad")
-	Kit.detail(Kit.cyl(folder, 0.8, 15.2, spawnCF * CFrame.new(0, 0.4, 0), C.Gold, Enum.Material.Neon, "SpawnRing"))
+	Kit.detail(
+		Kit.cyl(folder, 0.8, 15, spawnCF * CFrame.new(0, 0.4, 0), rgb(196, 160, 84), Enum.Material.Metal, "SpawnRing")
+	)
 	-- A plain, unrotated block: characters spawn on top of it facing the fountain.
 	local spawnLocation = Instance.new("SpawnLocation")
 	spawnLocation.Name = "CitySpawn"
@@ -212,15 +231,15 @@ return function(root: Instance)
 			folder,
 			Vector3.new(4, 0.1, 4),
 			spawnCF * CFrame.new(0, 1.55, 0) * CFrame.Angles(0, math.rad(45), 0),
-			rgb(120, 220, 255),
-			Enum.Material.Neon
+			rgb(150, 120, 70),
+			Enum.Material.Metal
 		)
 	)
 	for i = 1, 4 do
 		local angle = i / 4 * math.pi * 2 + math.pi / 4
 		local post = spawnCF * CFrame.new(math.cos(angle) * 9.5, 0, math.sin(angle) * 9.5)
 		Kit.cyl(folder, 2.6, 1, post * CFrame.new(0, 1.3, 0), rgb(60, 60, 70), Enum.Material.Metal)
-		local cap = Kit.cyl(folder, 0.5, 1.2, post * CFrame.new(0, 2.85, 0), C.Gold, Enum.Material.Neon)
+		local cap = Kit.cyl(folder, 0.5, 1.2, post * CFrame.new(0, 2.85, 0), rgb(255, 232, 190), Enum.Material.Neon)
 		Kit.detail(cap)
 	end
 
@@ -308,6 +327,42 @@ return function(root: Instance)
 		"Follow the game for free codes!"
 	)
 
+	-- Behind the stalls: rubbish waiting for collection and a vendor's handcart
+	Props.trashBags(folder, (at(292) * CFrame.new(9.6, 0.25, 3)).Position, 5, 3)
+	Props.wheelieBin(folder, at(292) * CFrame.new(10, 0.25, -1) * CFrame.Angles(0, math.rad(80), 0), 6)
+	local cart = Kit.settle(at(205) * CFrame.new(-11, 0.25, -1), 9, 20, 0)
+	Kit.block(
+		folder,
+		Vector3.new(3.4, 0.3, 5.4),
+		cart * CFrame.new(0, 1.8, 0),
+		rgb(140, 110, 78),
+		Enum.Material.WoodPlanks,
+		"Handcart"
+	)
+	for x = -1, 1, 2 do
+		Kit.detail(
+			Kit.cyl(
+				folder,
+				0.3,
+				2.6,
+				cart * CFrame.new(x * 1.9, 1.3, 0.6) * CFrame.Angles(0, 0, math.rad(90)),
+				rgb(70, 54, 40),
+				Enum.Material.Wood
+			)
+		)
+		Kit.detail(
+			Kit.block(
+				folder,
+				Vector3.new(0.25, 0.25, 3),
+				cart * CFrame.new(x * 1.2, 1.5, -3.6) * CFrame.Angles(math.rad(-18), 0, 0),
+				rgb(110, 86, 60),
+				Enum.Material.Wood
+			)
+		)
+	end
+	Kit.crate(folder, cart * CFrame.new(0.3, 2.95, 1), 2, rgb(160, 120, 80))
+	Props.box(folder, cart * CFrame.new(-0.4, 1.95, -1.3), 14)
+
 	-- Daily reward chest
 	local chestCF = origin * CFrame.Angles(0, math.rad(30), 0) * CFrame.new(0, 0, 48)
 	local chest = Kit.model("DailyChest", folder)
@@ -371,11 +426,15 @@ return function(root: Instance)
 	-- Lamps, benches, trees around the plaza ring
 	for i = 1, 12 do
 		local angle = i / 12 * math.pi * 2
-		if i ~= 3 then -- keep the walk up from the spawn pad clear
+		angle += (Kit.hash(i * 1.7) - 0.5) * 0.08
+		if i ~= 3 and i ~= 8 then -- keep the walk up from the spawn pad clear
 			Kit.lamp(folder, center + Vector3.new(math.cos(angle) * 64, 0, math.sin(angle) * 64), rgb(255, 225, 160))
 		end
 		if i % 2 == 0 then
-			Kit.bench(folder, origin * CFrame.Angles(0, angle + math.pi / 12, 0) * CFrame.new(0, 0, -30))
+			Kit.bench(
+				folder,
+				Kit.settle(origin * CFrame.Angles(0, angle + math.pi / 12, 0) * CFrame.new(0, 0, -30), i * 3.3, 7, 0)
+			)
 		end
 		local treePos = center + Vector3.new(math.cos(angle + 0.25) * 102, 0, math.sin(angle + 0.25) * 102)
 		if Layout.roadClearance(treePos) > 5 then

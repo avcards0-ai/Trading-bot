@@ -6,6 +6,7 @@
 
 local Zones = require(game:GetService("ReplicatedStorage").Shared.Config.Zones)
 local Kit = require(script.Parent.Kit)
+local Props = require(script.Parent.Props)
 
 local C = Kit.Colors
 local rgb = Kit.rgb
@@ -469,6 +470,90 @@ return function(root: Instance)
 		"TicketBooth"
 	)
 	Kit.label(booth, "🎟️ TICKETS<br/>(steal one)", { Face = Enum.NormalId.Back, TextColor = C.Gold })
+
+	-- Visitors: a roped queue lane up to the stairs, a hot-dog cart, a bike rack.
+	local brass = rgb(176, 146, 80)
+	local velvet = rgb(120, 30, 40)
+	for _, x in { -13, -7 } do
+		local previous = nil
+		for i = 0, 3 do
+			local post = o * CFrame.new(x, 0, frontZ + 18 + i * 3.2)
+			Kit.cyl(folder, 3.2, 0.35, post * CFrame.new(0, 1.6, 0), brass, Enum.Material.Metal, "Stanchion")
+			Kit.detail(Kit.cyl(folder, 0.2, 1.1, post * CFrame.new(0, 0.1, 0), brass, Enum.Material.Metal))
+			if previous then
+				Kit.detail(
+					Kit.cyl(
+						folder,
+						3.2,
+						0.2,
+						post * CFrame.new(0, 2.6, -1.6) * CFrame.Angles(math.rad(90), 0, 0),
+						velvet,
+						Enum.Material.Fabric
+					)
+				)
+			end
+			previous = post
+		end
+	end
+	local cart = o * CFrame.new(-40, 0, frontZ + 24) * CFrame.Angles(0, math.rad(-8), 0)
+	Kit.block(
+		folder,
+		Vector3.new(5.6, 3, 3),
+		cart * CFrame.new(0, 2.2, 0),
+		rgb(196, 198, 200),
+		Enum.Material.Metal,
+		"HotDogCart"
+	)
+	for x = -1, 1, 2 do
+		Kit.detail(
+			Kit.cyl(
+				folder,
+				0.5,
+				1.6,
+				cart * CFrame.new(x * 2, 0.8, 1.6) * CFrame.Angles(math.rad(90), 0, 0),
+				rgb(30, 30, 32),
+				Enum.Material.Rubber
+			)
+		)
+	end
+	Kit.detail(Kit.cyl(folder, 6, 0.25, cart * CFrame.new(0, 6.6, 0), rgb(200, 200, 200), Enum.Material.Metal))
+	for k = 0, 1 do
+		for _, part in
+			Kit.gable(
+				folder,
+				cart * CFrame.new(0, 10.1, 0) * CFrame.Angles(0, k * math.pi / 2, 0),
+				Vector3.new(5, 1.4, 7),
+				k == 0 and rgb(176, 60, 50) or rgb(232, 226, 210),
+				Enum.Material.Fabric
+			)
+		do
+			Kit.noCollide(part)
+		end
+	end
+	Kit.detail(Kit.cyl(folder, 0.9, 0.5, cart * CFrame.new(-1.6, 4.15, -0.6), rgb(200, 50, 40), Enum.Material.Plastic))
+	Kit.detail(Kit.cyl(folder, 0.9, 0.5, cart * CFrame.new(-0.9, 4.15, -0.6), rgb(220, 180, 40), Enum.Material.Plastic))
+	local rack = o * CFrame.new(18, 0, frontZ + 30)
+	for i = 0, 3 do
+		Kit.detail(
+			Kit.block(
+				folder,
+				Vector3.new(0.2, 2.4, 2),
+				rack * CFrame.new(i * 1.6 - 2.4, 1.2, 0),
+				rgb(120, 122, 124),
+				Enum.Material.Metal
+			)
+		)
+	end
+	Kit.block(
+		folder,
+		Vector3.new(6, 0.2, 0.2),
+		rack * CFrame.new(0, 2.3, 0),
+		rgb(120, 122, 124),
+		Enum.Material.Metal,
+		"BikeRack"
+	)
+	Props.bike(folder, rack * CFrame.new(-1.6, 0, 0) * CFrame.Angles(0, math.rad(90), 0), 3)
+	Props.bike(folder, rack * CFrame.new(1.6, 0, 0.3) * CFrame.Angles(0, math.rad(84), 0), 8)
 
 	return {
 		Id = "Museum",

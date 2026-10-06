@@ -65,10 +65,10 @@
       "$properties": {
         "Technology": "Future",
         "GlobalShadows": true,
-        "ClockTime": 14.5,
-        "Brightness": 2.4,
-        "EnvironmentDiffuseScale": 0.6,
-        "EnvironmentSpecularScale": 0.8
+        "ClockTime": 15.2,
+        "Brightness": 2.2,
+        "EnvironmentDiffuseScale": 1,
+        "EnvironmentSpecularScale": 1
       }
     },
 

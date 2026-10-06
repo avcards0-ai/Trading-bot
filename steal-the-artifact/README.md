@@ -23,7 +23,7 @@ edit it there like any hand-made map.
    rojo build default.project.json -o StealTheArtifact.rbxlx
    lune run tools/build_place StealTheArtifact.rbxlx StealTheArtifact.rbxl
    ```
-   The second step bakes the city into `Workspace.Map` (about 15,600 parts, with the spawn
+   The second step bakes the city into `Workspace.Map` (about 20,500 parts, with the spawn
    point, lighting and post-processing). See [Baked map](#baked-map) below.
 2. Open `StealTheArtifact.rbxl` in Roblox Studio. To keep syncing code while you work, run
    `rojo serve` and click **Connect** in the Rojo plugin.
@@ -32,8 +32,10 @@ edit it there like any hand-made map.
    - **Places → Max players: 12** (one vault plot per player).
    - **Security → Enable Studio Access to API Services** if you want saving in Studio.
      Without it, the game automatically uses an in-memory store and everything still works.
-4. Press **Play**. The server hooks up to the baked city instantly and adds the terrain
-   coastline (ocean, beach and hills), which only exists while the game runs.
+4. Press **Play**. The server hooks up to the baked city instantly and builds the terrain:
+   ocean, beach, the hills around the island and the island surface itself (rolling ground,
+   patchy grass, worn dirt trails). Terrain only exists while the game runs; in edit mode
+   simple stand-in parts show where it will be.
 
 To test multiplayer interactions (bonks, raids), use **Test → Clients and Servers** with
 2-4 players.
@@ -202,7 +204,8 @@ src/
     Controllers/         data mirror, UI, HUD, effects, world animation, input, ...
     UI/                  theme, component kit, 3D previews, 10 windows
 tests/         headless Lune test suite
-tools/         build_place (bakes the city into a place file), check_props.py
+tools/         build_place (bakes the city into a place file), dump_map + qa_map.py (map QA),
+               check_props.py
 ```
 
 ### Baked map
@@ -222,8 +225,32 @@ come from different builds, the server warns in the output and generates a fresh
 code instead. After changing map code, rebuild the place (or delete `Workspace.Map`) to see
 it.
 
-Terrain can't be saved into a place file from outside Studio, so the coastline is the one
-thing created at runtime. It's skipped if you've sculpted terrain of your own.
+Terrain can't be saved into a place file from outside Studio, so it's the one thing created
+at runtime, from a plan stored in `MapData` (where the hills rise and where the dirt trails
+run). It replaces the parts in `Workspace.Map.TerrainStandIns`. If you sculpt terrain of your
+own in Studio, the server leaves it alone and keeps the stand-ins.
+
+### Look and feel
+
+The city is meant to read as a place people live in, not a generated level:
+
+- **Natural light:** warm afternoon sun, cooler sky fill, light atmospheric haze, Future
+  lighting with full environment reflections, and deliberately subtle bloom and grading.
+- **No two surfaces alike:** every part gets a small position-seeded shift in shade, so
+  walls, curbs, roofs and crates vary the way real materials do. Glass and glowing parts
+  keep exact colors because they mean something in gameplay.
+- **Wear and tear:** patched and cracked asphalt, faded and missing lane markings, oil
+  stains, manholes, storm drains, replaced sidewalk slabs, grime along building bases, water
+  stains under sills, downspouts, meter boxes, window AC units, fire escapes, old flyers in
+  the alleys, faded awnings and the odd boarded-up shop.
+- **Storytelling:** back doors with dumpsters and pallets, a construction site with a tower
+  crane, parked cars, bus stops, sagging power lines, suburban yards (bins out on collection
+  day, a bike left on the lawn, sheds, swing sets), an abandoned lab with taped-off doors and
+  weeds in the asphalt, a working warehouse yard with skid marks, an archaeology camp at the
+  temple, a queue line and hot-dog cart at the museum. Each player's vault yard gets its own
+  mix of props while the gameplay layout stays identical.
+- Props are generated with controlled variation (type, color, rotation, wear, open/closed
+  state) from `src/server/Map/Props.luau`, so repeats never look copy-pasted.
 
 ### Security model
 
@@ -261,9 +288,10 @@ The server owns every outcome. Clients only *ask*.
   all client-side. World VFX use an `UnreliableRemoteEvent` and only go to nearby players.
 - Data replication is batched per frame and per key.
 - Low VFX mode cuts particles for older devices.
-- The city is ~15,600 anchored parts. Decorative pieces (windows, trims, foliage, signs) have
-  collisions, queries, touch events and shadows switched off, and everything streams in by
-  distance.
+- The city is ~20,500 anchored parts: ~7,000 collide and ~7,400 cast shadows. Decorative
+  pieces (windows, trims, stains, inner foliage, wheels) have collisions, queries, touch
+  events and shadows switched off, anything under 1.5 studs casts no shadow, wires are
+  Beams, and everything streams in by distance.
 
 ---
 
@@ -303,6 +331,11 @@ lune run tests/run
 
 # Client smoke test: boots every controller, opens every window and presses every button
 lune run tests/client
+
+# Release QA for the map: floating or buried props, props clipping into buildings or each
+# other, props on roads, plus a part/shadow/light budget (exit code 1 if anything is found)
+lune run tools/dump_map map.json
+python3 tools/qa_map.py map.json
 ```
 
 `globalTypes.d.luau` comes from the luau-lsp repo (`scripts/globalTypes.d.luau`).

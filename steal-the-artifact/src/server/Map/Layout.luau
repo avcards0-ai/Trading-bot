@@ -14,8 +14,11 @@ local Layout = {}
 type Road = { A: Vector3, B: Vector3, HalfWidth: number }
 type Circle = { Center: Vector3, Radius: number }
 
+type Mound = { Center: Vector3, Radius: number, Height: number }
+
 local roads: { Road } = {}
 local circles: { Circle } = {}
+local mounds: { Mound } = {}
 
 local function flat(v: Vector3): Vector3
 	return Vector3.new(v.X, 0, v.Z)
@@ -24,6 +27,7 @@ end
 function Layout.reset()
 	table.clear(roads)
 	table.clear(circles)
+	table.clear(mounds)
 	-- Surface zones keep a little breathing room around their footprint.
 	for _, zone in Zones.List do
 		if zone.Center.Y > -40 then
@@ -73,6 +77,29 @@ function Layout.isFree(position: Vector3, radius: number, roadGap: number?): boo
 		end
 	end
 	return Layout.roadClearance(p) > radius + (roadGap or 2)
+end
+
+-- Gentle hills. Height falls off smoothly to zero at `radius`, so a hill never ends in a lip.
+function Layout.addMound(center: Vector3, radius: number, height: number)
+	table.insert(mounds, { Center = flat(center), Radius = radius, Height = height })
+end
+
+function Layout.moundHeight(center: Vector3, radius: number, height: number, position: Vector3): number
+	local d = (flat(position) - flat(center)).Magnitude
+	if d >= radius then
+		return 0
+	end
+	local t = 1 - (d / radius) ^ 2
+	return height * t * t
+end
+
+-- Height of the natural ground at `position` (0 on the flat island).
+function Layout.groundHeight(position: Vector3): number
+	local best = 0
+	for _, mound in mounds do
+		best = math.max(best, Layout.moundHeight(mound.Center, mound.Radius, mound.Height, position))
+	end
+	return best
 end
 
 -- Reserve a footprint (call after placing something solid).

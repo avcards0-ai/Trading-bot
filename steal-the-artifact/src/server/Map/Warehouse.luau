@@ -6,6 +6,7 @@
 
 local Zones = require(game:GetService("ReplicatedStorage").Shared.Config.Zones)
 local Kit = require(script.Parent.Kit)
+local Props = require(script.Parent.Props)
 
 local C = Kit.Colors
 local rgb = Kit.rgb
@@ -395,12 +396,7 @@ return function(root: Instance)
 			)
 		end
 	end
-	local forklift = Kit.model("Forklift", folder)
-	local fcf = o * CFrame.new(30, 0.2, 2)
-	Kit.block(forklift, Vector3.new(5, 4, 7), fcf * CFrame.new(0, 2.6, 0), rgb(240, 190, 30), Enum.Material.Metal)
-	Kit.block(forklift, Vector3.new(0.4, 8, 0.4), fcf * CFrame.new(-1.8, 4, -3.8), C.Black, Enum.Material.Metal)
-	Kit.block(forklift, Vector3.new(0.4, 8, 0.4), fcf * CFrame.new(1.8, 4, -3.8), C.Black, Enum.Material.Metal)
-	Kit.block(forklift, Vector3.new(4.5, 0.3, 4), fcf * CFrame.new(0, 1, -6), C.Black, Enum.Material.Metal)
+	Props.forklift(folder, o * CFrame.new(30, 0.2, 2) * CFrame.Angles(0, math.rad(-62), 0), 5)
 
 	-- Guard patrol
 	for _, p in
@@ -418,6 +414,28 @@ return function(root: Instance)
 		}
 	do
 		table.insert(patrol, (o * CFrame.new(p[1], 3, p[2])).Position)
+	end
+
+	-- A working yard: pallets by the loading door, spare tyres by the truck, skid marks where
+	-- vehicles swing in from the gate, oil where the forklift parks.
+	for i, x in { -24, -30, 24, 31 } do
+		Props.palletStack(folder, w * CFrame.new(x, 0, 35 + (i % 2) * 1.5), 60 + i)
+	end
+	Props.tireStack(folder, (o * CFrame.new(-50, 0.2, 14)).Position, 3)
+	Props.tireStack(folder, (o * CFrame.new(-46, 0.2, 16.5)).Position, 9)
+	Props.tireMarks(folder, o * CFrame.new(-4, 0, 70) * CFrame.Angles(0, math.rad(8), 0), 21, 0.2)
+	Props.tireMarks(folder, o * CFrame.new(6, 0, 52) * CFrame.Angles(0, math.rad(-12), 0), 33, 0.2)
+	for i, spot in { { 32, 6 }, { 27, -1 }, { -60, 8 } } do
+		Kit.detail(
+			Kit.cyl(
+				folder,
+				0.04,
+				Props.between(i, 2, 3.6),
+				o * CFrame.new(spot[1], 0.22, spot[2]),
+				rgb(40, 40, 42),
+				Enum.Material.SmoothPlastic
+			)
+		)
 	end
 
 	return {

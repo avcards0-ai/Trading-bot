@@ -75,12 +75,51 @@ export type TrapDef = {
 
 -- Primitives ---------------------------------------------------------------------------
 
+-- Material variation: no two surfaces are the exact same shade. Every part gets a small,
+-- position-seeded shift in brightness, saturation and hue, so repeated pieces (walls, curbs,
+-- crates, roofs...) read as weathered real materials instead of copies. Glowing and glass
+-- parts keep their exact color because they carry gameplay meaning.
+local EXACT = { [Enum.Material.Neon] = true, [Enum.Material.Glass] = true, [Enum.Material.ForceField] = true }
+
+function Kit.hash(seed: number): number
+	local n = math.sin(seed * 12.9898 + 4.1414) * 43758.5453
+	return n - math.floor(n)
+end
+
+function Kit.variation(color: Color3, seed: number, amount: number?): Color3
+	local a = amount or 0.06
+	local h, s, v = color:ToHSV()
+	v = math.clamp(v * (1 + (Kit.hash(seed) - 0.5) * 2 * a), 0, 1)
+	s = math.clamp(s * (1 + (Kit.hash(seed + 7.13) - 0.5) * 1.4 * a), 0, 1)
+	h = (h + (Kit.hash(seed + 3.71) - 0.5) * 0.014) % 1
+	return Color3.fromHSV(h, s, v)
+end
+
+function Kit.seedOf(cf: CFrame): number
+	local p = cf.Position
+	return math.floor(p.X * 7.31 + p.Y * 13.37 + p.Z * 5.13)
+end
+
 local function applyDefaults(p: BasePart, color: Color3, material: Enum.Material?)
+	local mat = material or Enum.Material.SmoothPlastic
 	p.Anchored = true
-	p.Color = color
-	p.Material = material or Enum.Material.SmoothPlastic
+	p.Color = if EXACT[mat] then color else Kit.variation(color, Kit.seedOf(p.CFrame))
+	p.Material = mat
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
+	-- Small pieces don't need to cast shadows (a big chunk of the shadow cost on mobile).
+	local size = p.Size
+	if math.max(size.X, size.Y, size.Z) < 1.5 then
+		p.CastShadow = false
+	end
+end
+
+-- A slightly imperfect placement: small random yaw and lean around the base of `cf`.
+function Kit.settle(cf: CFrame, seed: number, yawDegrees: number?, leanDegrees: number?): CFrame
+	local yaw = math.rad(((Kit.hash(seed + 1.7) - 0.5) * 2) * (yawDegrees or 6))
+	local leanX = math.rad(((Kit.hash(seed + 2.9) - 0.5) * 2) * (leanDegrees or 0))
+	local leanZ = math.rad(((Kit.hash(seed + 5.3) - 0.5) * 2) * (leanDegrees or 0))
+	return cf * CFrame.Angles(leanX, yaw, leanZ)
 end
 
 function Kit.block(
@@ -302,9 +341,9 @@ function Kit.tree(parent: Instance, position: Vector3, scale: number?, leafColor
 			bark,
 			Enum.Material.Wood
 		)
-		Kit.noCollide(branch)
+		Kit.detail(branch)
 	end
-	local leaves = leafColor or rgb(78, 150, 62)
+	local leaves = leafColor or rgb(76, 114, 58)
 	local blobs = {
 		{ 0, 13, 0, 10.5 },
 		{ 3.4, 11.4, 1.6, 7.5 },
@@ -326,6 +365,9 @@ function Kit.tree(parent: Instance, position: Vector3, scale: number?, leafColor
 		if i > 1 then
 			Kit.noCollide(ball)
 		end
+		if i > 2 then
+			ball.CastShadow = false -- inner blobs sit inside the big ones' shadow
+		end
 	end
 	return m
 end
@@ -335,7 +377,7 @@ function Kit.pine(parent: Instance, position: Vector3, scale: number?, color: Co
 	local s = scale or 1
 	local m = Kit.model("Pine", parent)
 	Kit.cyl(m, 7 * s, 1.3 * s, CFrame.new(position + Vector3.new(0, 3.5 * s, 0)), rgb(92, 64, 46), Enum.Material.Wood)
-	local green = color or rgb(52, 112, 70)
+	local green = color or rgb(48, 84, 58)
 	local yaw = (position.X * 0.37 + position.Z * 0.11) % 1.57
 	for tier = 0, 2 do
 		local width = (12 - tier * 3.2) * s
@@ -355,7 +397,7 @@ function Kit.pine(parent: Instance, position: Vector3, scale: number?, color: Co
 				Enum.Material.LeafyGrass
 			)
 		do
-			Kit.noCollide(part)
+			Kit.detail(part) -- the first gable already casts this tier's shadow
 		end
 	end
 	return m
@@ -364,10 +406,10 @@ end
 -- Round shrub.
 function Kit.bush(parent: Instance, position: Vector3, scale: number?, color: Color3?)
 	local s = scale or 1
-	local green = color or rgb(74, 140, 60)
+	local green = color or rgb(70, 108, 56)
 	local m = Kit.model("Bush", parent)
 	Kit.ball(m, 4.6 * s, CFrame.new(position + Vector3.new(0, 1.4 * s, 0)), green, Enum.Material.LeafyGrass)
-	Kit.noCollide(
+	Kit.detail(
 		Kit.ball(
 			m,
 			3.4 * s,
@@ -376,7 +418,7 @@ function Kit.bush(parent: Instance, position: Vector3, scale: number?, color: Co
 			Enum.Material.LeafyGrass
 		)
 	)
-	Kit.noCollide(
+	Kit.detail(
 		Kit.ball(
 			m,
 			3 * s,
@@ -434,7 +476,7 @@ function Kit.lamp(parent: Instance, position: Vector3, color: Color3?, height: n
 	)
 	bulb.CastShadow = false
 	Kit.noCollide(bulb)
-	Kit.noCollide(
+	Kit.detail(
 		Kit.wedge(
 			m,
 			Vector3.new(1.6, 0.6, 0.8),
@@ -443,7 +485,7 @@ function Kit.lamp(parent: Instance, position: Vector3, color: Color3?, height: n
 			Enum.Material.Metal
 		)
 	)
-	Kit.noCollide(
+	Kit.detail(
 		Kit.wedge(
 			m,
 			Vector3.new(1.6, 0.6, 0.8),
@@ -1131,9 +1173,11 @@ export type BuildingOptions = {
 	Floors: number?,
 	Glass: Color3?,
 	Style: string?, -- "Classic" (punched windows) or "Modern" (curtain wall)
-	Shop: { Text: string, Color: Color3, TextColor: Color3?, Awning: { Color3 }? }?,
+	Shop: { Text: string, Color: Color3, TextColor: Color3?, Awning: { Color3 }?, Closed: boolean? }?,
 	RoofProps: boolean?,
 	Seed: number?,
+	-- Extra dressing hook: called with the model and the four facade frames (LookVector out).
+	Dress: ((model: Model, faces: { { any } }, floors: number, floorHeight: number) -> ())?,
 }
 
 -- City building with floors, windows, a cornice, rooftop clutter and an optional shopfront.
@@ -1154,6 +1198,16 @@ function Kit.building(parent: Instance, cf: CFrame, o: BuildingOptions): Model
 		o.Wall,
 		o.WallMaterial or Enum.Material.Brick,
 		"Body"
+	)
+	-- Splash grime where rain and street dirt hit the bottom of the walls
+	Kit.detail(
+		Kit.block(
+			m,
+			Vector3.new(w + 0.1, 2.2, d + 0.1),
+			cf * CFrame.new(0, 2.1, 0),
+			o.Wall:Lerp(rgb(36, 32, 28), 0.2),
+			o.WallMaterial or Enum.Material.Brick
+		)
 	)
 	for f = 1, floors - 1 do
 		Kit.detail(
@@ -1216,7 +1270,9 @@ function Kit.building(parent: Instance, cf: CFrame, o: BuildingOptions): Model
 			end
 		end
 	else
-		for _, face in faces do
+		local stain = o.Wall:Lerp(rgb(34, 32, 30), 0.24)
+		local curtains = { rgb(160, 130, 110), rgb(120, 128, 146), rgb(176, 160, 130), rgb(140, 80, 70) }
+		for faceIndex, face in faces do
 			local faceCF = cf * face[1]
 			local width = face[2]
 			local count = math.max(1, math.floor((width - 2) / 7))
@@ -1227,15 +1283,34 @@ function Kit.building(parent: Instance, cf: CFrame, o: BuildingOptions): Model
 				for i = 0, count - 1 do
 					local x = -width / 2 + 1 + spacing * (i + 0.5)
 					local y = f * fh + fh * 0.55
+					local wseed = seed + faceIndex * 101 + f * 13 + i * 7
+					local roll = Kit.hash(wseed)
+					-- Every window is a little different: tint, blinds down, curtains half drawn.
+					local pane = if roll < 0.1
+						then rgb(184, 176, 158)
+						else glass:Lerp(rgb(26, 32, 40), Kit.hash(wseed + 1) * 0.4)
 					Kit.detail(
 						Kit.block(
 							m,
 							Vector3.new(winW, winH, 0.3),
 							faceCF * CFrame.new(x, y, -0.1),
-							glass,
+							pane,
 							Enum.Material.Glass
 						)
 					)
+					if roll >= 0.1 and roll < 0.24 then
+						local cw = winW * 0.42
+						local side = Kit.hash(wseed + 2) < 0.5 and -1 or 1
+						Kit.detail(
+							Kit.block(
+								m,
+								Vector3.new(cw, winH - 0.2, 0.32),
+								faceCF * CFrame.new(x + side * (winW / 2 - cw / 2), y, -0.11),
+								curtains[math.floor(Kit.hash(wseed + 4) * #curtains) + 1],
+								Enum.Material.Fabric
+							)
+						)
+					end
 					Kit.detail(
 						Kit.block(
 							m,
@@ -1245,14 +1320,138 @@ function Kit.building(parent: Instance, cf: CFrame, o: BuildingOptions): Model
 							trimMaterial
 						)
 					)
+					if Kit.hash(wseed + 3) < 0.22 then
+						local stainH = 1.4 + Kit.hash(wseed + 5) * 2.6
+						Kit.detail(
+							Kit.block(
+								m,
+								Vector3.new(0.4 + Kit.hash(wseed + 6) * 0.6, stainH, 0.04),
+								faceCF
+									* CFrame.new(
+										x + (Kit.hash(wseed + 7) - 0.5) * winW * 0.6,
+										y - winH / 2 - 0.35 - stainH / 2,
+										-0.02
+									),
+								stain,
+								o.WallMaterial or Enum.Material.Brick
+							)
+						)
+					elseif f >= 1 and roll > 0.94 then
+						-- Window air conditioner propped under the sash
+						local unit = faceCF * CFrame.new(x, y - winH / 2 + 0.8, -0.95)
+						Kit.detail(
+							Kit.block(m, Vector3.new(2.3, 1.4, 1.7), unit, rgb(206, 202, 190), Enum.Material.Metal)
+						)
+						Kit.detail(
+							Kit.block(
+								m,
+								Vector3.new(1.9, 1, 0.06),
+								unit * CFrame.new(0, 0, -0.87),
+								rgb(90, 92, 94),
+								Enum.Material.DiamondPlate
+							)
+						)
+					end
+				end
+			end
+		end
+		-- Fire escape zig-zagging up one side of older walk-ups
+		if floors >= 3 and Kit.hash(seed + 41) < 0.45 then
+			local face = faces[Kit.hash(seed + 43) < 0.5 and 3 or 4]
+			local faceCF = cf * face[1]
+			local iron = rgb(54, 50, 48)
+			for f = 1, floors - 1 do
+				local y = f * fh + 0.1
+				Kit.block(
+					m,
+					Vector3.new(8.4, 0.25, 3.2),
+					faceCF * CFrame.new(0, y, -1.8),
+					iron,
+					Enum.Material.DiamondPlate,
+					"FireEscape"
+				)
+				Kit.detail(
+					Kit.block(
+						m,
+						Vector3.new(8.4, 0.2, 0.2),
+						faceCF * CFrame.new(0, y + 3, -3.3),
+						iron,
+						Enum.Material.Metal
+					)
+				)
+				for side = -1, 1, 2 do
+					Kit.detail(
+						Kit.block(
+							m,
+							Vector3.new(0.2, 3, 0.2),
+							faceCF * CFrame.new(side * 4.1, y + 1.5, -3.3),
+							iron,
+							Enum.Material.Metal
+						)
+					)
+				end
+				if f < floors - 1 then
+					local dir = (f % 2 == 0) and 1 or -1
+					local a = Vector3.new(-dir * 3.6, y, -1.8)
+					local b = Vector3.new(dir * 3.6, y + fh, -1.8)
+					local length = (b - a).Magnitude
+					Kit.block(
+						m,
+						Vector3.new(1.8, 0.25, length),
+						faceCF * CFrame.lookAt((a + b) / 2, b),
+						iron,
+						Enum.Material.DiamondPlate,
+						"FireEscapeStair"
+					)
 				end
 			end
 		end
 	end
 
+	-- Downspouts on the front corners and a meter box on a side wall
+	local front = cf * faces[1][1]
+	for _, x in { -w / 2 + 0.6, w / 2 - 0.6 } do
+		if Kit.hash(seed + x) < 0.6 then
+			Kit.detail(
+				Kit.cyl(
+					m,
+					h - 1,
+					0.45,
+					front * CFrame.new(x, (h + 1) / 2, -0.3),
+					rgb(116, 116, 110),
+					Enum.Material.Metal
+				)
+			)
+			Kit.detail(
+				Kit.block(
+					m,
+					Vector3.new(0.5, 0.5, 1),
+					front * CFrame.new(x, 0.75, -0.65),
+					rgb(116, 116, 110),
+					Enum.Material.Metal
+				)
+			)
+		end
+	end
+	if Kit.hash(seed + 51) < 0.55 then
+		local side = cf * faces[Kit.hash(seed + 52) < 0.5 and 3 or 4][1]
+		local x = (Kit.hash(seed + 53) - 0.5) * (d - 6)
+		Kit.detail(
+			Kit.block(
+				m,
+				Vector3.new(1.8, 2.6, 0.7),
+				side * CFrame.new(x, 3.4, -0.35),
+				rgb(150, 152, 148),
+				Enum.Material.Metal
+			)
+		)
+		Kit.detail(Kit.cyl(m, 5, 0.3, side * CFrame.new(x + 0.5, 7.2, -0.2), rgb(150, 152, 148), Enum.Material.Metal))
+	end
+
 	if o.Shop then
 		local front = cf * CFrame.new(0, 0, -d / 2)
 		local shopH = fh
+		local closed = o.Shop.Closed
 		Kit.detail(
 			Kit.block(
 				m,
@@ -1290,21 +1489,45 @@ function Kit.building(parent: Instance, cf: CFrame, o: BuildingOptions): Model
 				Enum.Material.Glass
 			)
 		)
-		Kit.awning(m, front * CFrame.new(0, shopH * 0.86, 0), w - 2, 4.5, o.Shop.Awning or { o.Shop.Color, C_WHITE })
+		if closed then
+			-- Closed down: boards over the display window and a faded "for lease" sign
+			for i = 0, 3 do
+				Kit.detail(
+					Kit.block(
+						m,
+						Vector3.new(w * 0.66, 0.9, 0.2),
+						front
+							* CFrame.new(-w * 0.1, shopH * 0.2 + i * 1.4, -0.32)
+							* CFrame.Angles(0, 0, math.rad((Kit.hash(seed + i) - 0.5) * 8)),
+						rgb(150, 124, 92),
+						Enum.Material.WoodPlanks
+					)
+				)
+			end
+		else
+			Kit.awning(
+				m,
+				front * CFrame.new(0, shopH * 0.86, 0),
+				w - 2,
+				4.5,
+				o.Shop.Awning or { o.Shop.Color, C_WHITE }
+			)
+		end
+		local tilt = math.rad((Kit.hash(seed + 61) - 0.5) * (closed and 6 or 2))
 		local sign = Kit.block(
 			m,
 			Vector3.new(math.min(w - 4, 22), 2.6, 0.4),
-			front * CFrame.new(0, shopH * 0.86 + 2.3, -0.3),
-			o.Shop.Color,
+			front * CFrame.new(0, shopH * 0.86 + 2.3, -0.3) * CFrame.Angles(0, 0, tilt),
+			if closed then o.Shop.Color:Lerp(rgb(150, 146, 140), 0.6) else o.Shop.Color,
 			Enum.Material.SmoothPlastic,
 			"ShopSign"
 		)
 		Kit.detail(sign)
-		Kit.label(
-			sign,
-			o.Shop.Text,
-			{ TextColor = o.Shop.TextColor or C_WHITE, Font = Enum.Font.FredokaOne, Stroke = rgb(30, 30, 35) }
-		)
+		Kit.label(sign, if closed then "FOR LEASE" else o.Shop.Text, {
+			TextColor = if closed then rgb(60, 56, 52) else o.Shop.TextColor or C_WHITE,
+			Font = Enum.Font.FredokaOne,
+			Stroke = if closed then nil else rgb(30, 30, 35),
+		})
 	end
 
 	if o.RoofProps ~= false then
@@ -1357,6 +1580,13 @@ function Kit.building(parent: Instance, cf: CFrame, o: BuildingOptions): Model
 				Kit.ball(m, 0.6, cf * CFrame.new(-w / 4, roofY + 8.2, d / 5), rgb(255, 70, 70), Enum.Material.Neon)
 			Kit.detail(tip)
 		end
+	end
+	if o.Dress then
+		local frames = {}
+		for _, face in faces do
+			table.insert(frames, { cf * face[1], face[2] })
+		end
+		o.Dress(m, frames, floors, fh)
 	end
 	return m
 end

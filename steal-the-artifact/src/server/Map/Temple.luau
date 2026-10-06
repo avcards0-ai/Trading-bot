@@ -7,6 +7,7 @@
 
 local Zones = require(game:GetService("ReplicatedStorage").Shared.Config.Zones)
 local Kit = require(script.Parent.Kit)
+local Props = require(script.Parent.Props)
 
 local C = Kit.Colors
 local rgb = Kit.rgb
@@ -353,6 +354,128 @@ return function(root: Instance)
 	-- Mummy patrol: chamber + courtyard
 	for _, p in { { -20, 0 }, { 0, -20 }, { 20, 0 }, { 0, 20 }, { -52, 30 }, { -52, -30 }, { 52, -30 }, { 52, 30 } } do
 		table.insert(patrol, (o * CFrame.new(p[1], 3, p[2])).Position)
+	end
+
+	-- Story: an archaeology team is mid-dig outside the moat. Their tent, worktable, tools,
+	-- sieve and a roped-off trench. Moss creeps over the shaded lower steps.
+	local camp = o * CFrame.new(-38, 0, 80) * CFrame.Angles(0, math.rad(12), 0)
+	local canvas = rgb(184, 168, 128)
+	for _, part in Kit.gable(folder, camp * CFrame.new(-8, 3, 0), Vector3.new(8, 6, 7), canvas, Enum.Material.Fabric) do
+		part.Name = "Tent"
+	end
+	for x = -1, 1, 2 do
+		Kit.detail(
+			Kit.cyl(folder, 6.2, 0.3, camp * CFrame.new(-8 + x * 3.8, 3.1, 0), rgb(110, 90, 70), Enum.Material.Wood)
+		)
+	end
+	Kit.block(
+		folder,
+		Vector3.new(4.4, 0.25, 2.4),
+		camp * CFrame.new(0, 3, -1),
+		rgb(150, 120, 86),
+		Enum.Material.WoodPlanks,
+		"Worktable"
+	)
+	for x = -1, 1, 2 do
+		for z = -1, 1, 2 do
+			Kit.detail(
+				Kit.block(
+					folder,
+					Vector3.new(0.2, 2.9, 0.2),
+					camp * CFrame.new(x * 2, 1.45, -1 + z * 1),
+					rgb(90, 90, 90),
+					Enum.Material.Metal
+				)
+			)
+		end
+	end
+	local lamp = Kit.block(
+		folder,
+		Vector3.new(0.6, 0.9, 0.6),
+		camp * CFrame.new(1.4, 3.6, -1.4),
+		rgb(255, 214, 150),
+		Enum.Material.Neon
+	)
+	Kit.detail(lamp)
+	Kit.light(lamp, rgb(255, 210, 150), 0.8, 12)
+	Kit.detail(
+		Kit.block(
+			folder,
+			Vector3.new(1.6, 0.03, 1.2),
+			camp * CFrame.new(-0.8, 3.14, -0.8) * CFrame.Angles(0, 0.3, 0),
+			rgb(222, 210, 180),
+			Enum.Material.SmoothPlastic
+		)
+	)
+	Kit.crate(folder, camp * CFrame.new(3.6, 1.1, 2), 2.2, rgb(150, 116, 76))
+	Kit.crate(folder, camp * CFrame.new(5.6, 1.1, 2.6) * CFrame.Angles(0, 0.4, 0), 2.2, rgb(140, 108, 72))
+	-- Shovel leaning on a crate
+	local shovel = camp * CFrame.new(3.6, 1.9, 0.7) * CFrame.Angles(math.rad(-22), 0, 0)
+	Kit.detail(Kit.cyl(folder, 4.2, 0.22, shovel, rgb(130, 100, 70), Enum.Material.Wood))
+	Kit.detail(
+		Kit.block(
+			folder,
+			Vector3.new(0.9, 1.2, 0.1),
+			shovel * CFrame.new(0, -2.4, 0),
+			rgb(90, 92, 94),
+			Enum.Material.Metal
+		)
+	)
+	-- Sieve frame on two crates and the trench they're working
+	Kit.detail(
+		Kit.block(
+			folder,
+			Vector3.new(3, 0.25, 2.2),
+			camp * CFrame.new(4.6, 2.4, 2.3),
+			rgb(150, 120, 86),
+			Enum.Material.Wood
+		)
+	)
+	local trench = camp * CFrame.new(2, 0, 9)
+	Kit.block(
+		folder,
+		Vector3.new(7, 0.12, 4.5),
+		trench * CFrame.new(0, 0.06, 0),
+		rgb(96, 80, 60),
+		Enum.Material.Ground,
+		"Trench"
+	)
+	for _, corner in { { -4.2, -2.8 }, { 4.2, -2.8 }, { 4.2, 2.8 }, { -4.2, 2.8 } } do
+		Kit.cyl(folder, 2.4, 0.25, trench * CFrame.new(corner[1], 1.2, corner[2]), rgb(120, 96, 70), Enum.Material.Wood)
+	end
+	for _, edge in { { 0, -2.8, 8.4, 0 }, { 0, 2.8, 8.4, 0 }, { -4.2, 0, 5.6, 90 }, { 4.2, 0, 5.6, 90 } } do
+		Kit.detail(
+			Kit.block(
+				folder,
+				Vector3.new(edge[3], 0.08, 0.08),
+				trench * CFrame.new(edge[1], 2.1, edge[2]) * CFrame.Angles(0, math.rad(edge[4]), 0),
+				rgb(214, 190, 70),
+				Enum.Material.Fabric
+			)
+		)
+	end
+	-- Moss on the lower steps, heaviest on the shaded side
+	for i = 1, 12 do
+		local side = ({ { 0, 1 }, { 1, 0 }, { 0, -1 }, { -1, 0 } })[(i % 4) + 1]
+		local along = Props.between(i * 3.1, -40, 40)
+		if not (side[2] == 1 and math.abs(along) < 10) then
+			local w, h = Props.between(i * 5.3, 3, 7), Props.between(i * 7.7, 1.2, 3)
+			local face = o
+				* CFrame.new(
+					side[1] * 48.06 + side[2] * along,
+					0.2 + h / 2 + Props.between(i * 2.2, 0, 3),
+					side[2] * 48.06 + side[1] * along
+				)
+			Kit.detail(
+				Kit.block(
+					folder,
+					Vector3.new(side[2] ~= 0 and w or 0.12, h, side[1] ~= 0 and w or 0.12),
+					face,
+					rgb(78, 96, 54):Lerp(rgb(110, 118, 70), Kit.hash(i)),
+					Enum.Material.LeafyGrass
+				)
+			)
+		end
 	end
 
 	return {

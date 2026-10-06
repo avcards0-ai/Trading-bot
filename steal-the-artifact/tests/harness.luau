@@ -15,6 +15,7 @@ local process = require("@lune/process")
 local serde = require("@lune/serde")
 
 local Harness = {}
+Harness.VoxelWrites = {} :: { any }
 
 local ROOT = process.cwd
 if string.sub(ROOT, -1) ~= "/" then
@@ -309,6 +310,31 @@ local terrain = {
 	CountCells = function()
 		return 0
 	end,
+	SetMaterialColor = function() end,
+	-- Voxel API emulation: reads come back empty (air) and writes are recorded for tests.
+	ReadVoxels = function(_, region, resolution)
+		local size = region.Size / resolution
+		local materials, occupancies = { Size = size }, { Size = size }
+		for x = 1, size.X do
+			materials[x], occupancies[x] = {}, {}
+			for y = 1, size.Y do
+				materials[x][y], occupancies[x][y] = {}, {}
+				for z = 1, size.Z do
+					materials[x][y][z] = roblox.Enum.Material.Air
+					occupancies[x][y][z] = 0
+				end
+			end
+		end
+		return materials, occupancies
+	end,
+	WriteVoxels = function(_, region, resolution, materials, occupancies)
+		table.insert(Harness.VoxelWrites, {
+			Region = region,
+			Resolution = resolution,
+			Materials = materials,
+			Occupancies = occupancies,
+		})
+	end,
 	FindFirstChildOfClass = function()
 		return nil
 	end,
@@ -386,6 +412,8 @@ for _, name in
 		"BrickColor",
 		"Font",
 		"PhysicalProperties",
+		"Region3",
+		"Region3int16",
 	}
 do
 	env[name] = (roblox :: any)[name]

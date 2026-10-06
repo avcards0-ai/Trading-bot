@@ -44,6 +44,7 @@ export type MapData = {
 	Hatches: { any },
 	Boards: { [string]: BasePart },
 	SpawnLocation: SpawnLocation,
+	Terrain: Environment.TerrainPlan,
 }
 
 local MapBuilder = {}
@@ -90,6 +91,7 @@ function MapBuilder.generate(): MapData
 
 	-- Dressing goes last so it can fit around everything above.
 	City.build(root)
+	local terrainPlan = Environment.planTerrain(root)
 	Environment.scenery(root)
 	zones.SecretRoom = {
 		Id = "SecretRoom",
@@ -118,6 +120,7 @@ function MapBuilder.generate(): MapData
 		Hatches = hatches,
 		Boards = zones.Marketplace.Boards,
 		SpawnLocation = zones.Marketplace.SpawnLocation,
+		Terrain = terrainPlan,
 	}
 end
 
@@ -149,28 +152,40 @@ end
 
 function MapBuilder.build(): MapData
 	local started = os.clock()
-	-- Terrain can't be stored in the place from outside Studio, so the coastline is made here
-	-- (unless someone has already sculpted terrain in Studio).
+	local existing = workspace:FindFirstChild("Map")
+	local prebuilt = if existing then MapBuilder.loadPrebuilt(existing) else nil
+	local map: MapData
+	local source = "prebuilt"
+	if prebuilt then
+		map = prebuilt
+	else
+		if existing then
+			existing:Destroy()
+		end
+		Environment.lighting()
+		map = MapBuilder.generate()
+		map.Root.Parent = workspace
+		source = "generated"
+	end
+
+	-- Terrain can't be stored in the place from outside Studio, so it's built here and replaces
+	-- the stand-in parts (unless someone has already sculpted terrain of their own in Studio).
 	if workspace.Terrain:CountCells() == 0 then
-		Environment.terrain()
+		local sculpted = Environment.terrain(map.Terrain)
+		local standIns = map.Root:FindFirstChild("TerrainStandIns")
+		if standIns and sculpted then
+			standIns:Destroy()
+		elseif standIns then
+			-- Flat terrain only: drop the flat stand-in, keep the hills and paths as visuals.
+			local ground = standIns:FindFirstChild("Ground")
+			if ground then
+				ground:Destroy()
+			end
+		end
 	end
 	Environment.clouds()
-
-	local existing = workspace:FindFirstChild("Map")
-	if existing then
-		local data = MapBuilder.loadPrebuilt(existing)
-		if data then
-			print(string.format("[Map] Using the prebuilt city (%.2fs)", os.clock() - started))
-			return data
-		end
-		existing:Destroy()
-	end
-
-	Environment.lighting()
-	local data = MapBuilder.generate()
-	data.Root.Parent = workspace
-	print(string.format("[Map] Generated %d instances in %.2fs", #data.Root:GetDescendants(), os.clock() - started))
-	return data
+	print(string.format("[Map] Ready (%s city, %.2fs)", source, os.clock() - started))
+	return map
 end
 
 return MapBuilder

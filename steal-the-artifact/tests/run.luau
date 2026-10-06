@@ -401,7 +401,7 @@ test("full city generates", function()
 		end
 	end
 	print(string.format("      (%d parts in the full city)", parts))
-	check(parts > 8000 and parts < 22000, "unexpected part count " .. parts)
+	check(parts > 8000 and parts < 26000, "unexpected part count " .. parts)
 	check(spawns == 1, "expected exactly one SpawnLocation, found " .. spawns)
 end)
 
@@ -437,6 +437,35 @@ local function same(a: any, b: any, path: string, seen: { [any]: any })
 		check(a == b, path .. ": " .. tostring(a) .. " vs " .. tostring(b))
 	end
 end
+
+test("island terrain gets hills, paths and patchy grass", function()
+	local Environment = H.require("src/server/Map/Environment.luau")
+	table.clear(H.VoxelWrites)
+	check(Environment.terrain(fullMap.Terrain), "sculpting reported a failure")
+	check(#H.VoxelWrites > 50, "expected the island to be written in chunks")
+	local raised, materials = 0, {}
+	for _, write in H.VoxelWrites do
+		local size = write.Materials.Size
+		local corner = write.Region.CFrame.Position - write.Region.Size / 2
+		for x = 1, size.X do
+			for y = 1, size.Y do
+				for z = 1, size.Z do
+					local occupancy = write.Occupancies[x][y][z]
+					check(occupancy >= 0 and occupancy <= 1, "occupancy out of range")
+					local material = write.Materials[x][y][z]
+					if occupancy > 0 then
+						materials[material.Name] = true
+						if corner.Y + (y - 1) * write.Resolution >= 0 then
+							raised += 1
+						end
+					end
+				end
+			end
+		end
+	end
+	check(raised > 100, "hills should raise voxels above the flat island")
+	check(materials.Grass and materials.LeafyGrass and materials.Ground, "expected grass, leafy grass and dirt")
+end)
 
 test("baked city round-trips through a place file", function()
 	local MapBuilder = H.require("src/server/Map/MapBuilder.luau")

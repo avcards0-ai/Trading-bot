@@ -347,6 +347,15 @@ return function(root: Instance)
 		table.insert(patrol, (inner * CFrame.new(p[1], 3, p[2])).Position)
 	end
 
+	-- Anti-ram bollards along the front of the plaza (the stairs stay open)
+	for _, x in { -56, -48, -40, -32, -24, 24, 32, 40, 48, 56 } do
+		local post = o * CFrame.new(x, BASE_Y, 59.5)
+		Kit.cyl(folder, 2.8, 1.1, post * CFrame.new(0, 1.4, 0), rgb(80, 84, 90), Enum.Material.Metal, "Bollard")
+		Kit.detail(
+			Kit.cyl(folder, 0.35, 1.14, post * CFrame.new(0, 2.2, 0), rgb(214, 176, 60), Enum.Material.SmoothPlastic)
+		)
+	end
+
 	return {
 		Id = "Vault",
 		Folder = folder,

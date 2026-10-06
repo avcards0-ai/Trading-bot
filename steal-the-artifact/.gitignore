@@ -4,3 +4,4 @@ roblox.yml
 *.rbxlx
 *.rbxl.lock
 *.rbxlx.lock
+/map.json
