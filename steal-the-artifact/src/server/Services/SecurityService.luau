@@ -57,7 +57,12 @@ local function candidates(): { { Player: Player, Root: BasePart, Position: Vecto
 	local list = {}
 	for _, player in Players:GetPlayers() do
 		local root = S.PlayerService:GetRoot(player)
-		if root and S.PlayerService:IsAlive(player) and S.DataService:IsLoaded(player) and not S.PlayerService:HasStatus(player, "Protected") then
+		if
+			root
+			and S.PlayerService:IsAlive(player)
+			and S.DataService:IsLoaded(player)
+			and not S.PlayerService:HasStatus(player, "Protected")
+		then
 			table.insert(list, { Player = player, Root = root, Position = root.Position })
 		end
 	end
@@ -120,7 +125,11 @@ function SecurityService:TriggerZoneAlarm(zoneId: string, player: Player)
 	S.AnnouncementService:Effect("ZoneAlarm", { Zone = zoneId, Position = zone.Center }, zone.Center, 450)
 	if os.clock() - (zoneAlarmFeed[zoneId] or 0) > 12 then
 		zoneAlarmFeed[zoneId] = os.clock()
-		S.AnnouncementService:Feed("🚨", string.format("ALARM at the %s! <b>%s</b> is on the run!", zone.Name, S.AnnouncementService.name(player)), Color3.fromRGB(255, 90, 90))
+		S.AnnouncementService:Feed(
+			"🚨",
+			string.format("ALARM at the %s! <b>%s</b> is on the run!", zone.Name, S.AnnouncementService.name(player)),
+			Color3.fromRGB(255, 90, 90)
+		)
 	end
 end
 
@@ -136,10 +145,19 @@ local function hit(player: Player, kind: string, owner: string, origin: Vector3?
 	local label = ownerLabel(owner)
 	local root = S.PlayerService:GetRoot(player)
 	if kind == "Zap" then
-		S.CombatService:ApplyFail(player, "Zap", { Damage = cfg.ZapDamage, Stun = cfg.ZapStun, Drop = 1, By = label and (label .. " lasers") or "lasers" })
+		S.CombatService:ApplyFail(
+			player,
+			"Zap",
+			{ Damage = cfg.ZapDamage, Stun = cfg.ZapStun, Drop = 1, By = label and (label .. " lasers") or "lasers" }
+		)
 	elseif kind == "Banana" then
 		local forward = root and root.CFrame.LookVector or Vector3.zAxis
-		S.CombatService:ApplyFail(player, "Slip", { Stun = cfg.SlipStun, Drop = 1, Knockback = forward * 30 + Vector3.new(0, 35, 0), By = label and (label .. " banana peel") or "a banana peel" })
+		S.CombatService:ApplyFail(player, "Slip", {
+			Stun = cfg.SlipStun,
+			Drop = 1,
+			Knockback = forward * 30 + Vector3.new(0, 35, 0),
+			By = label and (label .. " banana peel") or "a banana peel",
+		})
 	elseif kind == "Spring" then
 		local away = Vector3.new(0, 0, 0)
 		if root and origin then
@@ -153,7 +171,12 @@ local function hit(player: Player, kind: string, owner: string, origin: Vector3?
 			end
 			away = away.Magnitude > 0.1 and away.Unit or Vector3.zero
 		end
-		S.CombatService:ApplyFail(player, "Spring", { Stun = cfg.SpringStun, Drop = 1, Knockback = away * 75 + Vector3.new(0, 130, 0), By = label and (label .. " spring trap") or "a spring trap" })
+		S.CombatService:ApplyFail(player, "Spring", {
+			Stun = cfg.SpringStun,
+			Drop = 1,
+			Knockback = away * 75 + Vector3.new(0, 130, 0),
+			By = label and (label .. " spring trap") or "a spring trap",
+		})
 	elseif kind == "Glue" then
 		S.PlayerService:SetStatus(player, "Glued", cfg.GlueDuration)
 		S.CombatService:ApplyFail(player, "Glue", { By = label and (label .. " glue trap") or "sticky mud" })
@@ -175,10 +198,18 @@ local function checkLasers(list: { Kit.LaserDef }, players, t: number)
 				local cf = laser.BaseCFrame + laser.Axis * offset
 				local halfLength = laser.Part.Size.X / 2
 				for _, entry in players do
-					if (entry.Position - cf.Position).Magnitude <= halfLength + 5 and affects(laser.Owner, entry.Player) then
+					if
+						(entry.Position - cf.Position).Magnitude <= halfLength + 5
+						and affects(laser.Owner, entry.Player)
+					then
 						local p = cf:PointToObjectSpace(entry.Position)
 						-- Body spans ~3 studs below the root to ~2 above; ~1.1 studs thick.
-						if math.abs(p.X) <= halfLength + 0.3 and math.abs(p.Z) <= 1.2 and p.Y >= -2.1 and p.Y <= 3.1 then
+						if
+							math.abs(p.X) <= halfLength + 0.3
+							and math.abs(p.Z) <= 1.2
+							and p.Y >= -2.1
+							and p.Y <= 3.1
+						then
 							hit(entry.Player, "Zap", laser.Owner, cf.Position)
 						end
 					end
@@ -228,11 +259,20 @@ local function checkCameras(list: { Kit.CameraDef }, players, t: number)
 				else
 					relevant = affects(cam.Owner, player) and S.RaidService:IsIntruding(player, tonumber(id) or 0)
 				end
-				if relevant and SecurityPatterns.inCone(cf, cam.Range, cam.Fov, entry.Position) and canSee(cf.Position, entry) then
+				if
+					relevant
+					and SecurityPatterns.inCone(cf, cam.Range, cam.Fov, entry.Position)
+					and canSee(cf.Position, entry)
+				then
 					local key = cam.Owner .. i .. player.UserId
 					if os.clock() - (cameraSeen[key] or 0) > 4 then
 						cameraSeen[key] = os.clock()
-						S.AnnouncementService:Effect("Spotted", { UserId = player.UserId, Position = cam.Position }, entry.Position, 200)
+						S.AnnouncementService:Effect(
+							"Spotted",
+							{ UserId = player.UserId, Position = cam.Position },
+							entry.Position,
+							200
+						)
 						if kind == "Zone" then
 							SecurityService:TriggerZoneAlarm(id, player)
 						else
@@ -298,7 +338,10 @@ function SecurityService:InstallPlot(player: Player)
 		local slot = plot.LaserSlots[i]
 		local axis = (i % 2 == 0) and forward or Vector3.yAxis
 		local amplitude = (pattern == "Static" or pattern == "Blink") and 0 or ((i % 2 == 0) and 1.6 or 1.2)
-		table.insert(lasers, Kit.laser(plot.Devices, slot.CFrame, slot.Length, pattern, speed, i * 1.37, amplitude, axis, owner))
+		table.insert(
+			lasers,
+			Kit.laser(plot.Devices, slot.CFrame, slot.Length, pattern, speed, i * 1.37, amplitude, axis, owner)
+		)
 	end
 	plotLasers[index] = lasers
 
@@ -306,7 +349,20 @@ function SecurityService:InstallPlot(player: Player)
 	local camLevel = levels.Cameras or 0
 	for i = 1, math.min(Security.stat("Cameras", "Count", camLevel), #plot.CameraSlots) do
 		local slot = plot.CameraSlots[i]
-		table.insert(cameras, Kit.camera(plot.Devices, slot.Position, slot.Yaw, 0.7, Security.stat("Cameras", "Sweep", camLevel), Security.stat("Cameras", "Range", camLevel), Security.stat("Cameras", "Fov", camLevel), owner, 32))
+		table.insert(
+			cameras,
+			Kit.camera(
+				plot.Devices,
+				slot.Position,
+				slot.Yaw,
+				0.7,
+				Security.stat("Cameras", "Sweep", camLevel),
+				Security.stat("Cameras", "Range", camLevel),
+				Security.stat("Cameras", "Fov", camLevel),
+				owner,
+				32
+			)
+		)
 	end
 	plotCameras[index] = cameras
 

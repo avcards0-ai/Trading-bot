@@ -22,9 +22,6 @@ local InventoryService = { Name = "InventoryService" }
 
 local S: { [string]: any }
 
-local COLLECTION_REWARDS = { Common = 10, Uncommon = 15, Rare = 25, Epic = 40, Legendary = 75, Mythic = 150, Secret = 500 }
-InventoryService.CollectionRewards = COLLECTION_REWARDS
-
 function InventoryService:Init(services)
 	S = services
 end
@@ -55,10 +52,15 @@ function InventoryService:AddToVault(player: Player, record: { [string]: any }, 
 		return "lost"
 	end
 	if countVault(data) >= Progression.storageSize(data) then
-		local price = math.floor(Progression.artifactValue(record.Id, record.M) * GameConfig.Economy.OverflowSellPercent)
+		local price =
+			math.floor(Progression.artifactValue(record.Id, record.M) * GameConfig.Economy.OverflowSellPercent)
 		S.EconomyService:AddCash(player, price, true)
 		if not silent then
-			S.AnnouncementService:Notify(player, "warning", "Vault storage full! Auto-sold for " .. Format.cash(price) .. ". Upgrade storage!")
+			S.AnnouncementService:Notify(
+				player,
+				"warning",
+				"Vault storage full! Auto-sold for " .. Format.cash(price) .. ". Upgrade storage!"
+			)
 		end
 		return "sold"
 	end
@@ -215,12 +217,29 @@ function InventoryService:SecureCarried(player: Player)
 		Best = best and best.Id or nil,
 		Value = totalValue,
 	}, plot and plot.SecurePad.Position or nil, 200)
-	S.AnnouncementService:Notify(player, "success", string.format("SECURED %d artifact%s! +%s", #records, #records == 1 and "" or "s", Format.cash(cash)), { Big = true })
+	S.AnnouncementService:Notify(
+		player,
+		"success",
+		string.format("SECURED %d artifact%s! +%s", #records, #records == 1 and "" or "s", Format.cash(cash)),
+		{ Big = true }
+	)
 	for _, def in newDiscoveries do
-		S.AnnouncementService:Notify(player, "reward", "📖 NEW! " .. def.Name .. " added to your Collection", { Rarity = def.Rarity })
+		S.AnnouncementService:Notify(
+			player,
+			"reward",
+			"📖 NEW! " .. def.Name .. " added to your Collection",
+			{ Rarity = def.Rarity }
+		)
 	end
 	if best and Rarities.index(best.Rarity) >= Rarities.index("Legendary") then
-		S.AnnouncementService:Feed("🏦", string.format("<b>%s</b> secured %s in their vault!", S.AnnouncementService.name(player), Format.rich(best.Name, Rarities.get(best.Rarity).Color)))
+		S.AnnouncementService:Feed(
+			"🏦",
+			string.format(
+				"<b>%s</b> secured %s in their vault!",
+				S.AnnouncementService.name(player),
+				Format.rich(best.Name, Rarities.get(best.Rarity).Color)
+			)
+		)
 	end
 	S.DataService:RequestSave(player)
 end
@@ -256,80 +275,99 @@ local function sell(player: Player, uids: { string }): (number, number)
 end
 
 function InventoryService:Start()
-	RequestRouter.register("Sell", { Rate = 3, Burst = 6, Validate = V.args(V.array(V.str(40), 60)) }, function(player, uids)
-		local count, total = sell(player, uids)
-		if count == 0 then
-			return false, "Nothing to sell"
+	RequestRouter.register(
+		"Sell",
+		{ Rate = 3, Burst = 6, Validate = V.args(V.array(V.str(40), 60)) },
+		function(player, uids)
+			local count, total = sell(player, uids)
+			if count == 0 then
+				return false, "Nothing to sell"
+			end
+			return true,
+				string.format("Sold %d artifact%s for %s!", count, count == 1 and "" or "s", Format.cash(total)),
+				{ Cash = total }
 		end
-		return true, string.format("Sold %d artifact%s for %s!", count, count == 1 and "" or "s", Format.cash(total)), { Cash = total }
-	end)
+	)
 
-	RequestRouter.register("SellBulk", { Rate = 1, Burst = 2, Validate = V.args(V.str(16)) }, function(player, maxRarity)
-		local data = S.DataService:Get(player)
-		local cap = Rarities.ById[maxRarity]
-		if not data or not cap or cap.Index > Rarities.index("Epic") then
-			return false, "You can only bulk-sell up to Epic"
-		end
-		local uids = {}
-		for uid, record in data.Artifacts do
-			local def = Artifacts.get(record.Id)
-			if def and Rarities.index(def.Rarity) <= cap.Index and not isDisplayed(data, uid) then
-				table.insert(uids, uid)
+	RequestRouter.register(
+		"SellBulk",
+		{ Rate = 1, Burst = 2, Validate = V.args(V.str(16)) },
+		function(player, maxRarity)
+			local data = S.DataService:Get(player)
+			local cap = Rarities.ById[maxRarity]
+			if not data or not cap or cap.Index > Rarities.index("Epic") then
+				return false, "You can only bulk-sell up to Epic"
 			end
+			local uids = {}
+			for uid, record in data.Artifacts do
+				local def = Artifacts.get(record.Id)
+				if def and Rarities.index(def.Rarity) <= cap.Index and not isDisplayed(data, uid) then
+					table.insert(uids, uid)
+				end
+			end
+			local count, total = sell(player, uids)
+			if count == 0 then
+				return false, "Nothing to sell"
+			end
+			return true, string.format("Sold %d artifacts for %s!", count, Format.cash(total)), { Cash = total }
 		end
-		local count, total = sell(player, uids)
-		if count == 0 then
-			return false, "Nothing to sell"
-		end
-		return true, string.format("Sold %d artifacts for %s!", count, Format.cash(total)), { Cash = total }
-	end)
+	)
 
-	RequestRouter.register("SetDisplay", { Rate = 6, Burst = 10, Validate = V.args(V.str(40), V.bool()) }, function(player, uid, shown)
-		local data = S.DataService:Get(player)
-		if not data or not data.Artifacts[uid] then
-			return false, "You don't own that"
+	RequestRouter.register(
+		"SetDisplay",
+		{ Rate = 6, Burst = 10, Validate = V.args(V.str(40), V.bool()) },
+		function(player, uid, shown)
+			local data = S.DataService:Get(player)
+			if not data or not data.Artifacts[uid] then
+				return false, "You don't own that"
+			end
+			local index = isDisplayed(data, uid)
+			if shown then
+				if index then
+					return true
+				end
+				if #data.Displayed >= Progression.displaySlots(data) then
+					return false, "No free pedestals - remove one or upgrade Display Pedestals"
+				end
+				table.insert(data.Displayed, uid)
+			else
+				if not index then
+					return true
+				end
+				table.remove(data.Displayed, index)
+			end
+			S.DataService:MarkChanged(player, "Displayed")
+			self:UpdateIncome(player)
+			S.PlotService:RefreshDisplay(player)
+			S.PlotService:RefreshSign(player)
+			return true, shown and "Now on display!" or "Moved to storage (raid-proof)"
 		end
-		local index = isDisplayed(data, uid)
-		if shown then
-			if index then
-				return true
-			end
-			if #data.Displayed >= Progression.displaySlots(data) then
-				return false, "No free pedestals - remove one or upgrade Display Pedestals"
-			end
-			table.insert(data.Displayed, uid)
-		else
-			if not index then
-				return true
-			end
-			table.remove(data.Displayed, index)
-		end
-		S.DataService:MarkChanged(player, "Displayed")
-		self:UpdateIncome(player)
-		S.PlotService:RefreshDisplay(player)
-		S.PlotService:RefreshSign(player)
-		return true, shown and "Now on display!" or "Moved to storage (raid-proof)"
-	end)
+	)
 
-	RequestRouter.register("ClaimCollection", { Rate = 2, Burst = 4, Validate = V.args(V.str(16)) }, function(player, rarityId)
-		local data = S.DataService:Get(player)
-		local reward = COLLECTION_REWARDS[rarityId]
-		if not data or not reward then
-			return false, "Unknown set"
-		end
-		if data.CollectionClaims[rarityId] then
-			return false, "Already claimed"
-		end
-		for _, def in Artifacts.ByRarity[rarityId] or {} do
-			if not data.Discovered[def.Id] then
-				return false, "Discover every " .. rarityId .. " artifact first"
+	RequestRouter.register(
+		"ClaimCollection",
+		{ Rate = 2, Burst = 4, Validate = V.args(V.str(16)) },
+		function(player, rarityId)
+			local data = S.DataService:Get(player)
+			local rarityDef = Rarities.ById[rarityId]
+			local reward = rarityDef and rarityDef.SetReward
+			if not data or not reward then
+				return false, "Unknown set"
 			end
+			if data.CollectionClaims[rarityId] then
+				return false, "Already claimed"
+			end
+			for _, def in Artifacts.ByRarity[rarityId] or {} do
+				if not data.Discovered[def.Id] then
+					return false, "Discover every " .. rarityId .. " artifact first"
+				end
+			end
+			data.CollectionClaims[rarityId] = true
+			S.DataService:MarkChanged(player, "CollectionClaims")
+			S.EconomyService:AddGems(player, reward)
+			return true, string.format("%s set complete! +%d Gems", rarityId, reward)
 		end
-		data.CollectionClaims[rarityId] = true
-		S.DataService:MarkChanged(player, "CollectionClaims")
-		S.EconomyService:AddGems(player, reward)
-		return true, string.format("%s set complete! +%d Gems", rarityId, reward)
-	end)
+	)
 
 	S.DataService.Loaded:Connect(function(player)
 		self:AutoDisplay(player)

@@ -100,7 +100,10 @@ local function meteor()
 		local candidate = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
 		local clear = true
 		for _, zone in Zones.List do
-			if zone.Center.Y > -40 and (Vector3.new(zone.Center.X, 0, zone.Center.Z) - candidate).Magnitude < zone.Radius + 15 then
+			if
+				zone.Center.Y > -40
+				and (Vector3.new(zone.Center.X, 0, zone.Center.Z) - candidate).Magnitude < zone.Radius + 15
+			then
 				clear = false
 				break
 			end
@@ -113,8 +116,17 @@ local function meteor()
 	target = groundAt(target or Vector3.new(220, 0, 220))
 	local impactIn = 8
 	ReplicatedStorage:SetAttribute("EventMarker", target)
-	S.AnnouncementService:Effect("MeteorIncoming", { Position = target, ImpactAt = workspace:GetServerTimeNow() + impactIn }, nil)
-	S.AnnouncementService:Feed("☄️", "A <b>METEOR</b> is about to hit the city! Follow the marker!", Color3.fromRGB(255, 140, 60), true)
+	S.AnnouncementService:Effect(
+		"MeteorIncoming",
+		{ Position = target, ImpactAt = workspace:GetServerTimeNow() + impactIn },
+		nil
+	)
+	S.AnnouncementService:Feed(
+		"☄️",
+		"A <b>METEOR</b> is about to hit the city! Follow the marker!",
+		Color3.fromRGB(255, 140, 60),
+		true
+	)
 	task.wait(impactIn)
 	if not active or active.Id ~= "Meteor" then
 		return
@@ -128,7 +140,8 @@ local function meteor()
 		local rock = Instance.new("Part")
 		rock.Anchored = true
 		rock.Size = Vector3.new(rng:NextNumber(4, 7), rng:NextNumber(2, 4), rng:NextNumber(4, 7))
-		rock.CFrame = CFrame.new(target + Vector3.new(math.cos(angle) * 11, 0.8, math.sin(angle) * 11)) * CFrame.Angles(rng:NextNumber(-0.5, 0.5), angle, rng:NextNumber(-0.5, 0.5))
+		rock.CFrame = CFrame.new(target + Vector3.new(math.cos(angle) * 11, 0.8, math.sin(angle) * 11))
+			* CFrame.Angles(rng:NextNumber(-0.5, 0.5), angle, rng:NextNumber(-0.5, 0.5))
 		rock.Color = Color3.fromRGB(70, 55, 60)
 		rock.Material = Enum.Material.Basalt
 		rock.Parent = crater
@@ -152,11 +165,21 @@ local function meteor()
 		crater:Destroy()
 	end)
 
-	S.ArtifactService:SpawnEvent(CFrame.new(target + Vector3.new(0, 2.2, 0)), METEOR_CORE, 120, target + Vector3.new(0, 30, 0))
+	S.ArtifactService:SpawnEvent(
+		CFrame.new(target + Vector3.new(0, 2.2, 0)),
+		METEOR_CORE,
+		120,
+		target + Vector3.new(0, 30, 0)
+	)
 	for i = 1, 3 do
 		local angle = i / 3 * math.pi * 2
 		local spot = groundAt(target + Vector3.new(math.cos(angle) * 7, 0, math.sin(angle) * 7))
-		S.ArtifactService:SpawnEvent(CFrame.new(spot + Vector3.new(0, 1.9, 0)), METEOR_SHARDS, 120, target + Vector3.new(0, 20, 0))
+		S.ArtifactService:SpawnEvent(
+			CFrame.new(spot + Vector3.new(0, 1.9, 0)),
+			METEOR_SHARDS,
+			120,
+			target + Vector3.new(0, 20, 0)
+		)
 	end
 end
 

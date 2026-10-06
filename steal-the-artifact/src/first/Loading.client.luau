@@ -115,7 +115,13 @@ local connection = RunService.RenderStepped:Connect(function()
 	titleGradient.Offset = Vector2.new(math.sin(t * 1.5) * 0.4, 0)
 end)
 
-local lines = { "Casing the joint...", "Disabling cameras...", "Peeling bananas...", "Bribing the guards...", "Polishing artifacts..." }
+local lines = {
+	"Casing the joint...",
+	"Disabling cameras...",
+	"Peeling bananas...",
+	"Bribing the guards...",
+	"Polishing artifacts...",
+}
 task.spawn(function()
 	local i = 1
 	while gui.Parent do

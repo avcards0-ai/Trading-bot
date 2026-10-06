@@ -38,7 +38,11 @@ local function setDoor(open: boolean)
 	end
 	isOpen = open
 	local door = zone.Door
-	local tween = TweenService:Create(doorValue, TweenInfo.new(2.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Value = open and door.Open or door.Closed })
+	local tween = TweenService:Create(
+		doorValue,
+		TweenInfo.new(2.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+		{ Value = open and door.Open or door.Closed }
+	)
 	tween:Play()
 	door.Light.Color = open and Color3.fromRGB(80, 255, 120) or Color3.fromRGB(255, 60, 60)
 	for _, part in door.Model:GetDescendants() do
@@ -50,12 +54,22 @@ local function setDoor(open: boolean)
 	zone.Folder:SetAttribute("DoorChangeAt", workspace:GetServerTimeNow() + math.max(0, nextChange - os.clock()))
 
 	if open then
-		S.AnnouncementService:Feed("🏦", "The <b>High-Security Vault</b> is OPEN! Get in, grab the loot, get out!", Color3.fromRGB(120, 220, 255), true)
+		S.AnnouncementService:Feed(
+			"🏦",
+			"The <b>High-Security Vault</b> is OPEN! Get in, grab the loot, get out!",
+			Color3.fromRGB(120, 220, 255),
+			true
+		)
 		S.AnnouncementService:Effect("VaultOpen", {}, nil)
 	else
 		for player in allowed do
 			if player.Parent then
-				S.AnnouncementService:Notify(player, "warning", "LOCKED IN! The vault door slammed shut - crawl out through the emergency vent!", { Big = true })
+				S.AnnouncementService:Notify(
+					player,
+					"warning",
+					"LOCKED IN! The vault door slammed shut - crawl out through the emergency vent!",
+					{ Big = true }
+				)
 			end
 		end
 		S.AnnouncementService:Effect("VaultClose", {}, nil)
@@ -90,7 +104,11 @@ local function tick()
 		end
 	elseif not isOpen and not warned and nextChange - now <= 10 then
 		warned = true
-		S.AnnouncementService:Feed("⏳", "The High-Security Vault opens in <b>10 seconds</b>...", Color3.fromRGB(120, 220, 255))
+		S.AnnouncementService:Feed(
+			"⏳",
+			"The High-Security Vault opens in <b>10 seconds</b>...",
+			Color3.fromRGB(120, 220, 255)
+		)
 	end
 
 	-- Intrusion check

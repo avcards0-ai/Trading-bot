@@ -46,7 +46,14 @@ local function at(x: number, y: number, z: number, rx: number?, ry: number?, rz:
 	return CFrame.new(x, y, z) * CFrame.Angles(math.rad(rx or 0), math.rad(ry or 0), math.rad(rz or 0))
 end
 
-local function finish(b: Builder, p: BasePart, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material): BasePart
+local function finish(
+	b: Builder,
+	p: BasePart,
+	size: Vector3,
+	cf: CFrame,
+	color: Color3,
+	material: Enum.Material
+): BasePart
 	p.Size = size
 	p.CFrame = cf
 	p.Color = color
@@ -78,17 +85,45 @@ local function ball(b: Builder, diameter: number, cf: CFrame, color: Color3, mat
 end
 
 -- Vertical cylinder (Roblox cylinders run along X, so rotate onto Y).
-local function cyl(b: Builder, height: number, diameter: number, cf: CFrame, color: Color3, material: Enum.Material?): BasePart
+local function cyl(
+	b: Builder,
+	height: number,
+	diameter: number,
+	cf: CFrame,
+	color: Color3,
+	material: Enum.Material?
+): BasePart
 	local p = Instance.new("Part")
 	p.Shape = Enum.PartType.Cylinder
-	return finish(b, p, Vector3.new(height, diameter, diameter), cf * CFrame.Angles(0, 0, math.rad(90)), color, material or M.Plastic)
+	return finish(
+		b,
+		p,
+		Vector3.new(height, diameter, diameter),
+		cf * CFrame.Angles(0, 0, math.rad(90)),
+		color,
+		material or M.Plastic
+	)
 end
 
 -- Cylinder facing the viewer (axis along Z) - coins, watch faces.
-local function disc(b: Builder, thickness: number, diameter: number, cf: CFrame, color: Color3, material: Enum.Material?): BasePart
+local function disc(
+	b: Builder,
+	thickness: number,
+	diameter: number,
+	cf: CFrame,
+	color: Color3,
+	material: Enum.Material?
+): BasePart
 	local p = Instance.new("Part")
 	p.Shape = Enum.PartType.Cylinder
-	return finish(b, p, Vector3.new(thickness, diameter, diameter), cf * CFrame.Angles(0, math.rad(90), 0), color, material or M.Plastic)
+	return finish(
+		b,
+		p,
+		Vector3.new(thickness, diameter, diameter),
+		cf * CFrame.Angles(0, math.rad(90), 0),
+		color,
+		material or M.Plastic
+	)
 end
 
 local function wedge(b: Builder, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?): BasePart
@@ -105,7 +140,15 @@ local function blob(b: Builder, size: Vector3, cf: CFrame, color: Color3, materi
 end
 
 -- Ring of small blocks. `cf` orients the ring; the ring lies in cf's XZ plane.
-local function ring(b: Builder, radius: number, thickness: number, segments: number, cf: CFrame, color: Color3, material: Enum.Material?)
+local function ring(
+	b: Builder,
+	radius: number,
+	thickness: number,
+	segments: number,
+	cf: CFrame,
+	color: Color3,
+	material: Enum.Material?
+)
 	local arc = 2 * math.pi * radius / segments * 1.08
 	for i = 1, segments do
 		local angle = (i / segments) * math.pi * 2
@@ -115,7 +158,15 @@ local function ring(b: Builder, radius: number, thickness: number, segments: num
 end
 
 -- Stacked shrinking cylinders approximating a cone.
-local function cone(b: Builder, height: number, diameter: number, steps: number, cf: CFrame, color: Color3, material: Enum.Material?)
+local function cone(
+	b: Builder,
+	height: number,
+	diameter: number,
+	steps: number,
+	cf: CFrame,
+	color: Color3,
+	material: Enum.Material?
+)
 	for i = 0, steps - 1 do
 		local f = i / steps
 		local h = height / steps
@@ -135,18 +186,30 @@ end
 
 local function rock(b: Builder, scale: number, cf: CFrame, color: Color3, material: Enum.Material)
 	box(b, Vector3.new(1.4, 1.1, 1.2) * scale, cf * CFrame.Angles(0.3, 0.5, 0.2), color, material)
-	box(b, Vector3.new(1.1, 1.2, 1.0) * scale, cf * CFrame.new(0.3 * scale, 0.15 * scale, 0.1) * CFrame.Angles(0.8, 0.1, 0.6), color, material)
-	box(b, Vector3.new(1.0, 0.9, 1.2) * scale, cf * CFrame.new(-0.3 * scale, -0.1 * scale, -0.2) * CFrame.Angles(0.2, 1.1, 0.9), color:Lerp(BLACK, 0.12), material)
+	box(
+		b,
+		Vector3.new(1.1, 1.2, 1.0) * scale,
+		cf * CFrame.new(0.3 * scale, 0.15 * scale, 0.1) * CFrame.Angles(0.8, 0.1, 0.6),
+		color,
+		material
+	)
+	box(
+		b,
+		Vector3.new(1.0, 0.9, 1.2) * scale,
+		cf * CFrame.new(-0.3 * scale, -0.1 * scale, -0.2) * CFrame.Angles(0.2, 1.1, 0.9),
+		color:Lerp(BLACK, 0.12),
+		material
+	)
 end
 
 local function crownShape(b: Builder, band: Color3, accent: Color3, bandMaterial: Enum.Material)
-	ring(b, 0.85, 0.42, 12, at(0, -0.3, 0), band, bandMaterial)
-	for i = 1, 6 do
-		local angle = i / 6 * math.pi * 2
+	ring(b, 0.85, 0.42, 10, at(0, -0.3, 0), band, bandMaterial)
+	for i = 1, 5 do
+		local angle = i / 5 * math.pi * 2
 		local cf = CFrame.Angles(0, angle, 0) * CFrame.new(0, 0.3, -0.85)
 		wedge(b, Vector3.new(0.2, 0.75, 0.45), cf * CFrame.Angles(0, math.rad(90), 0), band, bandMaterial)
 		ball(b, 0.26, CFrame.Angles(0, angle, 0) * CFrame.new(0, 0.75, -0.85), accent, M.Neon)
-		ball(b, 0.22, CFrame.Angles(0, angle + math.pi / 6, 0) * CFrame.new(0, -0.3, -0.92), accent, M.Glass)
+		ball(b, 0.22, CFrame.Angles(0, angle + math.pi / 5, 0) * CFrame.new(0, -0.3, -0.92), accent, M.Glass)
 	end
 	blob(b, Vector3.new(1.5, 0.9, 1.5), at(0, 0, 0), accent:Lerp(BLACK, 0.35), M.Fabric)
 end
@@ -366,7 +429,13 @@ SHAPES.Scarab = function(b)
 	box(b, Vector3.new(0.06, 0.72, 1.6), at(0, -0.15, 0.15), b.c2, M.Metal)
 	for side = -1, 1, 2 do
 		for i = -1, 1 do
-			box(b, Vector3.new(0.6, 0.08, 0.08), at(side * 0.75, -0.45, i * 0.45, 0, i * 20 * side, side * -25), b.c2, M.Metal)
+			box(
+				b,
+				Vector3.new(0.6, 0.08, 0.08),
+				at(side * 0.75, -0.45, i * 0.45, 0, i * 20 * side, side * -25),
+				b.c2,
+				M.Metal
+			)
 		end
 	end
 	box(b, Vector3.new(0.08, 0.08, 0.5), at(-0.18, -0.15, -1.25, 0, -20, 0), b.c2, M.Metal)
@@ -480,8 +549,20 @@ SHAPES.Feather = function(b)
 		local color = b.c1:Lerp(b.c2, f)
 		local cf = at(0, 0, 0, 0, 0, -18) * CFrame.new(0, -0.8 + i * 0.3, 0)
 		local width = 0.9 * math.sin((f * 0.85 + 0.1) * math.pi)
-		box(b, Vector3.new(width, 0.32, 0.05), cf * CFrame.new(width / 2, 0, 0) * CFrame.Angles(0, 0, math.rad(25)), color, M.Neon)
-		box(b, Vector3.new(width, 0.32, 0.05), cf * CFrame.new(-width / 2, 0, 0) * CFrame.Angles(0, 0, math.rad(-25)), color, M.Neon)
+		box(
+			b,
+			Vector3.new(width, 0.32, 0.05),
+			cf * CFrame.new(width / 2, 0, 0) * CFrame.Angles(0, 0, math.rad(25)),
+			color,
+			M.Neon
+		)
+		box(
+			b,
+			Vector3.new(width, 0.32, 0.05),
+			cf * CFrame.new(-width / 2, 0, 0) * CFrame.Angles(0, 0, math.rad(-25)),
+			color,
+			M.Neon
+		)
 	end
 end
 
@@ -518,7 +599,13 @@ SHAPES.Compass = function(b)
 	cyl(b, 0.28, 1.7, at(0, -0.1, 0, -55, 0, 0), b.c1, M.Metal)
 	cyl(b, 0.3, 1.35, at(0, -0.1, 0, -55, 0, 0), b.c2)
 	local face = at(0, -0.1, 0, -55, 0, 0) * CFrame.new(0, 0.18, 0)
-	wedge(b, Vector3.new(0.12, 0.08, 0.55), face * CFrame.new(0, 0, -0.3) * CFrame.Angles(0, math.rad(180), 0), Color3.fromRGB(230, 40, 40), M.Neon)
+	wedge(
+		b,
+		Vector3.new(0.12, 0.08, 0.55),
+		face * CFrame.new(0, 0, -0.3) * CFrame.Angles(0, math.rad(180), 0),
+		Color3.fromRGB(230, 40, 40),
+		M.Neon
+	)
 	wedge(b, Vector3.new(0.12, 0.08, 0.55), face * CFrame.new(0, 0, 0.3), WHITE)
 	ball(b, 0.16, face, b.c1, M.Metal)
 	disc(b, 0.15, 0.35, at(0, 0.75, -0.6, -55, 0, 0), b.c1, M.Metal)
@@ -530,7 +617,7 @@ end
 
 SHAPES.ThiefCrown = function(b)
 	crownShape(b, b.c1, b.c2, M.Metal)
-	ring(b, 0.88, 0.12, 12, at(0, -0.1, 0), b.c2, M.Neon)
+	cyl(b, 0.12, 1.9, at(0, -0.1, 0), b.c2, M.Neon)
 	gem(b, 0.45, at(0, 0.1, -0.95), Color3.fromRGB(255, 40, 60), Color3.fromRGB(255, 120, 120))
 end
 
@@ -681,7 +768,13 @@ SHAPES.Keyboard = function(b)
 	for row = 0, 2 do
 		for col = 0, 5 do
 			local keyColor = (row + col) % 4 == 0 and b.c2 or Color3.fromRGB(70, 70, 85)
-			box(b, Vector3.new(0.3, 0.14, 0.24), base * CFrame.new(-0.95 + col * 0.38, 0.17, -0.3 + row * 0.3), keyColor, (row + col) % 4 == 0 and M.Neon or M.Plastic)
+			box(
+				b,
+				Vector3.new(0.3, 0.14, 0.24),
+				base * CFrame.new(-0.95 + col * 0.38, 0.17, -0.3 + row * 0.3),
+				keyColor,
+				(row + col) % 4 == 0 and M.Neon or M.Plastic
+			)
 		end
 	end
 	box(b, Vector3.new(1.4, 0.14, 0.18), base * CFrame.new(0, 0.17, 0.42), Color3.fromRGB(70, 70, 85))

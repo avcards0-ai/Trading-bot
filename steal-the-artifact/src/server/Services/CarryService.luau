@@ -304,7 +304,7 @@ function CarryService:Drop(player: Player, count: number?, reason: string?): { C
 		return dropped
 	end
 	for _, record in dropped do
-		S.ArtifactService:SpawnDropped(record, position, player)
+		S.ArtifactService:SpawnDropped(record, position)
 	end
 	S.DataService:Increment(player, "Drops", #dropped)
 	-- Feed the dramatic ones
@@ -312,7 +312,15 @@ function CarryService:Drop(player: Player, count: number?, reason: string?): { C
 	local def = best and Artifacts.get(best.Id)
 	if def and Rarities.index(def.Rarity) >= Rarities.index("Epic") then
 		local rarity = Rarities.get(def.Rarity)
-		S.AnnouncementService:Feed("💥", string.format("<b>%s</b> dropped %s%s!", S.AnnouncementService.name(player), Format.rich(def.Name, rarity.Color), reason and (" (" .. reason .. ")") or ""))
+		S.AnnouncementService:Feed(
+			"💥",
+			string.format(
+				"<b>%s</b> dropped %s%s!",
+				S.AnnouncementService.name(player),
+				Format.rich(def.Name, rarity.Color),
+				reason and (" (" .. reason .. ")") or ""
+			)
+		)
 	end
 	return dropped
 end
@@ -343,9 +351,19 @@ local function tickEffects(player: Player)
 		local def = Artifacts.get(record.Id)
 		local effect = def and def.Effect
 		if effect == "Honk" and effectReady(player, "Honk", 3.5) then
-			S.AnnouncementService:Effect("Honk", { Position = root.Position, UserId = player.UserId }, root.Position, 220)
+			S.AnnouncementService:Effect(
+				"Honk",
+				{ Position = root.Position, UserId = player.UserId },
+				root.Position,
+				220
+			)
 		elseif effect == "BananaTrail" and effectReady(player, "BananaTrail", 3) then
-			S.SecurityService:AddTemporaryTrap("Banana", root.Position - root.CFrame.LookVector * 5 - Vector3.new(0, 2.8, 0), "Carrier:" .. player.UserId, 25)
+			S.SecurityService:AddTemporaryTrap(
+				"Banana",
+				root.Position - root.CFrame.LookVector * 5 - Vector3.new(0, 2.8, 0),
+				"Carrier:" .. player.UserId,
+				25
+			)
 		elseif effect == "Cookies" and effectReady(player, "Cookies", 1) then
 			humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + 5)
 		elseif effect == "Vacuum" and effectReady(player, "Vacuum", 0.5) then

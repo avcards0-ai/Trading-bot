@@ -98,16 +98,35 @@ local function road(parent: Instance, from: Vector3, to: Vector3, width: number)
 		return
 	end
 	local cf = CFrame.lookAt((from + to) / 2, to)
-	local asphalt = Kit.block(parent, Vector3.new(width, 0.4, length), cf * CFrame.new(0, 0.05, 0), rgb(70, 72, 80), Enum.Material.Asphalt, "Road")
+	local asphalt = Kit.block(
+		parent,
+		Vector3.new(width, 0.4, length),
+		cf * CFrame.new(0, 0.05, 0),
+		rgb(70, 72, 80),
+		Enum.Material.Asphalt,
+		"Road"
+	)
 	asphalt.CastShadow = false
 	local dashes = math.floor(length / 12)
 	for i = 0, dashes - 1 do
-		local dash = Kit.block(parent, Vector3.new(0.6, 0.42, 5), cf * CFrame.new(0, 0.06, -length / 2 + 6 + i * 12), rgb(255, 214, 70), Enum.Material.SmoothPlastic)
+		local dash = Kit.block(
+			parent,
+			Vector3.new(0.6, 0.42, 5),
+			cf * CFrame.new(0, 0.06, -length / 2 + 6 + i * 12),
+			rgb(255, 214, 70),
+			Enum.Material.SmoothPlastic
+		)
 		dash.CastShadow = false
 		dash.CanCollide = false
 	end
 	for side = -1, 1, 2 do
-		local curb = Kit.block(parent, Vector3.new(1, 0.6, length), cf * CFrame.new(side * (width / 2 + 0.5), 0.1, 0), rgb(200, 200, 205), Enum.Material.Concrete)
+		local curb = Kit.block(
+			parent,
+			Vector3.new(1, 0.6, length),
+			cf * CFrame.new(side * (width / 2 + 0.5), 0.1, 0),
+			rgb(200, 200, 205),
+			Enum.Material.Concrete
+		)
 		curb.CastShadow = false
 	end
 end
@@ -127,7 +146,12 @@ function Environment.roads(root: Instance, plotCFrames: { CFrame })
 	for i = 0, segments - 1 do
 		local a0 = i / segments * math.pi * 2
 		local a1 = (i + 1) / segments * math.pi * 2
-		road(folder, Vector3.new(math.cos(a0), 0, math.sin(a0)) * ringRadius, Vector3.new(math.cos(a1), 0, math.sin(a1)) * ringRadius, 16)
+		road(
+			folder,
+			Vector3.new(math.cos(a0), 0, math.sin(a0)) * ringRadius,
+			Vector3.new(math.cos(a1), 0, math.sin(a1)) * ringRadius,
+			16
+		)
 	end
 	for _, plotCF in plotCFrames do
 		local front = (plotCF * CFrame.new(0, 0, -48)).Position
@@ -150,7 +174,14 @@ function Environment.border(root: Instance)
 	for i = 0, segments - 1 do
 		local angle = i / segments * math.pi * 2
 		local pos = Vector3.new(math.cos(angle) * radius, 60, math.sin(angle) * radius)
-		local wall = Kit.block(folder, Vector3.new(length, 160, 4), CFrame.lookAt(pos, Vector3.new(0, 60, 0)), rgb(255, 255, 255), Enum.Material.ForceField, "Border")
+		local wall = Kit.block(
+			folder,
+			Vector3.new(length, 160, 4),
+			CFrame.lookAt(pos, Vector3.new(0, 60, 0)),
+			rgb(255, 255, 255),
+			Enum.Material.ForceField,
+			"Border"
+		)
 		wall.Transparency = 1
 		wall.CastShadow = false
 		wall.CanQuery = false
@@ -163,7 +194,10 @@ function Environment.scenery(root: Instance, plotCFrames: { CFrame })
 	local rng = Random.new(2024)
 	local function clear(pos: Vector3): boolean
 		for _, zone in Zones.List do
-			if zone.Center.Y > -40 and (Vector3.new(zone.Center.X, 0, zone.Center.Z) - pos).Magnitude < zone.Radius + 40 then
+			if
+				zone.Center.Y > -40
+				and (Vector3.new(zone.Center.X, 0, zone.Center.Z) - pos).Magnitude < zone.Radius + 40
+			then
 				return false
 			end
 		end
@@ -200,12 +234,26 @@ function Environment.scenery(root: Instance, plotCFrames: { CFrame })
 				local leafColors = { rgb(70, 160, 70), rgb(90, 175, 60), rgb(255, 150, 190), rgb(230, 150, 60) }
 				Kit.tree(folder, pos, rng:NextNumber(0.8, 1.4), leafColors[rng:NextInteger(1, #leafColors)])
 			elseif roll < 0.8 then
-				local rock = Kit.block(folder, Vector3.new(rng:NextNumber(4, 9), rng:NextNumber(3, 6), rng:NextNumber(4, 9)), CFrame.new(pos + Vector3.new(0, 1, 0)) * CFrame.Angles(rng:NextNumber(-0.3, 0.3), rng:NextNumber(0, 6), rng:NextNumber(-0.3, 0.3)), rgb(140, 140, 150), Enum.Material.Rock, "Rock")
+				local rock = Kit.block(
+					folder,
+					Vector3.new(rng:NextNumber(4, 9), rng:NextNumber(3, 6), rng:NextNumber(4, 9)),
+					CFrame.new(pos + Vector3.new(0, 1, 0))
+						* CFrame.Angles(rng:NextNumber(-0.3, 0.3), rng:NextNumber(0, 6), rng:NextNumber(-0.3, 0.3)),
+					rgb(140, 140, 150),
+					Enum.Material.Rock,
+					"Rock"
+				)
 				rock.CastShadow = true
 			else
 				local colors = { rgb(255, 90, 120), rgb(255, 220, 80), rgb(150, 120, 255), rgb(255, 255, 255) }
 				for j = 1, 5 do
-					local flower = Kit.ball(folder, 0.9, CFrame.new(pos + Vector3.new(rng:NextNumber(-4, 4), 0.4, rng:NextNumber(-4, 4))), colors[(j % #colors) + 1], Enum.Material.SmoothPlastic)
+					local flower = Kit.ball(
+						folder,
+						0.9,
+						CFrame.new(pos + Vector3.new(rng:NextNumber(-4, 4), 0.4, rng:NextNumber(-4, 4))),
+						colors[(j % #colors) + 1],
+						Enum.Material.SmoothPlastic
+					)
 					flower.CanCollide = false
 					flower.CastShadow = false
 				end

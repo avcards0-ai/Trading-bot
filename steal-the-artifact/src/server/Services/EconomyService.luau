@@ -110,7 +110,10 @@ function EconomyService:AddXP(player: Player, amount: number)
 		Net.event("LevelUp"):FireClient(player, data.Level, { Cash = cashReward, Gems = gemReward })
 		S.AnnouncementService:Effect("LevelUp", { UserId = player.UserId }, nil)
 		if data.Level % 10 == 0 then
-			S.AnnouncementService:Feed("🎉", string.format("<b>%s</b> reached <b>level %d</b>!", S.AnnouncementService.name(player), data.Level))
+			S.AnnouncementService:Feed(
+				"🎉",
+				string.format("<b>%s</b> reached <b>level %d</b>!", S.AnnouncementService.name(player), data.Level)
+			)
 		end
 		S.PlayerService:RefreshNameTag(player)
 		GameEvents.LevelUp:Fire(player, data.Level)
@@ -146,7 +149,7 @@ function EconomyService:Rebirth(player: Player): (boolean, string?)
 	if not can then
 		return false, reason
 	end
-	if #(S.DataService:Session(player).Carried) > 0 then
+	if #S.DataService:Session(player).Carried > 0 then
 		return false, "Secure your loot before rebirthing!"
 	end
 	local tokens = Progression.rebirthTokens(data.Rebirths)
@@ -166,10 +169,25 @@ function EconomyService:Rebirth(player: Player): (boolean, string?)
 	S.PlayerService:RefreshNameTag(player)
 	S.CarryService:RefreshSpeed(player)
 	local rank = Upgrades.rank(data.Rebirths)
-	S.AnnouncementService:Feed("🔄", string.format("<b>%s</b> rebirthed! Now a <b>%s</b> (Rebirth #%d)", S.AnnouncementService.name(player), rank.Name, data.Rebirths), rank.Color)
+	S.AnnouncementService:Feed(
+		"🔄",
+		string.format(
+			"<b>%s</b> rebirthed! Now a <b>%s</b> (Rebirth #%d)",
+			S.AnnouncementService.name(player),
+			rank.Name,
+			data.Rebirths
+		),
+		rank.Color
+	)
 	S.AnnouncementService:Effect("Rebirth", { UserId = player.UserId }, nil)
 	GameEvents.Rebirthed:Fire(player)
-	return true, string.format("Reborn! +%d Prestige Token%s and +%d%% cash forever!", tokens, tokens == 1 and "" or "s", math.floor(Progression.cashMultiplier(data) * 100 - 100))
+	return true,
+		string.format(
+			"Reborn! +%d Prestige Token%s and +%d%% cash forever!",
+			tokens,
+			tokens == 1 and "" or "s",
+			math.floor(Progression.cashMultiplier(data) * 100 - 100)
+		)
 end
 
 function EconomyService:Start()
@@ -198,19 +216,23 @@ function EconomyService:Start()
 		return ok, msg
 	end)
 
-	RequestRouter.register("BuySecurity", { Rate = 3, Burst = 5, Validate = V.args(V.str(24)) }, function(player, trackId)
-		local track = Security.ById[trackId]
-		if not track then
-			return false, "Unknown upgrade"
+	RequestRouter.register(
+		"BuySecurity",
+		{ Rate = 3, Burst = 5, Validate = V.args(V.str(24)) },
+		function(player, trackId)
+			local track = Security.ById[trackId]
+			if not track then
+				return false, "Unknown upgrade"
+			end
+			local ok, msg = buyTrack(player, "Security", track)
+			if ok then
+				S.SecurityService:InstallPlot(player)
+				S.GuardService:RefreshPlot(player)
+				S.PlotService:RefreshSign(player)
+			end
+			return ok, msg
 		end
-		local ok, msg = buyTrack(player, "Security", track)
-		if ok then
-			S.SecurityService:InstallPlot(player)
-			S.GuardService:RefreshPlot(player)
-			S.PlotService:RefreshSign(player)
-		end
-		return ok, msg
-	end)
+	)
 
 	RequestRouter.register("BuyPerk", { Rate = 3, Burst = 5, Validate = V.args(V.str(24)) }, function(player, perkId)
 		local perk = Upgrades.PerkById[perkId]

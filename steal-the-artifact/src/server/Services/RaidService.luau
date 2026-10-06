@@ -118,7 +118,9 @@ function RaidService:TriggerAlarm(index: number, raider: Player, cause: string)
 	end
 	if level >= 4 then
 		local raiderData = S.DataService:Get(raider)
-		local amount = GameConfig.Raid.BountyPerAlarmLevel * level * math.max(1, math.floor((raiderData and raiderData.Level or 1) / 5))
+		local amount = GameConfig.Raid.BountyPerAlarmLevel
+			* level
+			* math.max(1, math.floor((raiderData and raiderData.Level or 1) / 5))
 		bounties[raider] = { Amount = amount, Until = os.clock() + 30 }
 		raider:SetAttribute("Bounty", amount)
 		task.delay(30, function()
@@ -140,7 +142,16 @@ function RaidService:TriggerAlarm(index: number, raider: Player, cause: string)
 			Position = plot.SecurePad.Position,
 		})
 		if level >= 5 then
-			S.AnnouncementService:Feed("🚨", string.format("<b>%s</b> is raiding <b>%s</b>'s vault! Bonk them for a bounty!", S.AnnouncementService.name(raider), S.AnnouncementService.name(owner)), Color3.fromRGB(255, 90, 90), true)
+			S.AnnouncementService:Feed(
+				"🚨",
+				string.format(
+					"<b>%s</b> is raiding <b>%s</b>'s vault! Bonk them for a bounty!",
+					S.AnnouncementService.name(raider),
+					S.AnnouncementService.name(owner)
+				),
+				Color3.fromRGB(255, 90, 90),
+				true
+			)
 		end
 	end
 end
@@ -205,7 +216,12 @@ local function onCrack(player: Player, index: number, prompt: ProximityPrompt)
 	authorized[index][player] = true
 	RaidService:TriggerAlarm(index, player, "crack")
 	local plot = S.MapService:GetPlot(index)
-	S.AnnouncementService:Effect("Crack", { Position = plot.Door.Part.Position, UserId = player.UserId }, plot.Door.Part.Position, 250)
+	S.AnnouncementService:Effect(
+		"Crack",
+		{ Position = plot.Door.Part.Position, UserId = player.UserId },
+		plot.Door.Part.Position,
+		250
+	)
 	S.AnnouncementService:Notify(player, "success", "Door cracked! Grab what you can and RUN!")
 	GameEvents.VaultCracked:Fire(player, owner)
 end
@@ -235,8 +251,25 @@ function RaidService:OnVaultArtifactStolen(raider: Player, owner: Player, artifa
 		Artifact = artifactId,
 		Mutation = mutation,
 	})
-	S.AnnouncementService:Feed("🏴‍☠️", string.format("<b>%s</b> raided <b>%s</b>'s vault and grabbed %s!", S.AnnouncementService.name(raider), S.AnnouncementService.name(owner), Format.rich(name, color)))
-	S.AnnouncementService:Notify(owner, "error", string.format("%s stole your %s! Bonk them to get it back - revenge pays +%d%%!", raider.DisplayName, name, GameConfig.Raid.RevengeBonusPercent * 100))
+	S.AnnouncementService:Feed(
+		"🏴‍☠️",
+		string.format(
+			"<b>%s</b> raided <b>%s</b>'s vault and grabbed %s!",
+			S.AnnouncementService.name(raider),
+			S.AnnouncementService.name(owner),
+			Format.rich(name, color)
+		)
+	)
+	S.AnnouncementService:Notify(
+		owner,
+		"error",
+		string.format(
+			"%s stole your %s! Bonk them to get it back - revenge pays +%d%%!",
+			raider.DisplayName,
+			name,
+			GameConfig.Raid.RevengeBonusPercent * 100
+		)
+	)
 end
 
 -- Intrusion loop ---------------------------------------------------------------------------
@@ -261,7 +294,11 @@ local function intrusionTick()
 					if inside then
 						if not allowed[player] then
 							S.PlayerService:Teleport(player, plot.Front)
-							S.AnnouncementService:Notify(player, "error", "Nice try! Vault walls are solid. Crack the door instead.")
+							S.AnnouncementService:Notify(
+								player,
+								"error",
+								"Nice try! Vault walls are solid. Crack the door instead."
+							)
 						elseif alarmLevel >= 3 and S.PlayerService:HasStatus(player, "Marked") then
 							S.PlayerService:SetStatus(player, "Slowed", 1)
 						end

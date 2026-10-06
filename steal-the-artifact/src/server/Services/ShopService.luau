@@ -160,8 +160,16 @@ function ShopService:Start()
 		if purchased then
 			for _, pass in Monetization.GamePasses do
 				if pass.Id == passId then
-					S.AnnouncementService:Notify(player, "reward", "Thanks for buying " .. pass.Name .. "! Enjoy your perks.", { Big = true })
-					S.AnnouncementService:Feed("👑", string.format("<b>%s</b> just got <b>%s</b>!", S.AnnouncementService.name(player), pass.Name))
+					S.AnnouncementService:Notify(
+						player,
+						"reward",
+						"Thanks for buying " .. pass.Name .. "! Enjoy your perks.",
+						{ Big = true }
+					)
+					S.AnnouncementService:Feed(
+						"👑",
+						string.format("<b>%s</b> just got <b>%s</b>!", S.AnnouncementService.name(player), pass.Name)
+					)
 				end
 			end
 			task.defer(applyPasses, player)
@@ -210,9 +218,16 @@ function ShopService:Start()
 		return true, "Unlocked " .. item.Name .. "!"
 	end)
 
-	RequestRouter.register("EquipCosmetic", { Rate = 5, Burst = 8, Validate = V.args(V.str(16), V.optional(function(v)
-		return type(v) == "string" and #v <= 40
-	end)) }, function(player, slot, id)
+	RequestRouter.register("EquipCosmetic", {
+		Rate = 5,
+		Burst = 8,
+		Validate = V.args(
+			V.str(16),
+			V.optional(function(v)
+				return type(v) == "string" and #v <= 40
+			end)
+		),
+	}, function(player, slot, id)
 		local data = S.DataService:Get(player)
 		if not data or not SLOTS[slot] then
 			return false, "Invalid slot"
@@ -243,89 +258,102 @@ function ShopService:Start()
 		return true
 	end)
 
-	RequestRouter.register("SetEmoteSlot", { Rate = 5, Burst = 8, Validate = V.args(V.int(1, 8), V.str(40)) }, function(player, slot, id)
-		local data = S.DataService:Get(player)
-		local item = Cosmetics.ById[id]
-		if not data or not item or item.Type ~= "Emote" then
-			return false, "Unknown emote"
-		end
-		local max = hasLocker(player) and Cosmetics.LockerEmoteSlots or Cosmetics.DefaultEmoteSlots
-		if slot > max then
-			return false, "Cosmetic Locker+ unlocks more emote slots"
-		end
-		if not self:Owns(player, item) then
-			return false, "You don't own that emote"
-		end
-		local emotes = data.Cosmetics.Emotes
-		local existing = table.find(emotes, id)
-		if existing then
-			table.remove(emotes, existing)
-		end
-		table.insert(emotes, math.min(slot, #emotes + 1), id)
-		while #emotes > max do
-			table.remove(emotes)
-		end
-		S.DataService:MarkChanged(player, "Cosmetics")
-		return true
-	end)
-
-	RequestRouter.register("SaveLoadout", { Rate = 2, Burst = 4, Validate = V.args(V.int(1, 8)) }, function(player, index)
-		local data = S.DataService:Get(player)
-		local max = hasLocker(player) and Cosmetics.LockerLoadouts or Cosmetics.DefaultLoadouts
-		if not data then
-			return false
-		end
-		if index > max then
-			return false, "Cosmetic Locker+ unlocks more loadout slots"
-		end
-		local equipped = data.Cosmetics.Equipped
-		data.Cosmetics.Loadouts[tostring(index)] = {
-			Trail = equipped.Trail,
-			Aura = equipped.Aura,
-			VaultSkin = equipped.VaultSkin,
-			Title = equipped.Title,
-			Emotes = table.clone(data.Cosmetics.Emotes),
-		}
-		S.DataService:MarkChanged(player, "Cosmetics")
-		return true, "Outfit saved to slot " .. index
-	end)
-
-	RequestRouter.register("ApplyLoadout", { Rate = 2, Burst = 4, Validate = V.args(V.int(1, 8)) }, function(player, index)
-		local data = S.DataService:Get(player)
-		local loadout = data and data.Cosmetics.Loadouts[tostring(index)]
-		if not loadout then
-			return false, "That slot is empty"
-		end
-		for _, slot in { "Trail", "Aura", "VaultSkin" } do
-			local item = Cosmetics.ById[loadout[slot] or ""]
-			if item == nil or self:Owns(player, item) then
-				data.Cosmetics.Equipped[slot] = loadout[slot] or (slot == "VaultSkin" and "skin_default" or "")
-			end
-		end
-		if loadout.Title == "" or data.Titles[loadout.Title] then
-			data.Cosmetics.Equipped.Title = loadout.Title or ""
-		end
-		local emotes = {}
-		for _, id in loadout.Emotes or {} do
+	RequestRouter.register(
+		"SetEmoteSlot",
+		{ Rate = 5, Burst = 8, Validate = V.args(V.int(1, 8), V.str(40)) },
+		function(player, slot, id)
+			local data = S.DataService:Get(player)
 			local item = Cosmetics.ById[id]
-			if item and self:Owns(player, item) then
-				table.insert(emotes, id)
+			if not data or not item or item.Type ~= "Emote" then
+				return false, "Unknown emote"
 			end
+			local max = hasLocker(player) and Cosmetics.LockerEmoteSlots or Cosmetics.DefaultEmoteSlots
+			if slot > max then
+				return false, "Cosmetic Locker+ unlocks more emote slots"
+			end
+			if not self:Owns(player, item) then
+				return false, "You don't own that emote"
+			end
+			local emotes = data.Cosmetics.Emotes
+			local existing = table.find(emotes, id)
+			if existing then
+				table.remove(emotes, existing)
+			end
+			table.insert(emotes, math.min(slot, #emotes + 1), id)
+			while #emotes > max do
+				table.remove(emotes)
+			end
+			S.DataService:MarkChanged(player, "Cosmetics")
+			return true
 		end
-		data.Cosmetics.Emotes = emotes
-		S.DataService:MarkChanged(player, "Cosmetics")
-		S.CosmeticService:ApplyCharacter(player)
-		S.PlotService:RefreshDisplay(player)
-		S.PlayerService:RefreshNameTag(player)
-		return true, "Outfit applied!"
-	end)
+	)
+
+	RequestRouter.register(
+		"SaveLoadout",
+		{ Rate = 2, Burst = 4, Validate = V.args(V.int(1, 8)) },
+		function(player, index)
+			local data = S.DataService:Get(player)
+			local max = hasLocker(player) and Cosmetics.LockerLoadouts or Cosmetics.DefaultLoadouts
+			if not data then
+				return false
+			end
+			if index > max then
+				return false, "Cosmetic Locker+ unlocks more loadout slots"
+			end
+			local equipped = data.Cosmetics.Equipped
+			data.Cosmetics.Loadouts[tostring(index)] = {
+				Trail = equipped.Trail,
+				Aura = equipped.Aura,
+				VaultSkin = equipped.VaultSkin,
+				Title = equipped.Title,
+				Emotes = table.clone(data.Cosmetics.Emotes),
+			}
+			S.DataService:MarkChanged(player, "Cosmetics")
+			return true, "Outfit saved to slot " .. index
+		end
+	)
+
+	RequestRouter.register(
+		"ApplyLoadout",
+		{ Rate = 2, Burst = 4, Validate = V.args(V.int(1, 8)) },
+		function(player, index)
+			local data = S.DataService:Get(player)
+			local loadout = data and data.Cosmetics.Loadouts[tostring(index)]
+			if not loadout then
+				return false, "That slot is empty"
+			end
+			for _, slot in { "Trail", "Aura", "VaultSkin" } do
+				local item = Cosmetics.ById[loadout[slot] or ""]
+				if item == nil or self:Owns(player, item) then
+					data.Cosmetics.Equipped[slot] = loadout[slot] or (slot == "VaultSkin" and "skin_default" or "")
+				end
+			end
+			if loadout.Title == "" or data.Titles[loadout.Title] then
+				data.Cosmetics.Equipped.Title = loadout.Title or ""
+			end
+			local emotes = {}
+			for _, id in loadout.Emotes or {} do
+				local item = Cosmetics.ById[id]
+				if item and self:Owns(player, item) then
+					table.insert(emotes, id)
+				end
+			end
+			data.Cosmetics.Emotes = emotes
+			S.DataService:MarkChanged(player, "Cosmetics")
+			S.CosmeticService:ApplyCharacter(player)
+			S.PlotService:RefreshDisplay(player)
+			S.PlayerService:RefreshNameTag(player)
+			return true, "Outfit applied!"
+		end
+	)
 
 	RequestRouter.register("ProductInfo", { Rate = 1, Burst = 2 }, function()
 		-- Real prices for the shop UI (falls back to the PriceHint in config).
 		local info = {}
 		for _, product in Monetization.Products do
 			if product.Id ~= 0 then
-				local ok, result = pcall(MarketplaceService.GetProductInfo, MarketplaceService, product.Id, Enum.InfoType.Product)
+				local ok, result =
+					pcall(MarketplaceService.GetProductInfo, MarketplaceService, product.Id, Enum.InfoType.Product)
 				if ok and result then
 					info[product.Key] = result.PriceInRobux
 				end

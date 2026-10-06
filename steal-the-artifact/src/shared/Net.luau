@@ -30,7 +30,6 @@ Net.Events = {
 	"Fail", -- (kind, caption) funny fail stamp for the victim
 	"Knockback", -- (velocity) physics impulse the owning client applies to itself
 	"LevelUp", -- (level, rewards)
-	"Reward", -- (rewardTable, title) generic reward popup
 	-- client -> server
 	"Bonk", -- (hintTarget: Player?) melee; server picks/validates the target
 	"Dash", -- () tells anti-cheat to expect a burst of speed

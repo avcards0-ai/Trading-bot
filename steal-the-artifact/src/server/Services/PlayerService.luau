@@ -162,7 +162,8 @@ function PlayerService:RefreshNameTag(player: Player)
 	local vip = session and session.IsVIP
 	local nameText = Format.escape(player.DisplayName)
 	if vip then
-		nameText = Format.rich("[VIP] ", Color3.fromRGB(255, 205, 60)) .. Format.rich(nameText, Color3.fromRGB(255, 235, 150))
+		nameText = Format.rich("[VIP] ", Color3.fromRGB(255, 205, 60))
+			.. Format.rich(nameText, Color3.fromRGB(255, 235, 150))
 	end
 	local title = data.Cosmetics.Equipped.Title
 	local parts = { "Lv " .. data.Level }
@@ -173,8 +174,8 @@ function PlayerService:RefreshNameTag(player: Player)
 	if title ~= "" then
 		table.insert(parts, Format.rich("«" .. Format.escape(title) .. "»", Color3.fromRGB(255, 200, 90)))
 	end
-	;(gui:FindFirstChild("PlayerName") :: TextLabel).Text = nameText
-	;(gui:FindFirstChild("Info") :: TextLabel).Text = table.concat(parts, " · ")
+	(gui:FindFirstChild("PlayerName") :: TextLabel).Text = nameText;
+	(gui:FindFirstChild("Info") :: TextLabel).Text = table.concat(parts, " · ")
 end
 
 -- Spawning --------------------------------------------------------------------------------

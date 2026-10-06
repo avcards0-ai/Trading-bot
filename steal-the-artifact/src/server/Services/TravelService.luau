@@ -95,8 +95,20 @@ function TravelService:Start()
 						local first = data and (data.Stats.SecretRoomVisits or 0) == 0
 						S.DataService:Increment(player, "SecretRoomVisits")
 						if first then
-							S.AnnouncementService:Feed("🗝️", string.format("<b>%s</b> found something hidden underground...", S.AnnouncementService.name(player)), Color3.fromRGB(255, 220, 120))
-							S.AnnouncementService:Notify(player, "reward", "🗝️ You found the SECRET ROOM!", { Big = true })
+							S.AnnouncementService:Feed(
+								"🗝️",
+								string.format(
+									"<b>%s</b> found something hidden underground...",
+									S.AnnouncementService.name(player)
+								),
+								Color3.fromRGB(255, 220, 120)
+							)
+							S.AnnouncementService:Notify(
+								player,
+								"reward",
+								"🗝️ You found the SECRET ROOM!",
+								{ Big = true }
+							)
 						end
 					end
 				end

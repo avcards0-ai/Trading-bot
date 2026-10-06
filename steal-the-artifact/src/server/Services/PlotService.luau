@@ -63,7 +63,11 @@ function PlotService:SetDoor(index: number, open: boolean)
 	if doorTweens[index] then
 		doorTweens[index]:Cancel()
 	end
-	local tween = TweenService:Create(door, TweenInfo.new(open and 0.35 or 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = target })
+	local tween = TweenService:Create(
+		door,
+		TweenInfo.new(open and 0.35 or 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ CFrame = target }
+	)
 	doorTweens[index] = tween
 	tween:Play()
 	door.CanCollide = not open
@@ -146,7 +150,13 @@ function PlotService:RefreshDisplay(player: Player)
 				if not assigned[pedestal] then
 					assigned[pedestal] = uid
 					placed[uid] = true
-					S.ArtifactService:CreateDisplay(index, player, uid, data.Artifacts[uid], plot.Pedestals[pedestal].CFrame)
+					S.ArtifactService:CreateDisplay(
+						index,
+						player,
+						uid,
+						data.Artifacts[uid],
+						plot.Pedestals[pedestal].CFrame
+					)
 					break
 				end
 			end

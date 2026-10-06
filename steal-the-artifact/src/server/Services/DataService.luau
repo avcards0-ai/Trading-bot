@@ -26,6 +26,8 @@ local Net = require(Shared.Net)
 local Signal = require(Shared.Util.Signal)
 local Tables = require(Shared.Util.Tables)
 
+local RequestRouter = require(script.Parent.Parent.RequestRouter)
+
 local DataService = {
 	Name = "DataService",
 	Loaded = Signal.new(), -- (player, data)
@@ -151,7 +153,11 @@ local function initStore()
 	end)
 	if not ok then
 		if RunService:IsStudio() then
-			warn("[Data] DataStore unavailable in Studio (" .. tostring(err) .. "). Using an in-memory store - progress won't persist. Enable 'Studio Access to API Services' to test saving.")
+			warn(
+				"[Data] DataStore unavailable in Studio ("
+					.. tostring(err)
+					.. "). Using an in-memory store - progress won't persist. Enable 'Studio Access to API Services' to test saving."
+			)
 			store = MockStore.new()
 			usingMock = true
 		else
@@ -223,7 +229,11 @@ local function loadAsync(player: Player): any?
 			return store:UpdateAsync(key, function(stored)
 				stored = stored or {}
 				local lock = stored.Lock
-				if lock and lock.JobId ~= game.JobId and os.time() - (lock.Time or 0) < GameConfig.Data.SessionLockExpiry then
+				if
+					lock
+					and lock.JobId ~= game.JobId
+					and os.time() - (lock.Time or 0) < GameConfig.Data.SessionLockExpiry
+				then
 					-- Another server still holds this player. Back off and retry; on the final
 					-- attempt take over (that server's saves will then be rejected).
 					if attempt < retries then
@@ -397,7 +407,15 @@ local function onPlayerAdded(player: Player)
 	if not player.Parent then
 		-- Left while loading: release the lock we just took.
 		if data then
-			saveAsync({ Player = player, Key = keyFor(player.UserId), Data = data, Session = {}, LastSave = 0, Saving = false, Released = false }, true)
+			saveAsync({
+				Player = player,
+				Key = keyFor(player.UserId),
+				Data = data,
+				Session = {},
+				LastSave = 0,
+				Saving = false,
+				Released = false,
+			}, true)
 		end
 		return
 	end
@@ -464,6 +482,15 @@ function DataService:Start()
 	Players.PlayerRemoving:Connect(onPlayerRemoving)
 
 	RunService.Heartbeat:Connect(flush)
+
+	-- Snapshot fallback for clients that missed DataInit.
+	RequestRouter.register("GetData", { Rate = 0.2, Burst = 2 }, function(player)
+		local profile = profiles[player]
+		if not profile then
+			return false, "Still loading..."
+		end
+		return true, nil, { Data = sanitized(profile.Data), Session = profile.Session, Mock = usingMock }
+	end)
 
 	-- Autosave
 	task.spawn(function()

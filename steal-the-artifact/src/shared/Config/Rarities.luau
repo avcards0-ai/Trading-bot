@@ -17,6 +17,7 @@ export type Rarity = {
 	Hot: boolean, -- carrier gets a beacon everyone can see
 	Announce: "None" | "Server" | "Global",
 	Vfx: number, -- 0..6 visual intensity tier
+	SetReward: number, -- Gems for discovering every artifact of this rarity
 }
 
 local list: { Rarity } = {
@@ -33,6 +34,7 @@ local list: { Rarity } = {
 		Hot = false,
 		Announce = "None",
 		Vfx = 0,
+		SetReward = 10,
 	},
 	{
 		Id = "Uncommon",
@@ -47,6 +49,7 @@ local list: { Rarity } = {
 		Hot = false,
 		Announce = "None",
 		Vfx = 1,
+		SetReward = 15,
 	},
 	{
 		Id = "Rare",
@@ -61,6 +64,7 @@ local list: { Rarity } = {
 		Hot = false,
 		Announce = "None",
 		Vfx = 2,
+		SetReward = 25,
 	},
 	{
 		Id = "Epic",
@@ -75,6 +79,7 @@ local list: { Rarity } = {
 		Hot = false,
 		Announce = "Server",
 		Vfx = 3,
+		SetReward = 40,
 	},
 	{
 		Id = "Legendary",
@@ -89,6 +94,7 @@ local list: { Rarity } = {
 		Hot = true,
 		Announce = "Global",
 		Vfx = 4,
+		SetReward = 75,
 	},
 	{
 		Id = "Mythic",
@@ -103,6 +109,7 @@ local list: { Rarity } = {
 		Hot = true,
 		Announce = "Global",
 		Vfx = 5,
+		SetReward = 150,
 	},
 	{
 		Id = "Secret",
@@ -117,6 +124,7 @@ local list: { Rarity } = {
 		Hot = true,
 		Announce = "Global",
 		Vfx = 6,
+		SetReward = 500,
 	},
 }
 

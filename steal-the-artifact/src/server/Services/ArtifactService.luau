@@ -118,6 +118,7 @@ local function create(entry: {
 	model:SetAttribute("Source", entry.Source)
 	model:SetAttribute("Value", Progression.artifactValue(entry.Id, entry.M))
 	model:SetAttribute("BaseCFrame", entry.CFrame)
+	model:SetAttribute("SpawnedAt", workspace:GetServerTimeNow())
 	if entry.PlotIndex then
 		model:SetAttribute("PlotIndex", entry.PlotIndex)
 	end
@@ -139,7 +140,8 @@ local function create(entry: {
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "StealPrompt"
 	prompt.ActionText = entry.Source == "Vault" and "Raid" or "Steal"
-	prompt.ObjectText = string.format("%s%s (%s)", entry.M and (entry.M .. " ") or "", def.Name, Rarities.get(def.Rarity).Name)
+	prompt.ObjectText =
+		string.format("%s%s (%s)", entry.M and (entry.M .. " ") or "", def.Name, Rarities.get(def.Rarity).Name)
 	prompt.HoldDuration = entry.Hold
 	prompt.MaxActivationDistance = 10
 	prompt.RequiresLineOfSight = false
@@ -205,14 +207,27 @@ local function announceSteal(player: Player, record: Loose, def: any)
 			Mutation = record.M,
 			ZoneName = zoneName,
 		})
-		S.AnnouncementService:Feed(rarity.Index >= 6 and "🌟" or "💎", string.format("<b>%s</b> stole %s from %s!", name, Format.rich(label, Rarities.textColor(def.Rarity)), zoneName), nil, true)
+		S.AnnouncementService:Feed(
+			rarity.Index >= 6 and "🌟" or "💎",
+			string.format(
+				"<b>%s</b> stole %s from %s!",
+				name,
+				Format.rich(label, Rarities.textColor(def.Rarity)),
+				zoneName
+			),
+			nil,
+			true
+		)
 	elseif rarity.Announce == "Server" then
-		S.AnnouncementService:Feed("💎", string.format("<b>%s</b> stole %s from %s", name, Format.rich(label, rarity.Color), zoneName))
+		S.AnnouncementService:Feed(
+			"💎",
+			string.format("<b>%s</b> stole %s from %s", name, Format.rich(label, rarity.Color), zoneName)
+		)
 	end
 end
 
 -- Moves a loose artifact into a player's backpack without hold checks (vacuum etc.).
-local function take(player: Player, record: Loose, root: BasePart)
+local function take(player: Player, record: Loose)
 	local def = Artifacts.get(record.Id)
 	if not def then
 		return
@@ -222,10 +237,19 @@ local function take(player: Player, record: Loose, root: BasePart)
 	-- Your own dropped loot comes straight home ("Recovered!").
 	if record.OriginalOwner == player.UserId and record.Source == "Dropped" then
 		destroy(record)
-		S.InventoryService:AddToVault(player, { Uid = record.Uid, Id = record.Id, M = record.M, Z = record.Zone }, false)
+		S.InventoryService:AddToVault(
+			player,
+			{ Uid = record.Uid, Id = record.Id, M = record.M, Z = record.Zone },
+			false
+		)
 		S.InventoryService:AutoDisplay(player, { record.Uid })
 		S.PlotService:RefreshDisplay(player)
-		S.AnnouncementService:Notify(player, "success", "RECOVERED! " .. def.Name .. " is back in your vault.", { Big = true })
+		S.AnnouncementService:Notify(
+			player,
+			"success",
+			"RECOVERED! " .. def.Name .. " is back in your vault.",
+			{ Big = true }
+		)
 		S.AnnouncementService:Effect("Recover", { Position = position, ArtifactId = record.Id }, position, 200)
 		return
 	end
@@ -298,7 +322,6 @@ local function take(player: Player, record: Loose, root: BasePart)
 		S.SecurityService:TriggerZoneAlarm(zone.Id, player)
 	end
 	S.EventService:OnSteal(player)
-	local _ = root
 end
 
 function ArtifactService:TrySteal(player: Player, uid: string)
@@ -338,7 +361,7 @@ function ArtifactService:TrySteal(player: Player, uid: string)
 		S.AnnouncementService:Notify(player, "error", "Backpack full! Secure your loot at your vault first.")
 		return
 	end
-	take(player, record, root)
+	take(player, record)
 end
 
 -- Spawning -----------------------------------------------------------------------------------
@@ -367,7 +390,7 @@ function ArtifactService:SpawnInSlot(slot: Slot, weights: { [string]: number }):
 end
 
 -- Loot dropped by a player. Scatters around `position` and stays for a while.
-function ArtifactService:SpawnDropped(carried: any, position: Vector3, dropper: Player?)
+function ArtifactService:SpawnDropped(carried: any, position: Vector3)
 	local def = Artifacts.get(carried.Id)
 	if not def then
 		return
@@ -400,11 +423,15 @@ function ArtifactService:SpawnDropped(carried: any, position: Vector3, dropper: 
 		ExpiresAt = os.clock() + lifetime,
 		DropFrom = position,
 	})
-	local _ = dropper
 end
 
 -- Event loot (Artifact Rain / Meteor). Returns the uid.
-function ArtifactService:SpawnEvent(cframe: CFrame, weights: { [string]: number }, lifetime: number, fallFrom: Vector3?): string?
+function ArtifactService:SpawnEvent(
+	cframe: CFrame,
+	weights: { [string]: number },
+	lifetime: number,
+	fallFrom: Vector3?
+): string?
 	local id, rarity = self:RollArtifact("Event", weights)
 	if not id or not rarity then
 		return nil
@@ -426,7 +453,13 @@ end
 
 -- Vault displays --------------------------------------------------------------------------
 
-function ArtifactService:CreateDisplay(plotIndex: number, owner: Player, uid: string, data: { Id: string, M: string? }, cframe: CFrame)
+function ArtifactService:CreateDisplay(
+	plotIndex: number,
+	owner: Player,
+	uid: string,
+	data: { Id: string, M: string? },
+	cframe: CFrame
+)
 	local def = Artifacts.get(data.Id)
 	if not def then
 		return
@@ -465,7 +498,7 @@ function ArtifactService:Vacuum(player: Player, position: Vector3, radius: numbe
 	for _, record in loose do
 		if (record.Source == "Dropped" or record.Source == "Event") and S.CarryService:HasRoom(player) then
 			if (record.Model:GetPivot().Position - position).Magnitude <= radius then
-				take(player, record, root)
+				take(player, record)
 			end
 		end
 	end
@@ -519,10 +552,18 @@ function ArtifactService:Start()
 					local def = Artifacts.get(record.Id)
 					destroy(record)
 					if owner and def and S.DataService:IsLoaded(owner) then
-						S.InventoryService:AddToVault(owner, { Uid = record.Uid, Id = record.Id, M = record.M, Z = record.Zone }, true)
+						S.InventoryService:AddToVault(
+							owner,
+							{ Uid = record.Uid, Id = record.Id, M = record.M, Z = record.Zone },
+							true
+						)
 						S.InventoryService:AutoDisplay(owner, { record.Uid })
 						S.PlotService:RefreshDisplay(owner)
-						S.AnnouncementService:Notify(owner, "info", "🛡️ Insurance returned your " .. def.Name .. " to your vault!")
+						S.AnnouncementService:Notify(
+							owner,
+							"info",
+							"🛡️ Insurance returned your " .. def.Name .. " to your vault!"
+						)
 					end
 				end
 			end

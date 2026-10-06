@@ -9,7 +9,13 @@
 local SecurityPatterns = {}
 
 -- Returns whether a beam is active and its offset (studs) along its sweep axis.
-function SecurityPatterns.laser(pattern: string, speed: number, phase: number, amplitude: number, t: number): (boolean, number)
+function SecurityPatterns.laser(
+	pattern: string,
+	speed: number,
+	phase: number,
+	amplitude: number,
+	t: number
+): (boolean, number)
 	if pattern == "Static" then
 		return true, 0
 	elseif pattern == "Blink" then

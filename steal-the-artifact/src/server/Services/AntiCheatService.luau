@@ -18,7 +18,14 @@ local AntiCheatService = { Name = "AntiCheatService" }
 
 local S: { [string]: any }
 
-type Track = { Position: Vector3, Time: number, Strikes: number, SafePosition: Vector3, GraceUntil: number, LastDash: number }
+type Track = {
+	Position: Vector3,
+	Time: number,
+	Strikes: number,
+	SafePosition: Vector3,
+	GraceUntil: number,
+	LastDash: number,
+}
 
 local tracks: { [Player]: Track } = {}
 
@@ -52,7 +59,14 @@ local function check(player: Player)
 	local now = os.clock()
 	local track = tracks[player]
 	if not track then
-		tracks[player] = { Position = root.Position, Time = now, Strikes = 0, SafePosition = root.Position, GraceUntil = now + 2, LastDash = 0 }
+		tracks[player] = {
+			Position = root.Position,
+			Time = now,
+			Strikes = 0,
+			SafePosition = root.Position,
+			GraceUntil = now + 2,
+			LastDash = 0,
+		}
 		return
 	end
 	local dt = now - track.Time

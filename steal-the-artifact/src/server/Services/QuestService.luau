@@ -82,7 +82,10 @@ local function ensureDaily(data: any): boolean
 			break
 		end
 		local def = table.remove(pool, seeded:NextInteger(1, #pool))
-		table.insert(list, { Id = def.Id, Goal = Quests.goalFor(def, data.Level, seeded:NextNumber()), Progress = 0, Claimed = false })
+		table.insert(
+			list,
+			{ Id = def.Id, Goal = Quests.goalFor(def, data.Level, seeded:NextNumber()), Progress = 0, Claimed = false }
+		)
 	end
 	data.Quests.Daily = { Day = today, List = list, BonusClaimed = false }
 	return true
@@ -101,7 +104,12 @@ local function matches(def: any, event: string, context: { Rarity: string?, Zone
 	return true
 end
 
-function QuestService:Progress(player: Player, event: string, amount: number, context: { Rarity: string?, Zone: string? }?)
+function QuestService:Progress(
+	player: Player,
+	event: string,
+	amount: number,
+	context: { Rarity: string?, Zone: string? }?
+)
 	local data = S.DataService:Get(player)
 	if not data then
 		return
@@ -192,37 +200,41 @@ function QuestService:Start()
 		self:Progress(player, "EarnCash", amount)
 	end)
 
-	RequestRouter.register("ClaimQuest", { Rate = 4, Burst = 6, Validate = V.args(V.str(10), V.int(1, 5)) }, function(player, kind, index)
-		local data = S.DataService:Get(player)
-		if not data then
-			return false
-		end
-		local list = kind == "Mission" and data.Quests.Missions or kind == "Daily" and data.Quests.Daily.List or nil
-		local quest = list and list[index]
-		if not quest then
-			return false, "Quest not found"
-		end
-		if quest.Claimed or quest.Progress < quest.Goal then
-			return false, "Not finished yet!"
-		end
-		local def = kind == "Mission" and Quests.MissionById[quest.Id] or Quests.DailyById[quest.Id]
-		if not def then
-			return false
-		end
-		local summary = grant(player, def.Reward, data.Level)
-		if kind == "Mission" then
-			local replacement = newMission(data)
-			if replacement then
-				list[index] = replacement
+	RequestRouter.register(
+		"ClaimQuest",
+		{ Rate = 4, Burst = 6, Validate = V.args(V.str(10), V.int(1, 5)) },
+		function(player, kind, index)
+			local data = S.DataService:Get(player)
+			if not data then
+				return false
+			end
+			local list = kind == "Mission" and data.Quests.Missions or kind == "Daily" and data.Quests.Daily.List or nil
+			local quest = list and list[index]
+			if not quest then
+				return false, "Quest not found"
+			end
+			if quest.Claimed or quest.Progress < quest.Goal then
+				return false, "Not finished yet!"
+			end
+			local def = kind == "Mission" and Quests.MissionById[quest.Id] or Quests.DailyById[quest.Id]
+			if not def then
+				return false
+			end
+			local summary = grant(player, def.Reward, data.Level)
+			if kind == "Mission" then
+				local replacement = newMission(data)
+				if replacement then
+					list[index] = replacement
+				else
+					quest.Claimed = true
+				end
 			else
 				quest.Claimed = true
 			end
-		else
-			quest.Claimed = true
+			S.DataService:MarkChanged(player, "Quests")
+			return true, "Reward claimed! " .. summary
 		end
-		S.DataService:MarkChanged(player, "Quests")
-		return true, "Reward claimed! " .. summary
-	end)
+	)
 
 	RequestRouter.register("ClaimDailyBonus", { Rate = 1, Burst = 2 }, function(player)
 		local data = S.DataService:Get(player)
@@ -244,23 +256,27 @@ function QuestService:Start()
 		return true, "Daily bonus! " .. summary
 	end)
 
-	RequestRouter.register("RerollMission", { Rate = 2, Burst = 3, Validate = V.args(V.int(1, 5)) }, function(player, index)
-		local data = S.DataService:Get(player)
-		local quest = data and data.Quests.Missions[index]
-		if not quest then
-			return false
+	RequestRouter.register(
+		"RerollMission",
+		{ Rate = 2, Burst = 3, Validate = V.args(V.int(1, 5)) },
+		function(player, index)
+			local data = S.DataService:Get(player)
+			local quest = data and data.Quests.Missions[index]
+			if not quest then
+				return false
+			end
+			local cost = math.floor(Quests.RerollCost * Quests.rewardScale(data.Level))
+			if not S.EconomyService:SpendCash(player, cost) then
+				return false, "Need " .. Format.cash(cost) .. " to re-roll"
+			end
+			local replacement = newMission(data)
+			if replacement then
+				data.Quests.Missions[index] = replacement
+			end
+			S.DataService:MarkChanged(player, "Quests")
+			return true, "New mission!"
 		end
-		local cost = math.floor(Quests.RerollCost * Quests.rewardScale(data.Level))
-		if not S.EconomyService:SpendCash(player, cost) then
-			return false, "Need " .. Format.cash(cost) .. " to re-roll"
-		end
-		local replacement = newMission(data)
-		if replacement then
-			data.Quests.Missions[index] = replacement
-		end
-		S.DataService:MarkChanged(player, "Quests")
-		return true, "New mission!"
-	end)
+	)
 
 	-- UTC day rollover for players who stay online past midnight
 	task.spawn(function()

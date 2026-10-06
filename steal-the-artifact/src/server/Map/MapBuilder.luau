@@ -69,7 +69,8 @@ function MapBuilder.build(): MapData
 
 	-- Every surface hatch leads down; each arrival gets a matching hatch back up.
 	local links = {}
-	local labels = { Marketplace = "Up to the Marketplace", Laboratory = "Up to the Laboratory", Temple = "Up to the Temple" }
+	local labels =
+		{ Marketplace = "Up to the Marketplace", Laboratory = "Up to the Laboratory", Temple = "Up to the Temple" }
 	for zoneId, label in labels do
 		for _, hatch in zones[zoneId].Hatches do
 			table.insert(links, {

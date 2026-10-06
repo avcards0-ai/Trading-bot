@@ -22,18 +22,42 @@ local LeaderboardService = { Name = "LeaderboardService" }
 local S: { [string]: any }
 
 local BOARDS = {
-	{ Key = "Richest", Store = "STA_Richest_v1", Title = "💰 Richest Thieves", Value = function(data)
-		return Progression.netWorth(data)
-	end, Format = Format.cash },
-	{ Key = "BestVault", Store = "STA_BestVault_v1", Title = "🏦 Best Vaults", Value = function(data)
-		return Progression.vaultScore(data)
-	end, Format = Format.abbreviate },
-	{ Key = "MostSteals", Store = "STA_MostSteals_v1", Title = "🖐️ Most Steals", Value = function(data)
-		return data.Stats.Steals
-	end, Format = Format.abbreviate },
-	{ Key = "Collection", Store = "STA_Collection_v1", Title = "📖 Rarest Collections", Value = function(data)
-		return Progression.collectionScore(data)
-	end, Format = Format.abbreviate },
+	{
+		Key = "Richest",
+		Store = "STA_Richest_v1",
+		Title = "💰 Richest Thieves",
+		Value = function(data)
+			return Progression.netWorth(data)
+		end,
+		Format = Format.cash,
+	},
+	{
+		Key = "BestVault",
+		Store = "STA_BestVault_v1",
+		Title = "🏦 Best Vaults",
+		Value = function(data)
+			return Progression.vaultScore(data)
+		end,
+		Format = Format.abbreviate,
+	},
+	{
+		Key = "MostSteals",
+		Store = "STA_MostSteals_v1",
+		Title = "🖐️ Most Steals",
+		Value = function(data)
+			return data.Stats.Steals
+		end,
+		Format = Format.abbreviate,
+	},
+	{
+		Key = "Collection",
+		Store = "STA_Collection_v1",
+		Title = "📖 Rarest Collections",
+		Value = function(data)
+			return Progression.collectionScore(data)
+		end,
+		Format = Format.abbreviate,
+	},
 }
 
 type Entry = { Rank: number, UserId: number, Name: string, Value: number, Text: string }
@@ -70,7 +94,13 @@ local function serverBoards(): { [string]: { Entry } }
 			local data = S.DataService:Get(player)
 			if data then
 				local value = math.floor(board.Value(data))
-				table.insert(list, { Rank = 0, UserId = player.UserId, Name = player.DisplayName, Value = value, Text = board.Format(value) })
+				table.insert(list, {
+					Rank = 0,
+					UserId = player.UserId,
+					Name = player.DisplayName,
+					Value = value,
+					Text = board.Format(value),
+				})
 			end
 		end
 		table.sort(list, function(a, b)
@@ -132,7 +162,13 @@ local function refreshGlobal()
 				for rank, item in pages:GetCurrentPage() do
 					local userId = tonumber(item.key) or 0
 					local value = tonumber(item.value) or 0
-					table.insert(list, { Rank = rank, UserId = userId, Name = nameFor(userId), Value = value, Text = board.Format(value) })
+					table.insert(list, {
+						Rank = rank,
+						UserId = userId,
+						Name = nameFor(userId),
+						Value = value,
+						Text = board.Format(value),
+					})
 				end
 				globalCache[board.Key] = list
 			end
@@ -189,7 +225,15 @@ local function renderBoards()
 			for i = 1, math.min(10, #list) do
 				local entry = list[i]
 				local medal = i == 1 and "🥇" or i == 2 and "🥈" or i == 3 and "🥉" or (i .. ".")
-				table.insert(lines, string.format("%s %s  %s", medal, Format.escape(entry.Name), Format.rich(entry.Text, Color3.fromRGB(255, 220, 120))))
+				table.insert(
+					lines,
+					string.format(
+						"%s %s  %s",
+						medal,
+						Format.escape(entry.Name),
+						Format.rich(entry.Text, Color3.fromRGB(255, 220, 120))
+					)
+				)
 			end
 			((gui :: SurfaceGui):FindFirstChild("Body") :: TextLabel).Text = table.concat(lines, "\n")
 		end

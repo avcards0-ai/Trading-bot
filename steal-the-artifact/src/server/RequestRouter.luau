@@ -55,7 +55,11 @@ local function consume(player: Player, action: string, rate: number, burst: numb
 end
 RequestRouter.consume = consume
 
-function RequestRouter.register(action: string, options: { Rate: number?, Burst: number?, Validate: Validator? }, handler: Handler)
+function RequestRouter.register(
+	action: string,
+	options: { Rate: number?, Burst: number?, Validate: Validator? },
+	handler: Handler
+)
 	assert(routes[action] == nil, "Duplicate request route " .. action)
 	routes[action] = {
 		Handler = handler,

@@ -129,3 +129,8 @@ rugguard/
   sources/rugcheck.py    RugCheck report parser
   sources/dexscreener.py DexScreener pair parser
 ```
+
+## Also in this repo
+
+[`steal-the-artifact/`](steal-the-artifact/) is a separate project: a Roblox multiplayer heist
+game (Rojo + Luau). See its own [README](steal-the-artifact/README.md).

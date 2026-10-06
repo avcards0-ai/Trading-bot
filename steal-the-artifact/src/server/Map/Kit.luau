@@ -82,7 +82,14 @@ local function applyDefaults(p: BasePart, color: Color3, material: Enum.Material
 	p.BottomSurface = Enum.SurfaceType.Smooth
 end
 
-function Kit.block(parent: Instance, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?, name: string?): Part
+function Kit.block(
+	parent: Instance,
+	size: Vector3,
+	cf: CFrame,
+	color: Color3,
+	material: Enum.Material?,
+	name: string?
+): Part
 	local p = Instance.new("Part")
 	p.Name = name or "Part"
 	p.Size = size
@@ -93,7 +100,15 @@ function Kit.block(parent: Instance, size: Vector3, cf: CFrame, color: Color3, m
 end
 
 -- Vertical cylinder centered on cf.
-function Kit.cyl(parent: Instance, height: number, diameter: number, cf: CFrame, color: Color3, material: Enum.Material?, name: string?): Part
+function Kit.cyl(
+	parent: Instance,
+	height: number,
+	diameter: number,
+	cf: CFrame,
+	color: Color3,
+	material: Enum.Material?,
+	name: string?
+): Part
 	local p = Instance.new("Part")
 	p.Name = name or "Cylinder"
 	p.Shape = Enum.PartType.Cylinder
@@ -170,8 +185,8 @@ function Kit.light(part: BasePart, color: Color3, brightness: number, range: num
 		light = Instance.new("PointLight")
 	end
 	light.Color = color
-	light.Brightness = brightness
-	;(light :: any).Range = range
+	light.Brightness = brightness;
+	(light :: any).Range = range
 	light.Shadows = false
 	light.Parent = part
 	return light
@@ -229,7 +244,15 @@ function Kit.label(part: BasePart, text: string, options: LabelOptions?): (Surfa
 end
 
 -- A free-standing sign board with text on its front face.
-function Kit.sign(parent: Instance, size: Vector3, cf: CFrame, text: string, board: Color3, textColor: Color3?, options: LabelOptions?): Part
+function Kit.sign(
+	parent: Instance,
+	size: Vector3,
+	cf: CFrame,
+	text: string,
+	board: Color3,
+	textColor: Color3?,
+	options: LabelOptions?
+): Part
 	local p = Kit.block(parent, size, cf, board, Enum.Material.SmoothPlastic, "Sign")
 	local opts = options or {}
 	opts.TextColor = textColor or opts.TextColor
@@ -239,7 +262,13 @@ function Kit.sign(parent: Instance, size: Vector3, cf: CFrame, text: string, boa
 end
 
 -- Interaction prompt that the client turns into a UI shortcut (see InteractController).
-function Kit.uiPrompt(part: BasePart, action: string, object: string, uiName: string, key: Enum.KeyCode?): ProximityPrompt
+function Kit.uiPrompt(
+	part: BasePart,
+	action: string,
+	object: string,
+	uiName: string,
+	key: Enum.KeyCode?
+): ProximityPrompt
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ActionText = action
 	prompt.ObjectText = object
@@ -257,11 +286,30 @@ end
 function Kit.tree(parent: Instance, position: Vector3, scale: number?, leafColor: Color3?)
 	local s = scale or 1
 	local m = Kit.model("Tree", parent)
-	Kit.cyl(m, 10 * s, 1.8 * s, CFrame.new(position + Vector3.new(0, 5 * s, 0)), Kit.Colors.DarkWood, Enum.Material.Wood)
+	Kit.cyl(
+		m,
+		10 * s,
+		1.8 * s,
+		CFrame.new(position + Vector3.new(0, 5 * s, 0)),
+		Kit.Colors.DarkWood,
+		Enum.Material.Wood
+	)
 	local leaves = leafColor or rgb(70, 160, 70)
 	Kit.ball(m, 10 * s, CFrame.new(position + Vector3.new(0, 12 * s, 0)), leaves, Enum.Material.Grass)
-	Kit.ball(m, 7 * s, CFrame.new(position + Vector3.new(2.5 * s, 10 * s, 1.5 * s)), leaves:Lerp(Color3.new(0, 0, 0), 0.1), Enum.Material.Grass)
-	Kit.ball(m, 6.5 * s, CFrame.new(position + Vector3.new(-2 * s, 14 * s, -1.5 * s)), leaves:Lerp(Color3.new(1, 1, 1), 0.08), Enum.Material.Grass)
+	Kit.ball(
+		m,
+		7 * s,
+		CFrame.new(position + Vector3.new(2.5 * s, 10 * s, 1.5 * s)),
+		leaves:Lerp(Color3.new(0, 0, 0), 0.1),
+		Enum.Material.Grass
+	)
+	Kit.ball(
+		m,
+		6.5 * s,
+		CFrame.new(position + Vector3.new(-2 * s, 14 * s, -1.5 * s)),
+		leaves:Lerp(Color3.new(1, 1, 1), 0.08),
+		Enum.Material.Grass
+	)
 	return m
 end
 
@@ -269,12 +317,22 @@ function Kit.palm(parent: Instance, position: Vector3, scale: number?)
 	local s = scale or 1
 	local m = Kit.model("Palm", parent)
 	for i = 0, 4 do
-		Kit.cyl(m, 3.2 * s, (1.5 - i * 0.1) * s, CFrame.new(position + Vector3.new(i * 0.35 * s, (1.6 + i * 3) * s, 0)) * CFrame.Angles(0, 0, math.rad(-6)), rgb(150, 110, 70), Enum.Material.Wood)
+		Kit.cyl(
+			m,
+			3.2 * s,
+			(1.5 - i * 0.1) * s,
+			CFrame.new(position + Vector3.new(i * 0.35 * s, (1.6 + i * 3) * s, 0)) * CFrame.Angles(0, 0, math.rad(-6)),
+			rgb(150, 110, 70),
+			Enum.Material.Wood
+		)
 	end
 	local top = position + Vector3.new(1.8 * s, 15.5 * s, 0)
 	for i = 1, 6 do
 		local angle = i / 6 * math.pi * 2
-		local cf = CFrame.new(top) * CFrame.Angles(0, angle, 0) * CFrame.new(0, -0.8 * s, -3.5 * s) * CFrame.Angles(math.rad(-25), 0, 0)
+		local cf = CFrame.new(top)
+			* CFrame.Angles(0, angle, 0)
+			* CFrame.new(0, -0.8 * s, -3.5 * s)
+			* CFrame.Angles(math.rad(-25), 0, 0)
 		Kit.block(m, Vector3.new(1.6 * s, 0.3 * s, 7 * s), cf, rgb(60, 170, 70), Enum.Material.Grass)
 	end
 	return m
@@ -284,7 +342,13 @@ function Kit.lamp(parent: Instance, position: Vector3, color: Color3?, height: n
 	local h = height or 12
 	local m = Kit.model("Lamp", parent)
 	Kit.cyl(m, h, 0.6, CFrame.new(position + Vector3.new(0, h / 2, 0)), Kit.Colors.Black, Enum.Material.Metal)
-	local bulb = Kit.ball(m, 1.6, CFrame.new(position + Vector3.new(0, h + 0.4, 0)), color or rgb(255, 230, 170), Enum.Material.Neon)
+	local bulb = Kit.ball(
+		m,
+		1.6,
+		CFrame.new(position + Vector3.new(0, h + 0.4, 0)),
+		color or rgb(255, 230, 170),
+		Enum.Material.Neon
+	)
 	bulb.CastShadow = false
 	Kit.light(bulb, color or rgb(255, 220, 160), 1.6, 22)
 	return m
@@ -305,7 +369,13 @@ function Kit.crate(parent: Instance, cf: CFrame, size: number?, color: Color3?)
 	local p = Kit.block(parent, Vector3.one * s, cf, c, Enum.Material.WoodPlanks, "Crate")
 	local trim = c:Lerp(Color3.new(0, 0, 0), 0.3)
 	Kit.block(parent, Vector3.new(s + 0.1, 0.3, s + 0.1), cf * CFrame.new(0, s / 2 - 0.15, 0), trim, Enum.Material.Wood)
-	Kit.block(parent, Vector3.new(s + 0.1, 0.3, s + 0.1), cf * CFrame.new(0, -s / 2 + 0.15, 0), trim, Enum.Material.Wood)
+	Kit.block(
+		parent,
+		Vector3.new(s + 0.1, 0.3, s + 0.1),
+		cf * CFrame.new(0, -s / 2 + 0.15, 0),
+		trim,
+		Enum.Material.Wood
+	)
 	return p
 end
 
@@ -320,10 +390,29 @@ function Kit.barrel(parent: Instance, cf: CFrame, color: Color3?, glow: boolean?
 	return p
 end
 
-function Kit.pillar(parent: Instance, base: Vector3, height: number, diameter: number, color: Color3, material: Enum.Material?)
-	Kit.block(parent, Vector3.new(diameter + 1.2, 1, diameter + 1.2), CFrame.new(base + Vector3.new(0, 0.5, 0)), color, material)
+function Kit.pillar(
+	parent: Instance,
+	base: Vector3,
+	height: number,
+	diameter: number,
+	color: Color3,
+	material: Enum.Material?
+)
+	Kit.block(
+		parent,
+		Vector3.new(diameter + 1.2, 1, diameter + 1.2),
+		CFrame.new(base + Vector3.new(0, 0.5, 0)),
+		color,
+		material
+	)
 	Kit.cyl(parent, height - 2, diameter, CFrame.new(base + Vector3.new(0, height / 2, 0)), color, material)
-	Kit.block(parent, Vector3.new(diameter + 1.2, 1, diameter + 1.2), CFrame.new(base + Vector3.new(0, height - 0.5, 0)), color, material)
+	Kit.block(
+		parent,
+		Vector3.new(diameter + 1.2, 1, diameter + 1.2),
+		CFrame.new(base + Vector3.new(0, height - 0.5, 0)),
+		color,
+		material
+	)
 end
 
 -- Climbable truss ladder standing on `base` (height is rounded to a multiple of 2).
@@ -342,12 +431,33 @@ end
 -- Pedestal; returns the CFrame an artifact should float at (plus the glow strip and top).
 function Kit.pedestal(parent: Instance, cf: CFrame, color: Color3?, glow: Color3?): (CFrame, BasePart?, BasePart)
 	local c = color or Kit.Colors.Marble
-	Kit.block(parent, Vector3.new(3.4, 0.5, 3.4), cf * CFrame.new(0, 0.25, 0), c:Lerp(Color3.new(0, 0, 0), 0.15), Enum.Material.Marble, "PedestalBase")
+	Kit.block(
+		parent,
+		Vector3.new(3.4, 0.5, 3.4),
+		cf * CFrame.new(0, 0.25, 0),
+		c:Lerp(Color3.new(0, 0, 0), 0.15),
+		Enum.Material.Marble,
+		"PedestalBase"
+	)
 	Kit.block(parent, Vector3.new(2.6, 3, 2.6), cf * CFrame.new(0, 2, 0), c, Enum.Material.Marble, "Pedestal")
-	local top = Kit.block(parent, Vector3.new(3.2, 0.35, 3.2), cf * CFrame.new(0, 3.65, 0), c:Lerp(Color3.new(0, 0, 0), 0.15), Enum.Material.Marble, "PedestalTop")
+	local top = Kit.block(
+		parent,
+		Vector3.new(3.2, 0.35, 3.2),
+		cf * CFrame.new(0, 3.65, 0),
+		c:Lerp(Color3.new(0, 0, 0), 0.15),
+		Enum.Material.Marble,
+		"PedestalTop"
+	)
 	local strip: BasePart? = nil
 	if glow then
-		local glowPart = Kit.block(parent, Vector3.new(2.7, 0.15, 2.7), cf * CFrame.new(0, 3.88, 0), glow, Enum.Material.Neon, "Glow")
+		local glowPart = Kit.block(
+			parent,
+			Vector3.new(2.7, 0.15, 2.7),
+			cf * CFrame.new(0, 3.88, 0),
+			glow,
+			Enum.Material.Neon,
+			"Glow"
+		)
 		glowPart.CastShadow = false
 		Kit.noCollide(glowPart)
 		strip = glowPart
@@ -358,37 +468,109 @@ end
 -- Glass display case on a pedestal; returns artifact CFrame.
 function Kit.displayCase(parent: Instance, cf: CFrame, color: Color3?): CFrame
 	local spot = Kit.pedestal(parent, cf, color, Kit.Colors.Gold)
-	local glass = Kit.block(parent, Vector3.new(0.2, 3.6, 3.0), cf * CFrame.new(1.5, 5.8, 0), rgb(200, 230, 255), Enum.Material.Glass, "Glass")
+	local glass = Kit.block(
+		parent,
+		Vector3.new(0.2, 3.6, 3.0),
+		cf * CFrame.new(1.5, 5.8, 0),
+		rgb(200, 230, 255),
+		Enum.Material.Glass,
+		"Glass"
+	)
 	glass.Transparency = 0.75
 	Kit.noCollide(glass)
-	local glass2 = Kit.block(parent, Vector3.new(0.2, 3.6, 3.0), cf * CFrame.new(-1.5, 5.8, 0), rgb(200, 230, 255), Enum.Material.Glass, "Glass")
+	local glass2 = Kit.block(
+		parent,
+		Vector3.new(0.2, 3.6, 3.0),
+		cf * CFrame.new(-1.5, 5.8, 0),
+		rgb(200, 230, 255),
+		Enum.Material.Glass,
+		"Glass"
+	)
 	glass2.Transparency = 0.75
 	Kit.noCollide(glass2)
 	return spot
 end
 
 -- Stairs climbing along cf.LookVector.
-function Kit.stairs(parent: Instance, cf: CFrame, steps: number, width: number, rise: number, run: number, color: Color3, material: Enum.Material?)
+function Kit.stairs(
+	parent: Instance,
+	cf: CFrame,
+	steps: number,
+	width: number,
+	rise: number,
+	run: number,
+	color: Color3,
+	material: Enum.Material?
+)
 	for i = 0, steps - 1 do
-		Kit.block(parent, Vector3.new(width, rise * (i + 1), run), cf * CFrame.new(0, rise * (i + 1) / 2, -run * i - run / 2), color, material, "Step")
+		Kit.block(
+			parent,
+			Vector3.new(width, rise * (i + 1), run),
+			cf * CFrame.new(0, rise * (i + 1) / 2, -run * i - run / 2),
+			color,
+			material,
+			"Step"
+		)
 	end
 end
 
 -- Four walls with optional door gaps. `doors` maps "Front"/"Back"/"Left"/"Right" to a gap width.
-function Kit.room(parent: Instance, cf: CFrame, size: Vector3, thickness: number, color: Color3, material: Enum.Material?, doors: { [string]: number }?, doorHeight: number?)
+function Kit.room(
+	parent: Instance,
+	cf: CFrame,
+	size: Vector3,
+	thickness: number,
+	color: Color3,
+	material: Enum.Material?,
+	doors: { [string]: number }?,
+	doorHeight: number?
+)
 	local gaps = doors or {}
 	local dh = math.min(doorHeight or 12, size.Y)
 	local walls = {}
 	local function wall(name: string, length: number, center: CFrame, gap: number?)
 		if gap and gap > 0 then
 			local side = (length - gap) / 2
-			table.insert(walls, Kit.block(parent, Vector3.new(side, size.Y, thickness), center * CFrame.new(-(gap / 2 + side / 2), 0, 0), color, material, name))
-			table.insert(walls, Kit.block(parent, Vector3.new(side, size.Y, thickness), center * CFrame.new(gap / 2 + side / 2, 0, 0), color, material, name))
+			table.insert(
+				walls,
+				Kit.block(
+					parent,
+					Vector3.new(side, size.Y, thickness),
+					center * CFrame.new(-(gap / 2 + side / 2), 0, 0),
+					color,
+					material,
+					name
+				)
+			)
+			table.insert(
+				walls,
+				Kit.block(
+					parent,
+					Vector3.new(side, size.Y, thickness),
+					center * CFrame.new(gap / 2 + side / 2, 0, 0),
+					color,
+					material,
+					name
+				)
+			)
 			if size.Y > dh then
-				table.insert(walls, Kit.block(parent, Vector3.new(gap, size.Y - dh, thickness), center * CFrame.new(0, dh / 2, 0), color, material, name))
+				table.insert(
+					walls,
+					Kit.block(
+						parent,
+						Vector3.new(gap, size.Y - dh, thickness),
+						center * CFrame.new(0, dh / 2, 0),
+						color,
+						material,
+						name
+					)
+				)
 			end
 		else
-			table.insert(walls, Kit.block(parent, Vector3.new(length, size.Y, thickness), center, color, material, name))
+			table.insert(
+				walls,
+				Kit.block(parent, Vector3.new(length, size.Y, thickness), center, color, material, name)
+			)
 		end
 	end
 	local y = size.Y / 2
@@ -402,7 +584,18 @@ end
 -- Security devices ---------------------------------------------------------------------
 
 -- A laser beam centered at `cf` spanning `length` along cf.RightVector, sweeping along `axis`.
-function Kit.laser(parent: Instance, cf: CFrame, length: number, pattern: string, speed: number, phase: number, amplitude: number, axis: Vector3, owner: string, color: Color3?): LaserDef
+function Kit.laser(
+	parent: Instance,
+	cf: CFrame,
+	length: number,
+	pattern: string,
+	speed: number,
+	phase: number,
+	amplitude: number,
+	axis: Vector3,
+	owner: string,
+	color: Color3?
+): LaserDef
 	local beam = Instance.new("Part")
 	beam.Name = "Laser"
 	beam.Size = Vector3.new(length, 0.22, 0.22)
@@ -426,7 +619,14 @@ function Kit.laser(parent: Instance, cf: CFrame, length: number, pattern: string
 
 	-- Emitters at both ends so the grid reads clearly even when a beam blinks off.
 	for side = -1, 1, 2 do
-		local emitter = Kit.block(parent, Vector3.new(0.6, 0.6, 0.6), cf * CFrame.new(side * (length / 2 + 0.3), 0, 0), Kit.Colors.Black, Enum.Material.Metal, "LaserEmitter")
+		local emitter = Kit.block(
+			parent,
+			Vector3.new(0.6, 0.6, 0.6),
+			cf * CFrame.new(side * (length / 2 + 0.3), 0, 0),
+			Kit.Colors.Black,
+			Enum.Material.Metal,
+			"LaserEmitter"
+		)
 		emitter.CanCollide = false
 		emitter.CastShadow = false
 	end
@@ -443,13 +643,44 @@ function Kit.laser(parent: Instance, cf: CFrame, length: number, pattern: string
 	}
 end
 
-function Kit.camera(parent: Instance, position: Vector3, baseYaw: number, sweep: number, speed: number, range: number, fov: number, owner: string, pitch: number?): CameraDef
+function Kit.camera(
+	parent: Instance,
+	position: Vector3,
+	baseYaw: number,
+	sweep: number,
+	speed: number,
+	range: number,
+	fov: number,
+	owner: string,
+	pitch: number?
+): CameraDef
 	local m = Kit.model("SecurityCamera", parent)
-	local mount = Kit.block(m, Vector3.new(0.8, 1.2, 0.8), CFrame.new(position + Vector3.new(0, 0.9, 0)), Kit.Colors.Black, Enum.Material.Metal, "Mount")
+	local mount = Kit.block(
+		m,
+		Vector3.new(0.8, 1.2, 0.8),
+		CFrame.new(position + Vector3.new(0, 0.9, 0)),
+		Kit.Colors.Black,
+		Enum.Material.Metal,
+		"Mount"
+	)
 	mount.CanCollide = false
-	local head = Kit.block(m, Vector3.new(1.2, 1.1, 2.4), CFrame.new(position), rgb(235, 235, 240), Enum.Material.SmoothPlastic, "Head")
+	local head = Kit.block(
+		m,
+		Vector3.new(1.2, 1.1, 2.4),
+		CFrame.new(position),
+		rgb(235, 235, 240),
+		Enum.Material.SmoothPlastic,
+		"Head"
+	)
 	head.CanCollide = false
-	local lens = Kit.block(m, Vector3.new(0.6, 0.6, 0.2), head.CFrame * CFrame.new(0, 0, -1.25), rgb(255, 40, 40), Enum.Material.Neon, "Lens")
+	local lens = Kit.block(
+		m,
+		Vector3.new(0.6, 0.6, 0.2),
+		head.CFrame * CFrame.new(0, 0, -1.25),
+		rgb(255, 40, 40),
+		Enum.Material.Neon,
+		"Lens"
+	)
 	lens.CanCollide = false
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0 = head
@@ -488,8 +719,18 @@ function Kit.camera(parent: Instance, position: Vector3, baseYaw: number, sweep:
 end
 
 local TRAP_LOOKS = {
-	Banana = { Size = Vector3.new(2.2, 0.3, 1.2), Color = rgb(255, 225, 60), Material = Enum.Material.SmoothPlastic, Radius = 2.6 },
-	Spring = { Size = Vector3.new(3.4, 0.5, 3.4), Color = rgb(255, 90, 90), Material = Enum.Material.SmoothPlastic, Radius = 2.4 },
+	Banana = {
+		Size = Vector3.new(2.2, 0.3, 1.2),
+		Color = rgb(255, 225, 60),
+		Material = Enum.Material.SmoothPlastic,
+		Radius = 2.6,
+	},
+	Spring = {
+		Size = Vector3.new(3.4, 0.5, 3.4),
+		Color = rgb(255, 90, 90),
+		Material = Enum.Material.SmoothPlastic,
+		Radius = 2.4,
+	},
 	Glue = { Size = Vector3.new(6, 0.12, 6), Color = rgb(240, 240, 255), Material = Enum.Material.Glass, Radius = 3.2 },
 	Spike = { Size = Vector3.new(5, 0.3, 5), Color = rgb(120, 110, 100), Material = Enum.Material.Slate, Radius = 2.8 },
 	Toxic = { Size = Vector3.new(9, 0.2, 9), Color = rgb(120, 255, 90), Material = Enum.Material.Neon, Radius = 4.4 },
@@ -518,18 +759,32 @@ function Kit.trap(parent: Instance, kind: string, position: Vector3, owner: stri
 	if kind == "Banana" then
 		-- Peel flaps
 		for i = 1, 3 do
-			local flap = Kit.block(parent, Vector3.new(1.4, 0.2, 0.5), cf * CFrame.Angles(0, i * math.pi * 2 / 3, 0) * CFrame.new(0, 0, -0.8), look.Color, Enum.Material.SmoothPlastic, "Peel")
+			local flap = Kit.block(
+				parent,
+				Vector3.new(1.4, 0.2, 0.5),
+				cf * CFrame.Angles(0, i * math.pi * 2 / 3, 0) * CFrame.new(0, 0, -0.8),
+				look.Color,
+				Enum.Material.SmoothPlastic,
+				"Peel"
+			)
 			Kit.noCollide(flap)
 			flap.Parent = part
 		end
 	elseif kind == "Spring" then
-		local coil = Kit.cyl(parent, 0.6, 2.6, cf * CFrame.new(0, -0.4, 0), Kit.Colors.Metal, Enum.Material.Metal, "Coil")
+		local coil =
+			Kit.cyl(parent, 0.6, 2.6, cf * CFrame.new(0, -0.4, 0), Kit.Colors.Metal, Enum.Material.Metal, "Coil")
 		Kit.noCollide(coil)
 		coil.Parent = part
 	elseif kind == "Spike" then
 		for x = -1, 1 do
 			for z = -1, 1 do
-				local spike = Kit.wedge(parent, Vector3.new(0.6, 1.2, 0.6), cf * CFrame.new(x * 1.5, 0.6, z * 1.5), rgb(200, 200, 205), Enum.Material.Metal)
+				local spike = Kit.wedge(
+					parent,
+					Vector3.new(0.6, 1.2, 0.6),
+					cf * CFrame.new(x * 1.5, 0.6, z * 1.5),
+					rgb(200, 200, 205),
+					Enum.Material.Metal
+				)
 				Kit.noCollide(spike)
 				spike.Name = "Spike"
 				spike.Parent = part
@@ -550,8 +805,15 @@ function Kit.trap(parent: Instance, kind: string, position: Vector3, owner: stri
 end
 
 -- Teleport hatch with a hold prompt.
-function Kit.hatch(parent: Instance, cf: CFrame, label: string, destination: CFrame, hold: number?): (Part, ProximityPrompt)
-	local base = Kit.cyl(parent, 0.4, 5, cf * CFrame.new(0, 0.2, 0), rgb(70, 72, 80), Enum.Material.DiamondPlate, "Hatch")
+function Kit.hatch(
+	parent: Instance,
+	cf: CFrame,
+	label: string,
+	destination: CFrame,
+	hold: number?
+): (Part, ProximityPrompt)
+	local base =
+		Kit.cyl(parent, 0.4, 5, cf * CFrame.new(0, 0.2, 0), rgb(70, 72, 80), Enum.Material.DiamondPlate, "Hatch")
 	local rim = Kit.cyl(parent, 0.5, 5.8, cf * CFrame.new(0, 0.1, 0), Kit.Colors.Black, Enum.Material.Metal)
 	rim.CanCollide = false
 	local glow = Kit.cyl(parent, 0.45, 2, cf * CFrame.new(0, 0.25, 0), rgb(110, 90, 255), Enum.Material.Neon)

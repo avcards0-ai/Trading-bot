@@ -28,7 +28,10 @@ local S: { [string]: any }
 
 local lastBonk: { [Player]: number } = {}
 local lastBonkedBy: { [Player]: { Attacker: Player, At: number } } = {}
-local ragdollJoints: { [Model]: { { Motor: Motor6D, Socket: BallSocketConstraint } } } = setmetatable({}, { __mode = "k" }) :: any
+local ragdollJoints: { [Model]: { { Motor: Motor6D, Socket: BallSocketConstraint } } } = setmetatable(
+	{},
+	{ __mode = "k" }
+) :: any
 local stunTokens: { [Player]: number } = {}
 
 local CAPTIONS = {
@@ -43,7 +46,8 @@ local CAPTIONS = {
 	Fall = { "Gravity wins.", "Oops." },
 }
 
-local STAT_FOR_FAIL = { Zap = "Zapped", Slip = "Slipped", Spring = "Sprung", Glue = "Glued", Tackle = "Tackled", Spike = "Spiked" }
+local STAT_FOR_FAIL =
+	{ Zap = "Zapped", Slip = "Slipped", Spring = "Sprung", Glue = "Glued", Tackle = "Tackled", Spike = "Spiked" }
 
 function CombatService:Init(services)
 	S = services
@@ -54,7 +58,13 @@ end
 local function setupRagdoll(character: Model)
 	local joints = {}
 	for _, motor in character:GetDescendants() do
-		if motor:IsA("Motor6D") and motor.Name ~= "RootJoint" and motor.Name ~= "Root" and motor.Part0 and motor.Part1 then
+		if
+			motor:IsA("Motor6D")
+			and motor.Name ~= "RootJoint"
+			and motor.Name ~= "Root"
+			and motor.Part0
+			and motor.Part1
+		then
 			local a0 = Instance.new("Attachment")
 			a0.Name = "RagdollA0"
 			a0.CFrame = motor.C0
@@ -142,7 +152,11 @@ function CombatService:ApplyFail(player: Player, kind: string, options: FailOpti
 	local caption = Tables.pickRandom(CAPTIONS[kind] or CAPTIONS.Bonk) or "OOF!"
 	local dropped = {}
 	if options.Drop and options.Drop > 0 and S.CarryService:Count(player) > 0 then
-		local verb = kind == "Zap" and "zapped" or kind == "Slip" and "slipped" or kind == "Spring" and "launched" or kind == "Tackle" and "tackled" or "hit"
+		local verb = kind == "Zap" and "zapped"
+			or kind == "Slip" and "slipped"
+			or kind == "Spring" and "launched"
+			or kind == "Tackle" and "tackled"
+			or "hit"
 		dropped = S.CarryService:Drop(player, options.Drop, options.By and (verb .. " by " .. options.By) or verb)
 	end
 	if options.Stun then
@@ -159,7 +173,12 @@ function CombatService:ApplyFail(player: Player, kind: string, options: FailOpti
 		S.DataService:Increment(player, stat)
 	end
 	Net.event("Fail"):FireClient(player, kind, caption, { By = options.By, Dropped = #dropped })
-	S.AnnouncementService:Effect("FailPop", { Kind = kind, Position = root.Position, UserId = player.UserId, Caption = caption }, root.Position, 180)
+	S.AnnouncementService:Effect(
+		"FailPop",
+		{ Kind = kind, Position = root.Position, UserId = player.UserId, Caption = caption },
+		root.Position,
+		180
+	)
 	GameEvents.Failed:Fire(player, kind)
 end
 
@@ -177,7 +196,11 @@ local function findTarget(attacker: Player, root: BasePart, hint: Player?): Play
 	local cosLimit = math.cos(math.rad(cfg.BonkConeDegrees / 2))
 	local best, bestScore = nil, math.huge
 	for _, player in Players:GetPlayers() do
-		if player ~= attacker and S.PlayerService:IsAlive(player) and not S.PlayerService:HasStatus(player, "Protected") then
+		if
+			player ~= attacker
+			and S.PlayerService:IsAlive(player)
+			and not S.PlayerService:HasStatus(player, "Protected")
+		then
 			local proot = S.PlayerService:GetRoot(player)
 			if proot then
 				local offset = proot.Position - root.Position
@@ -261,15 +284,32 @@ local function onBonk(attacker: Player, hint: any)
 	S.DataService:Increment(attacker, "Bonks")
 	if isDefend then
 		S.DataService:Increment(attacker, "Defends")
-		S.AnnouncementService:Feed("🛡️", string.format("<b>%s</b> defended their vault from <b>%s</b>!", S.AnnouncementService.name(attacker), S.AnnouncementService.name(victim)))
+		S.AnnouncementService:Feed(
+			"🛡️",
+			string.format(
+				"<b>%s</b> defended their vault from <b>%s</b>!",
+				S.AnnouncementService.name(attacker),
+				S.AnnouncementService.name(victim)
+			)
+		)
 	end
 	local bounty = S.RaidService:ClaimBounty(victim, attacker)
 	if bounty > 0 then
 		S.AnnouncementService:Notify(attacker, "reward", "BOUNTY! +" .. Format.cash(bounty))
 	end
 
-	Net.event("Fail"):FireClient(victim, "Bonk", Tables.pickRandom(CAPTIONS.Bonk) or "BONK!", { By = attacker.DisplayName, Dropped = #dropped })
-	S.AnnouncementService:Effect("Bonk", { Position = vroot.Position, Attacker = attacker.UserId, Victim = victim.UserId, Dropped = #dropped }, vroot.Position, 220)
+	Net.event("Fail"):FireClient(
+		victim,
+		"Bonk",
+		Tables.pickRandom(CAPTIONS.Bonk) or "BONK!",
+		{ By = attacker.DisplayName, Dropped = #dropped }
+	)
+	S.AnnouncementService:Effect(
+		"Bonk",
+		{ Position = vroot.Position, Attacker = attacker.UserId, Victim = victim.UserId, Dropped = #dropped },
+		vroot.Position,
+		220
+	)
 	GameEvents.Bonked:Fire(attacker, victim, { Carrier = carrying, Defend = isDefend, Dropped = #dropped })
 end
 
@@ -292,7 +332,15 @@ function CombatService:OnCharacterAdded(player: Player, character: Model)
 		S.DataService:Increment(player, "Deaths")
 		local credit = lastBonkedBy[player]
 		if credit and os.clock() - credit.At <= GameConfig.Combat.KillCreditWindow and credit.Attacker.Parent then
-			S.AnnouncementService:Feed("👊", string.format("<b>%s</b> knocked out <b>%s</b>%s", S.AnnouncementService.name(credit.Attacker), S.AnnouncementService.name(player), count > 0 and " and scattered their loot!" or ""))
+			S.AnnouncementService:Feed(
+				"👊",
+				string.format(
+					"<b>%s</b> knocked out <b>%s</b>%s",
+					S.AnnouncementService.name(credit.Attacker),
+					S.AnnouncementService.name(player),
+					count > 0 and " and scattered their loot!" or ""
+				)
+			)
 		end
 		lastBonkedBy[player] = nil
 	end)

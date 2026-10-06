@@ -61,7 +61,13 @@ local folder: Folder
 local BARKS = {
 	Spot = { "HEY! Put that back!", "STOP, THIEF!", "Not on my watch!", "I see you!", "FREEZE!", "Oh no you don't!" },
 	Tackle = { "GOTCHA!", "Nice try!", "Caught red-handed!", "Book 'em!", "And STAY down!" },
-	Lost = { "Where'd they go?", "*huff* *puff*", "I'm too old for this...", "Must've been the wind.", "I'll get you next time!" },
+	Lost = {
+		"Where'd they go?",
+		"*huff* *puff*",
+		"I'm too old for this...",
+		"Must've been the wind.",
+		"I'll get you next time!",
+	},
 	Strike = { "ON STRIKE!", "Fair wages for guards!", "Not my problem today!", "Union rules, pal." },
 	Idle = { "*yawn*", "Quiet night...", "I love my job.", "Did I leave the stove on?", "*whistles*" },
 	RobotSpot = { "INTRUDER DETECTED.", "BEEP BOOP. STOP.", "TARGET ACQUIRED.", "ERROR: THIEF FOUND." },
@@ -70,12 +76,61 @@ local BARKS = {
 }
 
 local STYLES = {
-	Security = { Torso = Color3.fromRGB(40, 60, 130), Arms = Color3.fromRGB(40, 60, 130), Legs = Color3.fromRGB(30, 30, 40), Head = Color3.fromRGB(245, 205, 160), Hat = "Cap", HatColor = Color3.fromRGB(30, 45, 100) },
-	Sleepy = { Torso = Color3.fromRGB(60, 80, 150), Arms = Color3.fromRGB(60, 80, 150), Legs = Color3.fromRGB(40, 40, 55), Head = Color3.fromRGB(245, 205, 160), Hat = "Nightcap", HatColor = Color3.fromRGB(80, 120, 220) },
-	Robot = { Torso = Color3.fromRGB(150, 160, 175), Arms = Color3.fromRGB(120, 130, 145), Legs = Color3.fromRGB(100, 105, 120), Head = Color3.fromRGB(170, 180, 195), Hat = "Antenna", HatColor = Color3.fromRGB(90, 255, 140), Material = Enum.Material.Metal, BoxHead = true },
-	Mummy = { Torso = Color3.fromRGB(225, 215, 185), Arms = Color3.fromRGB(225, 215, 185), Legs = Color3.fromRGB(215, 205, 175), Head = Color3.fromRGB(230, 220, 190), Hat = "None", HatColor = Color3.fromRGB(0, 0, 0), Material = Enum.Material.Fabric, GlowEyes = Color3.fromRGB(120, 255, 170) },
-	Soldier = { Torso = Color3.fromRGB(95, 110, 70), Arms = Color3.fromRGB(95, 110, 70), Legs = Color3.fromRGB(75, 85, 55), Head = Color3.fromRGB(220, 180, 140), Hat = "Helmet", HatColor = Color3.fromRGB(80, 95, 60), Shades = true },
-	Elite = { Torso = Color3.fromRGB(25, 25, 30), Arms = Color3.fromRGB(25, 25, 30), Legs = Color3.fromRGB(20, 20, 25), Head = Color3.fromRGB(240, 200, 160), Hat = "Earpiece", HatColor = Color3.fromRGB(255, 200, 60), Shades = true, Tie = true },
+	Security = {
+		Torso = Color3.fromRGB(40, 60, 130),
+		Arms = Color3.fromRGB(40, 60, 130),
+		Legs = Color3.fromRGB(30, 30, 40),
+		Head = Color3.fromRGB(245, 205, 160),
+		Hat = "Cap",
+		HatColor = Color3.fromRGB(30, 45, 100),
+	},
+	Sleepy = {
+		Torso = Color3.fromRGB(60, 80, 150),
+		Arms = Color3.fromRGB(60, 80, 150),
+		Legs = Color3.fromRGB(40, 40, 55),
+		Head = Color3.fromRGB(245, 205, 160),
+		Hat = "Nightcap",
+		HatColor = Color3.fromRGB(80, 120, 220),
+	},
+	Robot = {
+		Torso = Color3.fromRGB(150, 160, 175),
+		Arms = Color3.fromRGB(120, 130, 145),
+		Legs = Color3.fromRGB(100, 105, 120),
+		Head = Color3.fromRGB(170, 180, 195),
+		Hat = "Antenna",
+		HatColor = Color3.fromRGB(90, 255, 140),
+		Material = Enum.Material.Metal,
+		BoxHead = true,
+	},
+	Mummy = {
+		Torso = Color3.fromRGB(225, 215, 185),
+		Arms = Color3.fromRGB(225, 215, 185),
+		Legs = Color3.fromRGB(215, 205, 175),
+		Head = Color3.fromRGB(230, 220, 190),
+		Hat = "None",
+		HatColor = Color3.fromRGB(0, 0, 0),
+		Material = Enum.Material.Fabric,
+		GlowEyes = Color3.fromRGB(120, 255, 170),
+	},
+	Soldier = {
+		Torso = Color3.fromRGB(95, 110, 70),
+		Arms = Color3.fromRGB(95, 110, 70),
+		Legs = Color3.fromRGB(75, 85, 55),
+		Head = Color3.fromRGB(220, 180, 140),
+		Hat = "Helmet",
+		HatColor = Color3.fromRGB(80, 95, 60),
+		Shades = true,
+	},
+	Elite = {
+		Torso = Color3.fromRGB(25, 25, 30),
+		Arms = Color3.fromRGB(25, 25, 30),
+		Legs = Color3.fromRGB(20, 20, 25),
+		Head = Color3.fromRGB(240, 200, 160),
+		Hat = "Earpiece",
+		HatColor = Color3.fromRGB(255, 200, 60),
+		Shades = true,
+		Tie = true,
+	},
 }
 
 function GuardService:Init(services)
@@ -106,7 +161,15 @@ local function motor(name: string, part0: BasePart, part1: BasePart, c0: CFrame,
 	m.Parent = part0
 end
 
-local function accessory(model: Model, head: BasePart, size: Vector3, offset: CFrame, color: Color3, material: Enum.Material?, shape: Enum.PartType?): Part
+local function accessory(
+	model: Model,
+	head: BasePart,
+	size: Vector3,
+	offset: CFrame,
+	color: Color3,
+	material: Enum.Material?,
+	shape: Enum.PartType?
+): Part
 	local p = part(model, "Accessory", size, color, material)
 	if shape then
 		p.Shape = shape
@@ -163,37 +226,127 @@ local function buildRig(styleName: string, position: Vector3): Model
 	local axis = CFrame.fromMatrix(Vector3.zero, Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1))
 	motor("RootJoint", root, torso, axis, axis)
 	motor("Neck", torso, head, CFrame.new(0, 1, 0) * axis, CFrame.new(0, -0.5, 0) * axis)
-	motor("Right Shoulder", torso, rightArm, CFrame.new(1, 0.5, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0), CFrame.new(-0.5, 0.5, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0))
-	motor("Left Shoulder", torso, leftArm, CFrame.new(-1, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0), CFrame.new(0.5, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0))
-	motor("Right Hip", torso, rightLeg, CFrame.new(1, -1, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0), CFrame.new(0.5, 1, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0))
-	motor("Left Hip", torso, leftLeg, CFrame.new(-1, -1, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0), CFrame.new(-0.5, 1, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0))
+	motor(
+		"Right Shoulder",
+		torso,
+		rightArm,
+		CFrame.new(1, 0.5, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0),
+		CFrame.new(-0.5, 0.5, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0)
+	)
+	motor(
+		"Left Shoulder",
+		torso,
+		leftArm,
+		CFrame.new(-1, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0),
+		CFrame.new(0.5, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0)
+	)
+	motor(
+		"Right Hip",
+		torso,
+		rightLeg,
+		CFrame.new(1, -1, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0),
+		CFrame.new(0.5, 1, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0)
+	)
+	motor(
+		"Left Hip",
+		torso,
+		leftLeg,
+		CFrame.new(-1, -1, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0),
+		CFrame.new(-0.5, 1, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0)
+	)
 
 	-- Style accessories
 	if style.Hat == "Cap" then
 		accessory(model, head, Vector3.new(1.35, 0.45, 1.3), CFrame.new(0, 0.6, 0), style.HatColor)
 		accessory(model, head, Vector3.new(1.3, 0.12, 0.6), CFrame.new(0, 0.42, -0.85), style.HatColor)
-		accessory(model, head, Vector3.new(0.3, 0.3, 0.05), CFrame.new(0, 0.62, -0.66), Color3.fromRGB(255, 205, 60), Enum.Material.Neon)
+		accessory(
+			model,
+			head,
+			Vector3.new(0.3, 0.3, 0.05),
+			CFrame.new(0, 0.62, -0.66),
+			Color3.fromRGB(255, 205, 60),
+			Enum.Material.Neon
+		)
 	elseif style.Hat == "Nightcap" then
 		accessory(model, head, Vector3.new(1.3, 0.6, 1.3), CFrame.new(0, 0.6, 0), style.HatColor)
-		accessory(model, head, Vector3.new(0.5, 0.5, 0.5), CFrame.new(0.5, 0.9, 0.4), Color3.new(1, 1, 1), nil, Enum.PartType.Ball)
+		accessory(
+			model,
+			head,
+			Vector3.new(0.5, 0.5, 0.5),
+			CFrame.new(0.5, 0.9, 0.4),
+			Color3.new(1, 1, 1),
+			nil,
+			Enum.PartType.Ball
+		)
 	elseif style.Hat == "Antenna" then
-		accessory(model, head, Vector3.new(0.15, 1, 0.15), CFrame.new(0, 1, 0), Color3.fromRGB(80, 80, 90), Enum.Material.Metal)
-		accessory(model, head, Vector3.new(0.35, 0.35, 0.35), CFrame.new(0, 1.55, 0), style.HatColor, Enum.Material.Neon, Enum.PartType.Ball)
-		accessory(model, head, Vector3.new(1.6, 0.25, 0.1), CFrame.new(0, 0.1, -0.55), style.HatColor, Enum.Material.Neon)
+		accessory(
+			model,
+			head,
+			Vector3.new(0.15, 1, 0.15),
+			CFrame.new(0, 1, 0),
+			Color3.fromRGB(80, 80, 90),
+			Enum.Material.Metal
+		)
+		accessory(
+			model,
+			head,
+			Vector3.new(0.35, 0.35, 0.35),
+			CFrame.new(0, 1.55, 0),
+			style.HatColor,
+			Enum.Material.Neon,
+			Enum.PartType.Ball
+		)
+		accessory(
+			model,
+			head,
+			Vector3.new(1.6, 0.25, 0.1),
+			CFrame.new(0, 0.1, -0.55),
+			style.HatColor,
+			Enum.Material.Neon
+		)
 		face:Destroy()
 	elseif style.Hat == "Helmet" then
-		local helmet = accessory(model, head, Vector3.new(1.45, 1.45, 1.45), CFrame.new(0, 0.35, 0), style.HatColor, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+		local helmet = accessory(
+			model,
+			head,
+			Vector3.new(1.45, 1.45, 1.45),
+			CFrame.new(0, 0.35, 0),
+			style.HatColor,
+			Enum.Material.SmoothPlastic,
+			Enum.PartType.Ball
+		)
 		helmet.Name = "Helmet"
 	elseif style.Hat == "Earpiece" then
-		accessory(model, head, Vector3.new(0.12, 0.6, 0.12), CFrame.new(0.68, -0.1, 0), style.HatColor, Enum.Material.Neon)
+		accessory(
+			model,
+			head,
+			Vector3.new(0.12, 0.6, 0.12),
+			CFrame.new(0.68, -0.1, 0),
+			style.HatColor,
+			Enum.Material.Neon
+		)
 	end
 	if style.Shades then
 		accessory(model, head, Vector3.new(1.15, 0.22, 0.1), CFrame.new(0, 0.18, -0.6), Color3.fromRGB(15, 15, 20))
 	end
 	if style.GlowEyes then
 		face:Destroy()
-		accessory(model, head, Vector3.new(0.18, 0.12, 0.05), CFrame.new(-0.25, 0.15, -0.6), style.GlowEyes, Enum.Material.Neon)
-		accessory(model, head, Vector3.new(0.18, 0.12, 0.05), CFrame.new(0.25, 0.15, -0.6), style.GlowEyes, Enum.Material.Neon)
+		accessory(
+			model,
+			head,
+			Vector3.new(0.18, 0.12, 0.05),
+			CFrame.new(-0.25, 0.15, -0.6),
+			style.GlowEyes,
+			Enum.Material.Neon
+		)
+		accessory(
+			model,
+			head,
+			Vector3.new(0.18, 0.12, 0.05),
+			CFrame.new(0.25, 0.15, -0.6),
+			style.GlowEyes,
+			Enum.Material.Neon
+		)
 	end
 	if style.Tie then
 		local tie = part(model, "Tie", Vector3.new(0.3, 1.2, 0.05), Color3.fromRGB(200, 30, 40))
@@ -242,7 +395,19 @@ local function bark(guard: Guard, kind: string)
 	end
 end
 
-local function spawnGuard(style: string, position: Vector3, patrol: { Vector3 }, options: { ZoneId: string?, PlotIndex: number?, Leash: number, PatrolSpeed: number, ChaseSpeed: number, Sight: number }): Guard
+local function spawnGuard(
+	style: string,
+	position: Vector3,
+	patrol: { Vector3 },
+	options: {
+		ZoneId: string?,
+		PlotIndex: number?,
+		Leash: number,
+		PatrolSpeed: number,
+		ChaseSpeed: number,
+		Sight: number,
+	}
+): Guard
 	local model = buildRig(style, position + Vector3.new(0, 1, 0))
 	model.Parent = folder
 	model.PrimaryPart:SetNetworkOwner(nil)
@@ -431,7 +596,10 @@ local function updateGuard(guard: Guard, ignore: { Instance })
 			if proot and isHostile(guard, player) then
 				local distance = (proot.Position - position).Magnitude
 				local alerted = guard.ZoneId and S.SecurityService:IsWanted(player, guard.ZoneId)
-				if (distance < bestDistance or (alerted and distance < guard.Leash)) and (alerted or lineOfSight(position + Vector3.new(0, 1.5, 0), proot.Position, ignore)) then
+				if
+					(distance < bestDistance or (alerted and distance < guard.Leash))
+					and (alerted or lineOfSight(position + Vector3.new(0, 1.5, 0), proot.Position, ignore))
+				then
 					target = player
 					bestDistance = distance
 				end
@@ -459,7 +627,10 @@ local function updateGuard(guard: Guard, ignore: { Instance })
 		local proot = S.PlayerService:GetRoot(target) :: BasePart
 		guard.Humanoid.WalkSpeed = guard.ChaseSpeed
 		moveToward(guard, proot.Position, ignore)
-		if (proot.Position - position).Magnitude <= GameConfig.Security.GuardTackleRange and os.clock() >= guard.TackleReadyAt then
+		if
+			(proot.Position - position).Magnitude <= GameConfig.Security.GuardTackleRange
+			and os.clock() >= guard.TackleReadyAt
+		then
 			guard.TackleReadyAt = os.clock() + 2.2
 			guard.Ignore[target] = os.clock() + 4
 			bark(guard, "Tackle")

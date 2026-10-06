@@ -46,10 +46,24 @@ function AchievementService:Check(player: Player, stat: string?)
 				data.Titles[achievement.Title] = true
 				S.DataService:MarkChanged(player, "Titles")
 			end
-			S.AnnouncementService:Notify(player, "reward", string.format("%s ACHIEVEMENT: %s  +%d 💎%s", achievement.Icon, achievement.Name, achievement.Gems, achievement.Title and ("  + Title «" .. achievement.Title .. "»") or ""), { Big = true })
+			S.AnnouncementService:Notify(
+				player,
+				"reward",
+				string.format(
+					"%s ACHIEVEMENT: %s  +%d 💎%s",
+					achievement.Icon,
+					achievement.Name,
+					achievement.Gems,
+					achievement.Title and ("  + Title «" .. achievement.Title .. "»") or ""
+				),
+				{ Big = true }
+			)
 			S.AnnouncementService:Effect("Achievement", { UserId = player.UserId, Id = achievement.Id }, nil)
 			if achievement.Hidden or achievement.Gems >= 100 then
-				S.AnnouncementService:Feed("🏅", string.format("<b>%s</b> unlocked <b>%s</b>!", S.AnnouncementService.name(player), achievement.Name))
+				S.AnnouncementService:Feed(
+					"🏅",
+					string.format("<b>%s</b> unlocked <b>%s</b>!", S.AnnouncementService.name(player), achievement.Name)
+				)
 			end
 		end
 	end
