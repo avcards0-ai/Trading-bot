@@ -331,6 +331,15 @@ local ORDER = {
 	"WorldFXController",
 	"OnboardingController",
 }
+-- Capture RunService.Stepped so per-frame logic (the punch animation) can be driven here.
+local steppedHandlers = {}
+services.RunService.Stepped = {
+	Connect = function(_, fn)
+		table.insert(steppedHandlers, fn)
+		return { Disconnect = function() end, Connected = true }
+	end,
+}
+
 local controllers = {}
 test("require every controller", function()
 	for _, name in ORDER do
@@ -550,6 +559,52 @@ test("character actions don't error without a character", function()
 	controllers.CharacterController:Dash()
 	controllers.CharacterController:ToggleWheel()
 	controllers.CharacterController:ToggleWheel()
+end)
+
+test("punch swings the arm, then resets it (R15 + R6)", function()
+	local identity = roblox.CFrame.identity
+	local holder = wrap(roblox.Instance.new("Folder"))
+	for _, r15 in { true, false } do
+		local character = wrap(roblox.Instance.new("Model"))
+		local function joint(partName: string, jointName: string)
+			local part = wrap(roblox.Instance.new("Part"))
+			part.Name = partName
+			part.Parent = character
+			local motor = wrap(roblox.Instance.new("Motor6D"))
+			motor.Name = jointName
+			motor.Parent = part
+			return motor
+		end
+		local shoulder, elbow
+		if r15 then
+			shoulder = joint("RightUpperArm", "RightShoulder")
+			elbow = joint("RightLowerArm", "RightElbow")
+			joint("UpperTorso", "Waist")
+			local hand = wrap(roblox.Instance.new("Part"))
+			hand.Name = "RightHand"
+			hand.Parent = character
+		else
+			shoulder = joint("Torso", "Right Shoulder")
+			local arm = wrap(roblox.Instance.new("Part"))
+			arm.Name = "Right Arm"
+			arm.Parent = character
+		end
+		character.Parent = holder
+		controllers.WorldFXController:Punch(character)
+		task.wait(0.05) -- wind-up / jab: the arm is moving and the elbow is bent
+		for _, step in steppedHandlers do
+			step(0, 1 / 60)
+		end
+		check(shoulder.Transform ~= identity, "the arm should be mid-punch")
+		if elbow then
+			check(elbow.Transform ~= identity, "the elbow should bend during the punch")
+		end
+		task.wait(0.4)
+		for _, step in steppedHandlers do
+			step(0, 1 / 60)
+		end
+		check(shoulder.Transform == identity, "the arm should return to normal after the punch")
+	end
 end)
 
 local failures = H.summary()

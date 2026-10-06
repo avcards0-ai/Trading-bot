@@ -82,6 +82,8 @@ function CharacterController:Bonk()
 	lastBonk = now
 	self:StopEmote()
 	Net.event("Bonk"):FireServer(targetHint(root))
+	controllers.WorldFXController:Punch(root.Parent)
+	controllers.SoundController:PlayAt("Whoosh", root.Position)
 	controllers.HUDController:SetCooldown("Bonk", GameConfig.Combat.BonkCooldown)
 	controllers.EffectsController:FovPunch(-4)
 end

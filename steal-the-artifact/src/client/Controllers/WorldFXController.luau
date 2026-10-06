@@ -1,7 +1,7 @@
 --[[
 	WorldFXController
-	World-space VFX driven by the server's unreliable "Effect" remote (steal bursts, BONK
-	popups, secure confetti, meteors...) plus status visuals on every character:
+	World-space VFX driven by the server's unreliable "Effect" remote (punches, steal bursts,
+	BONK popups, secure confetti, meteors...) plus status visuals on every character:
 	dizzy stars, WANTED / MARKED highlights, hot-loot beacons, bounties and the unique
 	effects of SECRET artifacts. Also renders guard speech bubbles.
 ]]
@@ -140,53 +140,89 @@ local function ring(position: Vector3, color: Color3, radius: number, duration: 
 	Debris:AddItem(part, duration + 0.1)
 end
 
--- Cartoon hammer swing on any character ("Swing" effect).
-local function swingHammer(character: Model)
-	local arm = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
-	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not arm or not root then
-		return
+-- Punch ("Swing" effect) --------------------------------------------------------------------
+-- A right jab: wind up, punch, recover. The Animator writes Motor6D.Transform before
+-- RunService.Stepped, so setting it there layers the punch over walking/idle animations.
+
+local PUNCH_TIME = 0.34
+local punches: { [Model]: { Start: number, Popped: boolean } } = {}
+
+-- Shoulder raise, elbow bend and waist twist (radians) at progress t (0..1).
+local function punchPose(t: number): (number, number, number)
+	if t < 0.22 then -- wind up
+		local a = t / 0.22
+		return -0.4 * a, 1.3 * a, -0.35 * a
+	elseif t < 0.45 then -- jab
+		local a = (t - 0.22) / 0.23
+		local e = 1 - (1 - a) ^ 3
+		return -0.4 + 2 * e, 1.3 * (1 - e), -0.35 + 0.8 * e
 	end
-	local model = Instance.new("Model")
-	model.Name = "BonkHammer"
-	local handle = Instance.new("Part")
-	handle.Size = Vector3.new(0.4, 3.2, 0.4)
-	handle.Color = Color3.fromRGB(150, 100, 60)
-	handle.Material = Enum.Material.Wood
-	local head = Instance.new("Part")
-	head.Shape = Enum.PartType.Cylinder
-	head.Size = Vector3.new(2.6, 1.8, 1.8)
-	head.Color = Color3.fromRGB(255, 80, 120)
-	head.Material = Enum.Material.SmoothPlastic
-	for _, part in { handle, head } do
-		part.Anchored = true
-		part.CanCollide = false
-		part.CanQuery = false
-		part.CanTouch = false
-		part.Massless = true
-		part.Parent = model
+	local a = (t - 0.45) / 0.55 -- recover
+	local e = a * a * (3 - 2 * a)
+	return 1.6 * (1 - e), 0, 0.45 * (1 - e)
+end
+
+local function punchJoints(character: Model): (Motor6D?, Motor6D?, Motor6D?, boolean)
+	local upperArm = character:FindFirstChild("RightUpperArm")
+	if upperArm then
+		local lowerArm = character:FindFirstChild("RightLowerArm")
+		local upperTorso = character:FindFirstChild("UpperTorso")
+		return upperArm:FindFirstChild("RightShoulder") :: Motor6D?,
+			lowerArm and lowerArm:FindFirstChild("RightElbow") :: Motor6D?,
+			upperTorso and upperTorso:FindFirstChild("Waist") :: Motor6D?,
+			true
 	end
-	model.Parent = fxFolder
-	local start = os.clock()
-	local connection
-	connection = RunService.RenderStepped:Connect(function()
-		local t = math.clamp((os.clock() - start) / 0.28, 0, 1)
-		if not arm.Parent then
-			connection:Disconnect()
-			model:Destroy()
-			return
+	local torso = character:FindFirstChild("Torso")
+	return torso and torso:FindFirstChild("Right Shoulder") :: Motor6D?, nil, nil, false
+end
+
+local function stepPunches()
+	local now = os.clock()
+	for character, punch in punches do
+		local t = (now - punch.Start) / PUNCH_TIME
+		local shoulder, elbow, waist, r15 = punchJoints(character)
+		if t >= 1 or not character.Parent or not shoulder then
+			punches[character] = nil
+			for _, joint in { shoulder, elbow, waist } do
+				if joint then
+					joint.Transform = CFrame.identity
+				end
+			end
+			continue
 		end
-		local angle = math.rad(-110 + t * 200)
-		local base = root.CFrame * CFrame.new(0.9, 1.2, -0.5) * CFrame.Angles(angle, 0, 0)
-		handle.CFrame = base * CFrame.new(0, 1.6, 0)
-		head.CFrame = base * CFrame.new(0, 3.3, 0) * CFrame.Angles(0, math.rad(90), 0)
-		if t >= 1 then
-			connection:Disconnect()
-			task.delay(0.08, function()
-				model:Destroy()
-			end)
+		local raise, bend, twist = punchPose(t)
+		if r15 then
+			-- R15 joints rotate about X to swing the arm forward.
+			shoulder.Transform = CFrame.Angles(raise, 0, 0)
+			if elbow then
+				elbow.Transform = CFrame.Angles(bend, 0, 0)
+			end
+			if waist then
+				waist.Transform = CFrame.Angles(0, twist, 0)
+			end
+		else
+			-- R6 shoulders rotate about their local Z axis.
+			shoulder.Transform = CFrame.Angles(0, 0, raise)
 		end
-	end)
+		if not punch.Popped and t >= 0.42 then
+			punch.Popped = true
+			local fist = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
+			if fist and fist:IsA("BasePart") then
+				local reach = (fist.CFrame * CFrame.new(0, -1, 0)).Position -- just past the knuckles
+				burst(reach, Color3.fromRGB(255, 255, 255), 6, {
+					Texture = SMOKE,
+					Speed = 5,
+					Size = 1.4,
+					Lifetime = 0.35,
+					Acceleration = Vector3.zero,
+				})
+			end
+		end
+	end
+end
+
+local function punch(character: Model)
+	punches[character] = { Start = os.clock(), Popped = false }
 end
 
 -- Meteor -------------------------------------------------------------------------------------
@@ -348,9 +384,10 @@ HANDLERS.FailPop = function(data)
 end
 
 HANDLERS.Swing = function(data)
-	local character = characterOf(data.UserId)
+	-- Your own punch already played the moment you pressed the button.
+	local character = data.UserId ~= player.UserId and characterOf(data.UserId)
 	if character then
-		swingHammer(character)
+		punch(character)
 		local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if root then
 			controllers.SoundController:PlayAt("Whoosh", root.Position)
@@ -739,7 +776,13 @@ local function watchGuard(guard: Instance)
 	end)
 end
 
+-- Plays the punch right away for the local player (no waiting on the server).
+function WorldFXController:Punch(character: Model)
+	punch(character)
+end
+
 function WorldFXController:Start()
+	RunService.Stepped:Connect(stepPunches)
 	fxFolder = Instance.new("Folder")
 	fxFolder.Name = "ClientFX"
 	fxFolder.Parent = workspace
