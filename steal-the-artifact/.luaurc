@@ -1,0 +1,8 @@
+{
+  "languageMode": "nonstrict",
+  "lint": {
+    "*": true,
+    "LocalShadow": false,
+    "ImplicitReturn": false
+  }
+}
