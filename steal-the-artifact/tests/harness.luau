@@ -379,6 +379,11 @@ local function paramsStub()
 		end,
 	}
 end
+env.TweenInfo = (roblox :: any).TweenInfo or {
+	new = function(...)
+		return { ... }
+	end,
+}
 env.RaycastParams = paramsStub()
 env.OverlapParams = paramsStub()
 
@@ -392,6 +397,10 @@ Harness.ref = function(path: string, kind: string?)
 end
 Harness.roblox = roblox
 Harness.Attributes = attributes
+Harness.env = env
+Harness.services = services
+Harness.workspace = workspaceStub
+Harness.signalStub = signalStub
 
 -- Assertions ------------------------------------------------------------------------------------
 

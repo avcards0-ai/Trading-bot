@@ -143,7 +143,10 @@ function Components.label(props: LabelProps): TextLabel
 		Size = UDim2.fromScale(1, 1),
 	}
 	for key, value in props do
-		defaults[key] = value
+		-- MaxTextSize / NoConstraint are options for this helper, not TextLabel properties.
+		if key ~= "MaxTextSize" and key ~= "NoConstraint" then
+			defaults[key] = value
+		end
 	end
 	local label = new("TextLabel", defaults)
 	if not props.NoConstraint then

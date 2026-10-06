@@ -265,14 +265,17 @@ local function saveAsync(profile: Profile, release: boolean): boolean
 		return false
 	end
 	profile.Saving = true
+	local rejected = false
 	local ok, err = pcall(function()
 		store:UpdateAsync(profile.Key, function(stored)
 			stored = stored or {}
 			local lock = stored.Lock
 			if lock and lock.JobId ~= game.JobId then
 				-- Another server took over this session: never overwrite its data.
+				rejected = true
 				return nil
 			end
+			rejected = false
 			stored.Data = profile.Data
 			stored.Lock = if release then nil else { JobId = game.JobId, Time = os.time() }
 			stored.Meta = { Version = GameConfig.DataVersion, Updated = os.time() }
@@ -280,12 +283,25 @@ local function saveAsync(profile: Profile, release: boolean): boolean
 		end)
 	end)
 	profile.Saving = false
-	if ok then
+	if ok and not rejected then
 		profile.LastSave = os.clock()
+		return true
+	end
+	if rejected then
+		warn("[Data] Save skipped for " .. profile.Player.Name .. ": session is owned by another server")
+		-- Playing on would make progress that can never be saved; send them to their live session.
+		if not release and not profile.Released then
+			profile.Released = true
+			task.defer(function()
+				if profile.Player.Parent then
+					profile.Player:Kick("Your save was opened in another server. Please rejoin!")
+				end
+			end)
+		end
 	else
 		warn("[Data] Save failed for " .. profile.Player.Name .. ": " .. tostring(err))
 	end
-	return ok
+	return false
 end
 
 -- Public API ------------------------------------------------------------------------------

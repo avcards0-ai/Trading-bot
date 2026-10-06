@@ -253,12 +253,18 @@ rojo sourcemap default.project.json -o sourcemap.json
 luau-lsp analyze --platform=roblox --sourcemap=sourcemap.json \
   --definitions=@roblox=globalTypes.d.luau src
 
+# Property names passed through UI helper tables (not covered by luau-lsp)
+python3 tools/check_props.py globalTypes.d.luau src
+
 # Format
 stylua src tests
 
 # Headless tests: every module loads, config integrity, all 71 models build,
 # progression math, and the entire city generates with valid Instance properties
 lune run tests/run
+
+# Client smoke test: boots every controller, opens every window and presses every button
+lune run tests/client
 ```
 
 `globalTypes.d.luau` comes from the luau-lsp repo (`scripts/globalTypes.d.luau`).
