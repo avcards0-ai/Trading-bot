@@ -356,7 +356,7 @@ test("environment roads / border / scenery", function()
 	end
 	Environment.roads(root, cframes)
 	Environment.border(root)
-	Environment.scenery(root, cframes)
+	Environment.scenery(root)
 end)
 test("security devices install into a plot", function()
 	local Kit = H.require("src/server/Map/Kit.luau")
@@ -381,6 +381,93 @@ test("map size is reasonable", function()
 	end
 	print(string.format("      (%d parts in the generated city)", parts))
 	check(parts > 2000 and parts < 15000, "unexpected part count " .. parts)
+end)
+
+-- 6. Full city + baking it into a place file ----------------------------------------------------
+print("\nBaked city")
+local fullMap
+test("full city generates", function()
+	local MapBuilder = H.require("src/server/Map/MapBuilder.luau")
+	fullMap = MapBuilder.generate()
+	local parts, spawns = 0, 0
+	for _, child in fullMap.Root:GetDescendants() do
+		if child:IsA("BasePart") then
+			parts += 1
+			check(child.Anchored, child:GetFullName() .. " isn't anchored")
+		end
+		if child:IsA("SpawnLocation") then
+			spawns += 1
+			check(child.Neutral, "spawn should be neutral")
+		end
+	end
+	print(string.format("      (%d parts in the full city)", parts))
+	check(parts > 8000 and parts < 22000, "unexpected part count " .. parts)
+	check(spawns == 1, "expected exactly one SpawnLocation, found " .. spawns)
+end)
+
+local function same(a: any, b: any, path: string, seen: { [any]: any })
+	local ta, tb = typeof(a), typeof(b)
+	check(ta == tb, path .. ": " .. ta .. " became " .. tb)
+	if ta == "table" then
+		if seen[a] then
+			check(seen[a] == b, path .. ": shared table lost its identity")
+			return
+		end
+		seen[a] = b
+		for key, value in a do
+			same(value, b[key], path .. "." .. tostring(key), seen)
+		end
+		for key in b do
+			check(a[key] ~= nil, path .. ": unexpected key " .. tostring(key))
+		end
+	elseif ta == "Instance" then
+		check(a:GetFullName() == b:GetFullName(), path .. ": " .. a:GetFullName() .. " vs " .. b:GetFullName())
+	elseif ta == "CFrame" then
+		check(
+			(a.Position - b.Position).Magnitude < 1e-3
+				and a.LookVector:Dot(b.LookVector) > 0.99999
+				and a.UpVector:Dot(b.UpVector) > 0.99999,
+			path .. ": CFrame changed"
+		)
+	elseif ta == "Vector3" then
+		check((a - b).Magnitude < 1e-3, path .. ": Vector3 changed")
+	elseif ta == "number" then
+		check(math.abs(a - b) < 1e-4, path .. ": " .. a .. " vs " .. b)
+	else
+		check(a == b, path .. ": " .. tostring(a) .. " vs " .. tostring(b))
+	end
+end
+
+test("baked city round-trips through a place file", function()
+	local MapBuilder = H.require("src/server/Map/MapBuilder.luau")
+	local MapSerializer = H.require("src/server/Map/MapSerializer.luau")
+	local place = Instance.new("DataModel")
+	fullMap.Root:SetAttribute("MapVersion", "test")
+	fullMap.Root.Parent = place:GetService("Workspace")
+	MapSerializer.store(place:GetService("ServerStorage"), fullMap, "test")
+	local copy = H.roblox.deserializePlace(H.roblox.serializePlace(place))
+	local loaded =
+		MapBuilder.loadPrebuilt(copy:GetService("Workspace"):FindFirstChild("Map"), copy:GetService("ServerStorage"))
+	check(loaded ~= nil, "prebuilt map didn't load")
+	same(fullMap, loaded, "map", {})
+end)
+
+test("mismatched or broken baked data falls back to generating", function()
+	local MapBuilder = H.require("src/server/Map/MapBuilder.luau")
+	local place = Instance.new("DataModel")
+	local root = Instance.new("Folder")
+	root.Name = "Map"
+	root:SetAttribute("MapVersion", "a")
+	root.Parent = place:GetService("Workspace")
+	check(MapBuilder.loadPrebuilt(root, place:GetService("ServerStorage")) == nil, "missing MapData should fail")
+	local module = Instance.new("ModuleScript")
+	module.Name = "MapData"
+	module:SetAttribute("MapVersion", "b")
+	module.Source = "return '{}'"
+	module.Parent = place:GetService("ServerStorage")
+	check(MapBuilder.loadPrebuilt(root, place:GetService("ServerStorage")) == nil, "version mismatch should fail")
+	module:SetAttribute("MapVersion", "a")
+	check(MapBuilder.loadPrebuilt(root, place:GetService("ServerStorage")) == nil, "bad data should fail")
 end)
 
 local failures = H.summary()

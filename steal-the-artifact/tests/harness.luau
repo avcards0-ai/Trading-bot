@@ -12,6 +12,7 @@ local fs = require("@lune/fs")
 local luau = require("@lune/luau")
 local roblox = require("@lune/roblox")
 local process = require("@lune/process")
+local serde = require("@lune/serde")
 
 local Harness = {}
 
@@ -246,6 +247,12 @@ services.TweenService = {
 	end,
 }
 services.HttpService = {
+	JSONEncode = function(_, value)
+		return serde.encode("json", value)
+	end,
+	JSONDecode = function(_, text)
+		return serde.decode("json", text)
+	end,
 	GenerateGUID = function()
 		return string.format(
 			"%08x-%04x-%04x",
@@ -299,6 +306,12 @@ local terrain = {
 	FillCylinder = function() end,
 	FillBall = function() end,
 	Clear = function() end,
+	CountCells = function()
+		return 0
+	end,
+	FindFirstChildOfClass = function()
+		return nil
+	end,
 }
 local workspaceStub = {
 	Terrain = terrain,
@@ -319,6 +332,12 @@ local workspaceStub = {
 local env: { [string]: any } = {}
 
 local function requireRef(ref: any)
+	if typeof(ref) == "Instance" and ref:IsA("ModuleScript") then
+		-- Generated modules (e.g. ServerStorage.MapData) live in the DataModel, not on disk.
+		local moduleEnv = table.clone(env)
+		moduleEnv.script = ref
+		return luau.load(ref.Source, { debugName = ref:GetFullName(), environment = moduleEnv })()
+	end
 	assert(type(ref) == "table" and ref.__path, "require() expects a module reference")
 	local path = ref.__path
 	if ref.__kind == "folder" then
@@ -371,6 +390,22 @@ for _, name in
 do
 	env[name] = (roblox :: any)[name]
 end
+-- Lune 0.8's CFrame.lookAt mirrors the Z axis of the look direction; use Roblox's math.
+do
+	local RobloxCFrame = (roblox :: any).CFrame
+	local Vector3 = (roblox :: any).Vector3
+	local function lookAt(at, target, up)
+		local look = (target - at).Unit
+		local upVector = up or Vector3.yAxis
+		local right = look:Cross(upVector)
+		if right.Magnitude < 1e-5 then
+			right = look:Cross(Vector3.zAxis)
+		end
+		right = right.Unit
+		return RobloxCFrame.fromMatrix(at, right, right:Cross(look))
+	end
+	env.CFrame = setmetatable({ lookAt = lookAt }, { __index = RobloxCFrame })
+end
 env.task = require("@lune/task")
 local function paramsStub()
 	return {
@@ -399,6 +434,10 @@ Harness.roblox = roblox
 Harness.Attributes = attributes
 Harness.env = env
 Harness.services = services
+-- Route game:GetService to another DataModel (e.g. a place file being edited).
+function Harness.useDataModel(model: any)
+	dataModel = model
+end
 Harness.workspace = workspaceStub
 Harness.signalStub = signalStub
 

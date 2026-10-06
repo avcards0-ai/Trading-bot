@@ -11,7 +11,7 @@ local Kit = require(script.Parent.Kit)
 local C = Kit.Colors
 local rgb = Kit.rgb
 
-local STEEL = rgb(120, 130, 145)
+local STEEL = rgb(138, 146, 160)
 local DARK_STEEL = rgb(70, 78, 92)
 local MARBLE = rgb(235, 235, 240)
 
@@ -74,6 +74,72 @@ return function(root: Instance)
 		rgb(120, 220, 255),
 		{ Font = Enum.Font.LuckiestGuy }
 	)
+
+	-- Bank-fortress dressing: marble pilasters, cornice, a crown with a gold dome
+	for x = -1, 1, 2 do
+		for z = -1, 1, 2 do
+			Kit.block(
+				folder,
+				Vector3.new(5, H + 1, 5),
+				b * CFrame.new(x * 40.5, H / 2 + 0.4, z * 40.5),
+				MARBLE,
+				Enum.Material.Marble,
+				"Pilaster"
+			)
+			Kit.block(
+				folder,
+				Vector3.new(6.4, 1.4, 6.4),
+				b * CFrame.new(x * 40.5, 1.1, z * 40.5),
+				rgb(200, 200, 206),
+				Enum.Material.Marble
+			)
+		end
+		-- Barred slit windows down each side
+		for i = -1, 1 do
+			local cf = b * CFrame.new(x * 41.6, 15, i * 22) * CFrame.Angles(0, math.rad(90), 0)
+			Kit.detail(Kit.block(folder, Vector3.new(4, 8, 0.4), cf, rgb(40, 60, 80), Enum.Material.Glass))
+			for bar = -1, 1 do
+				Kit.detail(
+					Kit.block(
+						folder,
+						Vector3.new(0.4, 8.4, 0.6),
+						cf * CFrame.new(bar * 1.2, 0, 0),
+						DARK_STEEL,
+						Enum.Material.Metal
+					)
+				)
+			end
+			Kit.detail(
+				Kit.block(folder, Vector3.new(5, 0.6, 1), cf * CFrame.new(0, -4.3, 0), MARBLE, Enum.Material.Marble)
+			)
+		end
+	end
+	Kit.block(folder, Vector3.new(86, 1.2, 86), b * CFrame.new(0, H + 2.8, 0), MARBLE, Enum.Material.Marble, "Cornice")
+	local crownY = H + 3.4
+	Kit.block(folder, Vector3.new(50, 6, 50), b * CFrame.new(0, crownY + 3, -6), STEEL, Enum.Material.Metal, "Crown")
+	Kit.block(folder, Vector3.new(53, 1.2, 53), b * CFrame.new(0, crownY + 6.4, -6), MARBLE, Enum.Material.Marble)
+	Kit.cyl(folder, 3, 28, b * CFrame.new(0, crownY + 8.5, -6), MARBLE, Enum.Material.Marble, "DomeBase")
+	Kit.ball(folder, 26, b * CFrame.new(0, crownY + 10, -6), C.Gold, Enum.Material.Foil).Name = "Dome"
+	Kit.cyl(folder, 4, 3, b * CFrame.new(0, crownY + 24.5, -6), MARBLE, Enum.Material.Marble)
+	local beacon = Kit.ball(folder, 3, b * CFrame.new(0, crownY + 27.6, -6), rgb(120, 220, 255), Enum.Material.Neon)
+	Kit.detail(beacon)
+	Kit.light(beacon, rgb(150, 230, 255), 2, 40)
+	-- Flags on the front corners
+	for x = -1, 1, 2 do
+		Kit.detail(
+			Kit.cyl(folder, 14, 0.5, b * CFrame.new(x * 40.5, H + 10.4, 40.5), rgb(220, 220, 225), Enum.Material.Metal)
+		)
+		Kit.detail(
+			Kit.block(
+				folder,
+				Vector3.new(0.2, 4, 7),
+				b * CFrame.new(x * 40.5, H + 15, 37),
+				rgb(30, 60, 120),
+				Enum.Material.Fabric
+			)
+		)
+		Kit.detail(Kit.ball(folder, 1, b * CFrame.new(x * 40.5, H + 17.6, 40.5), C.Gold, Enum.Material.Metal))
+	end
 
 	-- The giant round door
 	local doorModel = Kit.model("VaultDoor", folder, Enum.ModelStreamingMode.Atomic)

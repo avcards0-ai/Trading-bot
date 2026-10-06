@@ -9,24 +9,31 @@ zones (or from other players' vaults), physically carry them home while everyone
 bonk the loot out of your hands, and secure them on your vault's pad. Upgrade your gear and
 security, display your rarest pieces, then go raid someone else.
 
-The whole game is code: a [Rojo](https://rojo.space) project of ~24k lines of Luau. The
-city, every artifact model and all UI are generated procedurally, so there are no uploaded
-assets to manage.
+The whole game is code: a [Rojo](https://rojo.space) project of ~26k lines of Luau. The
+city, every artifact model and all UI are built from code, so there are no uploaded assets to
+manage. The city is baked into the place file, so it opens in Studio fully built and you can
+edit it there like any hand-made map.
 
 ---
 
 ## Quick start
 
-1. Install [Rojo](https://rojo.space/docs/v7/getting-started/installation/) 7.x and its
-   Studio plugin.
-2. From this folder run `rojo serve`, open a new Baseplate in Roblox Studio and click
-   **Connect** in the Rojo plugin. (Or build a place file: `rojo build -o StealTheArtifact.rbxl`.)
+1. Build the place file (or use a `StealTheArtifact.rbxl` you were given):
+   ```bash
+   rojo build default.project.json -o StealTheArtifact.rbxlx
+   lune run tools/build_place StealTheArtifact.rbxlx StealTheArtifact.rbxl
+   ```
+   The second step bakes the city into `Workspace.Map` (about 15,600 parts, with the spawn
+   point, lighting and post-processing). See [Baked map](#baked-map) below.
+2. Open `StealTheArtifact.rbxl` in Roblox Studio. To keep syncing code while you work, run
+   `rojo serve` and click **Connect** in the Rojo plugin.
 3. In **Game Settings**:
    - **Avatar → Avatar type: R15** (emotes and the ragdoll are tuned for R15; R6 works too).
    - **Places → Max players: 12** (one vault plot per player).
    - **Security → Enable Studio Access to API Services** if you want saving in Studio.
      Without it, the game automatically uses an in-memory store and everything still works.
-4. Press **Play**. The server generates the city (~4,600 parts) in about a second.
+4. Press **Play**. The server hooks up to the baked city instantly and adds the terrain
+   coastline (ocean, beach and hills), which only exists while the game runs.
 
 To test multiplayer interactions (bonks, raids), use **Test → Clients and Servers** with
 2-4 players.
@@ -62,12 +69,17 @@ To test multiplayer interactions (bonks, raids), use **Test → Clients and Serv
 | 🏪 **Central Marketplace** | Safe social hub: the Fence, Gear Shop, Drip Shop, Quest Board, Collection, Code Machine, daily chest, leaderboard walls and a fountain with a giant spinning diamond. | Commons for new players |
 | 🏛️ **Grand Artifact Museum** | Display cases, a laser-filled Gem Wing, a dinosaur skeleton, rotunda centerpiece, cameras and security guards. | Uncommon to Legendary |
 | 🧪 **Abandoned Laboratory** | Wrecked lab with specimen tubes, flickering lights, toxic puddles, a laser-locked containment room and robot guards. | Uncommon to Legendary |
-| 🗿 **Ancient Temple** | Stepped pyramid inside a real water moat, a hidden chamber with spike traps and golden energy beams, mummy guards. | Rare to Mythic |
+| 🗿 **Ancient Temple** | Stepped pyramid inside a stone-rimmed water moat, a hidden chamber with spike traps and golden energy beams, mummy guards. | Rare to Mythic |
 | 📦 **Military Warehouse** | Container maze, searchlight watchtowers, shelf racks and a laser-caged armory. | Common to Legendary |
 | 🕳️ **Secret Underground** | Glowing crystal caves under the city, reached through three hatches. Sticky mud and crystal spikes, no guards. One wall isn't real... | Rare to SECRET |
 | 🏦 **High-Security Vault** | A fortress whose giant round door only opens every 3 minutes. Sweeping lasers, cameras and elite guards. An emergency vent lets trapped thieves escape. | Epic to SECRET |
 
-Twelve vault plots form a ring around the city, linked by a ring road.
+Between the zones is a real town: shop-lined avenues out of the Marketplace, Downtown
+(north-west), the Financial District leading to the vault's gold dome (north-east), Old Town
+(south-east), Central Park with its pond and gazebo (south-west), suburbs further out and a
+forest belt around the coast. Twelve vault plots form a ring around the city, linked by a ring
+road with sidewalks and street lights. Players spawn on the pad in front of their own vault,
+looking out through its gate at the city.
 
 ### Rarities
 
@@ -180,7 +192,8 @@ src/
     RequestRouter.luau   the only client -> server request entry point
     PromptGuard.luau     validates ProximityPrompt holds
     GameEvents.luau      server event bus (quests / achievements listen here)
-    Map/                 procedural city builders
+    Map/                 city builders (zones, plots, roads, City districts, props in Kit)
+                         plus MapSerializer, which links the server to the baked map
     Services/            25 services (data, economy, carry, artifacts, plots, security,
                          guards, combat, raids, quests, events, leaderboards, shop, ...)
     Private/Codes.luau   promo codes (server-only)
@@ -189,7 +202,28 @@ src/
     Controllers/         data mirror, UI, HUD, effects, world animation, input, ...
     UI/                  theme, component kit, 3D previews, 10 windows
 tests/         headless Lune test suite
+tools/         build_place (bakes the city into a place file), check_props.py
 ```
+
+### Baked map
+
+`tools/build_place.luau` runs the same map builders the server uses and saves the result into
+the place file:
+
+- `Workspace.Map`: the whole city, visible and editable in Studio.
+- `ServerStorage.MapData`: the gameplay descriptors (spawn points, patrol routes, lasers,
+  cameras, traps, plots, hatches...) as JSON, with ObjectValues pointing at the map parts.
+
+At startup `MapBuilder.build` reads `MapData` and hooks up to the existing parts instead of
+regenerating anything, so changes you make in Studio stay. You can move scenery, recolor
+buildings or add your own builds freely. Avoid deleting gameplay parts (vault doors,
+pedestals, pads, hatches): if a referenced part is missing, or `Workspace.Map` and `MapData`
+come from different builds, the server warns in the output and generates a fresh city from
+code instead. After changing map code, rebuild the place (or delete `Workspace.Map`) to see
+it.
+
+Terrain can't be saved into a place file from outside Studio, so the coastline is the one
+thing created at runtime. It's skipped if you've sculpted terrain of your own.
 
 ### Security model
 
@@ -227,6 +261,9 @@ The server owns every outcome. Clients only *ask*.
   all client-side. World VFX use an `UnreliableRemoteEvent` and only go to nearby players.
 - Data replication is batched per frame and per key.
 - Low VFX mode cuts particles for older devices.
+- The city is ~15,600 anchored parts. Decorative pieces (windows, trims, foliage, signs) have
+  collisions, queries, touch events and shadows switched off, and everything streams in by
+  distance.
 
 ---
 
@@ -257,10 +294,11 @@ luau-lsp analyze --platform=roblox --sourcemap=sourcemap.json \
 python3 tools/check_props.py globalTypes.d.luau src
 
 # Format
-stylua src tests
+stylua src tests tools
 
 # Headless tests: every module loads, config integrity, all 71 models build,
-# progression math, and the entire city generates with valid Instance properties
+# progression math, the entire city generates with valid Instance properties, and the
+# baked map survives a save/load through a place file
 lune run tests/run
 
 # Client smoke test: boots every controller, opens every window and presses every button

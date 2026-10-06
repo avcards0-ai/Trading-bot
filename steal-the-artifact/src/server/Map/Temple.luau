@@ -1,6 +1,6 @@
 --[[
 	Ancient Temple - west of the Marketplace.
-	A stepped pyramid ringed by a real (terrain) water moat. Climb to the shrine on top or
+	A stepped pyramid ringed by a stone-rimmed water moat. Climb to the shrine on top or
 	sneak into the hidden chamber at its base: spike traps, golden energy beams, mummies,
 	and a stairwell down to the Underground.
 ]]
@@ -27,20 +27,54 @@ return function(root: Instance)
 	local traps = {}
 	local hatches = {}
 	local owner = "Zone:Temple"
-	local terrain = workspace.Terrain
 
-	-- Moat (terrain water) with two stone bridges
+	-- Moat: a stone-rimmed water channel (parts, so it's visible in Studio) with two bridges
 	local moat = {
-		{ CFrame = o * CFrame.new(0, -4, 61), Size = Vector3.new(132, 8, 10) },
-		{ CFrame = o * CFrame.new(0, -4, -61), Size = Vector3.new(132, 8, 10) },
-		{ CFrame = o * CFrame.new(-61, -4, 0), Size = Vector3.new(10, 8, 112) },
-		{ CFrame = o * CFrame.new(61, -4, 0), Size = Vector3.new(10, 8, 112) },
+		{ CFrame = o * CFrame.new(0, 0, 61), Size = Vector3.new(132, 1, 10) },
+		{ CFrame = o * CFrame.new(0, 0, -61), Size = Vector3.new(132, 1, 10) },
+		{ CFrame = o * CFrame.new(-61, 0, 0), Size = Vector3.new(10, 1, 112) },
+		{ CFrame = o * CFrame.new(61, 0, 0), Size = Vector3.new(10, 1, 112) },
 	}
 	for _, segment in moat do
-		terrain:FillBlock(segment.CFrame, segment.Size, Enum.Material.Water)
+		local size = segment.Size
+		local bed = Kit.block(
+			folder,
+			Vector3.new(size.X, 0.2, size.Z),
+			segment.CFrame * CFrame.new(0, 0.1, 0),
+			rgb(40, 96, 104),
+			Enum.Material.Slate,
+			"MoatBed"
+		)
+		bed.CastShadow = false
+		local water = Kit.block(
+			folder,
+			Vector3.new(size.X, 0.3, size.Z),
+			segment.CFrame * CFrame.new(0, 0.75, 0),
+			rgb(70, 160, 180),
+			Enum.Material.Glass,
+			"Water"
+		)
+		water.Transparency = 0.35
+		water.Reflectance = 0.1
+		Kit.detail(water)
 	end
-	Kit.block(folder, Vector3.new(16, 1.2, 14), o * CFrame.new(0, 0.2, 61), STONE, Enum.Material.Slate, "Bridge")
-	Kit.block(folder, Vector3.new(14, 1.2, 16), o * CFrame.new(-61, 0.2, 0), STONE, Enum.Material.Slate, "Bridge")
+	-- Rims around the outside and inside of the channel
+	for _, rim in
+		{
+			{ Vector3.new(134, 1, 1), Vector3.new(0, 0.5, 66.5) },
+			{ Vector3.new(134, 1, 1), Vector3.new(0, 0.5, -66.5) },
+			{ Vector3.new(1, 1, 134), Vector3.new(66.5, 0.5, 0) },
+			{ Vector3.new(1, 1, 134), Vector3.new(-66.5, 0.5, 0) },
+			{ Vector3.new(112, 1, 1), Vector3.new(0, 0.5, 55.5) },
+			{ Vector3.new(112, 1, 1), Vector3.new(0, 0.5, -55.5) },
+			{ Vector3.new(1, 1, 112), Vector3.new(55.5, 0.5, 0) },
+			{ Vector3.new(1, 1, 112), Vector3.new(-55.5, 0.5, 0) },
+		}
+	do
+		Kit.block(folder, rim[1], o * CFrame.new(rim[2]), STONE, Enum.Material.Slate, "MoatRim")
+	end
+	Kit.block(folder, Vector3.new(16, 1.2, 14), o * CFrame.new(0, 0.6, 61), STONE, Enum.Material.Slate, "Bridge")
+	Kit.block(folder, Vector3.new(14, 1.2, 16), o * CFrame.new(-61, 0.6, 0), STONE, Enum.Material.Slate, "Bridge")
 
 	-- Courtyard floor
 	local court = Kit.block(

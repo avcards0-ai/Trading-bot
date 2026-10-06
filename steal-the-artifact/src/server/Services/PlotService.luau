@@ -94,6 +94,12 @@ end
 
 -- Sign / pedestals ----------------------------------------------------------------------------
 
+local function setSignText(plot: any, text: string)
+	for _, label in plot.Sign.Labels or { plot.Sign.Label } do
+		label.Text = text
+	end
+end
+
 function PlotService:RefreshSign(player: Player)
 	local plot = self:GetPlot(player)
 	local data = S.DataService:Get(player)
@@ -101,11 +107,14 @@ function PlotService:RefreshSign(player: Player)
 		return
 	end
 	local rating = Security.rating(data.Security)
-	plot.Sign.Label.Text = string.format(
-		"<b>%s's VAULT</b>\n💎 %s on display · 🔒 %d%%",
-		Format.escape(player.DisplayName),
-		Format.cash(Progression.displayValue(data)),
-		rating
+	setSignText(
+		plot,
+		string.format(
+			"<b>%s's VAULT</b>\n💎 %s on display · 🔒 %d%%",
+			Format.escape(player.DisplayName),
+			Format.cash(Progression.displayValue(data)),
+			rating
+		)
 	)
 	plot.Folder:SetAttribute("OwnerUserId", player.UserId)
 	plot.Folder:SetAttribute("OwnerName", player.DisplayName)
@@ -223,7 +232,7 @@ function PlotService:Release(player: Player)
 	S.GuardService:ClearPlot(index)
 	self:CloseDoorNow(index)
 	plot.Door.Prompt.Enabled = false
-	plot.Sign.Label.Text = "EMPTY LOT"
+	setSignText(plot, "EMPTY LOT")
 	plot.Folder:SetAttribute("OwnerUserId", nil)
 	plot.Folder:SetAttribute("OwnerName", nil)
 	plot.Folder:SetAttribute("AlarmUntil", nil)

@@ -146,10 +146,56 @@ return function(root: Instance)
 		Vector3.new(110, 28, 60),
 		2,
 		OLIVE,
-		Enum.Material.CorrodedMetal,
+		Enum.Material.Metal,
 		{ Back = 30, Left = 12, Right = 12 },
 		18
 	)
+	-- Pitched hangar roof (ridge runs front to back) and corrugation ribs
+	Kit.gable(
+		folder,
+		w * CFrame.new(0, 34.75, 0) * CFrame.Angles(0, math.rad(90), 0),
+		Vector3.new(64, 10, 114),
+		rgb(150, 156, 150),
+		Enum.Material.Metal
+	)
+	local ribColor = DARK_OLIVE
+	for _, face in
+		{
+			{ CFrame.new(-56.2, 0, 0) * CFrame.Angles(0, math.rad(90), 0), 60, 7 },
+			{ CFrame.new(56.2, 0, 0) * CFrame.Angles(0, math.rad(-90), 0), 60, 7 },
+			{ CFrame.new(0, 0, 31.2), 110, 16 },
+			{ CFrame.new(0, 0, -31.2) * CFrame.Angles(0, math.pi, 0), 110, nil },
+		}
+	do
+		local width, gap = face[2], face[3]
+		for x = -width / 2 + 3, width / 2 - 3, 6 do
+			if not gap or math.abs(x) > gap then
+				Kit.detail(
+					Kit.block(
+						folder,
+						Vector3.new(0.6, 27.6, 0.4),
+						w * face[1] * CFrame.new(x, 14.1, 0),
+						ribColor,
+						Enum.Material.Metal
+					)
+				)
+			end
+		end
+	end
+	-- Floodlights on the front corners
+	for side = -1, 1, 2 do
+		local mount = w * CFrame.new(side * 52, 26, 31.6)
+		Kit.detail(Kit.block(folder, Vector3.new(0.6, 0.6, 2.4), mount, rgb(50, 50, 55), Enum.Material.Metal))
+		local lamp = Kit.block(
+			folder,
+			Vector3.new(3, 1.8, 1.2),
+			mount * CFrame.new(0, -0.6, 1.6) * CFrame.Angles(math.rad(-30), 0, 0),
+			rgb(255, 250, 220),
+			Enum.Material.Neon
+		)
+		Kit.detail(lamp)
+		Kit.light(lamp, rgb(255, 245, 210), 1.5, 36, "Spot")
+	end
 	Kit.block(
 		folder,
 		Vector3.new(112, 1.5, 62),

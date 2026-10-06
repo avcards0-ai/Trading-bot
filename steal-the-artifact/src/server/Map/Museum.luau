@@ -232,19 +232,40 @@ return function(root: Instance)
 		rgb(244, 240, 230),
 		Enum.Material.Marble
 	)
-	Kit.wedge(
-		folder,
-		Vector3.new(10, 10, (WIDTH + 6) / 2),
-		o * CFrame.new(-(WIDTH + 6) / 4, FLOOR_Y + HEIGHT + 5, frontZ + 5) * CFrame.Angles(0, math.rad(-90), 0),
-		rgb(244, 240, 230),
-		Enum.Material.Marble
-	)
-	Kit.wedge(
-		folder,
-		Vector3.new(10, 10, (WIDTH + 6) / 2),
-		o * CFrame.new((WIDTH + 6) / 4, FLOOR_Y + HEIGHT + 5, frontZ + 5) * CFrame.Angles(0, math.rad(90), 0),
-		rgb(244, 240, 230),
-		Enum.Material.Marble
+	-- Pediment: two wedges rising to a ridge over the middle of the portico.
+	for side = -1, 1, 2 do
+		Kit.wedge(
+			folder,
+			Vector3.new(10, 16, (WIDTH + 6) / 2),
+			o
+				* CFrame.new(side * (WIDTH + 6) / 4, FLOOR_Y + HEIGHT + 8, frontZ + 5)
+				* CFrame.Angles(0, math.rad(-side * 90), 0),
+			rgb(244, 240, 230),
+			Enum.Material.Marble
+		)
+		-- Raking cornice along each slope
+		local slope = math.atan2(16, (WIDTH + 6) / 2)
+		Kit.detail(
+			Kit.block(
+				folder,
+				Vector3.new((WIDTH + 6) / 2 / math.cos(slope) + 1, 1.2, 11),
+				o
+					* CFrame.new(side * (WIDTH + 6) / 4, FLOOR_Y + HEIGHT + 8.6, frontZ + 5)
+					* CFrame.Angles(0, 0, side * -slope),
+				rgb(226, 220, 206),
+				Enum.Material.Marble
+			)
+		)
+	end
+	Kit.detail(
+		Kit.cyl(
+			folder,
+			0.6,
+			7,
+			o * CFrame.new(0, FLOOR_Y + HEIGHT + 6, frontZ + 10.4) * CFrame.Angles(math.rad(90), 0, 0),
+			C.Gold,
+			Enum.Material.Metal
+		)
 	)
 	Kit.sign(
 		folder,

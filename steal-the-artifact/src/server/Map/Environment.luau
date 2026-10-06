@@ -1,7 +1,7 @@
 --[[
 	Environment
-	Terrain (island, beach, ocean, border hills), roads, lighting/post-processing, world
-	border and scattered scenery. Runs before the zone builders so they can carve into it.
+	Ground, terrain coastline (beach, ocean, hills), roads with sidewalks and street lights,
+	lighting/post-processing, the world border and the wild scenery around the city edge.
 ]]
 
 local Lighting = game:GetService("Lighting")
@@ -10,29 +10,54 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Zones = require(ReplicatedStorage.Shared.Config.Zones)
 local Kit = require(script.Parent.Kit)
+local Layout = require(script.Parent.Layout)
 
 local rgb = Kit.rgb
 
 local Environment = {}
 
+Environment.GrassColor = rgb(104, 150, 72)
+
+-- Terrain only exists in a running server (it can't be saved into the place file from
+-- outside Studio), so it is limited to the coastline: ocean, beach and the hills that
+-- ring the island. The walkable island itself is the Ground part below.
 function Environment.terrain()
 	local terrain = workspace.Terrain
 	local radius = GameConfig.Map.WorldRadius
 	terrain:Clear()
-	-- Ocean, beach ring, then the grassy island on top.
-	terrain:FillBlock(CFrame.new(0, -8, 0), Vector3.new(2000, 8, 2000), Enum.Material.Water)
-	terrain:FillBlock(CFrame.new(0, -16, 0), Vector3.new(2000, 8, 2000), Enum.Material.Sand)
-	terrain:FillCylinder(CFrame.new(0, -6, 0), 12, radius + 60, Enum.Material.Sand)
-	terrain:FillCylinder(CFrame.new(0, -6, 0), 12, radius + 10, Enum.Material.Grass)
-	-- Rolling border hills
+	terrain:FillBlock(CFrame.new(0, -8, 0), Vector3.new(2400, 8, 2400), Enum.Material.Water)
+	terrain:FillBlock(CFrame.new(0, -16, 0), Vector3.new(2400, 8, 2400), Enum.Material.Sand)
+	terrain:FillCylinder(CFrame.new(0, -7.5, 0), 12, radius + 70, Enum.Material.Sand)
+	terrain:FillCylinder(CFrame.new(0, -7, 0), 12, radius + 12, Enum.Material.Grass)
+	-- Rolling hills and rocky bluffs just outside the border wall.
 	local rng = Random.new(42)
-	for i = 1, 40 do
-		local angle = i / 40 * math.pi * 2
-		local r = radius + rng:NextNumber(-10, 25)
-		local size = rng:NextNumber(40, 70)
-		local material = (i % 3 == 0) and Enum.Material.Rock or Enum.Material.Grass
-		terrain:FillBall(Vector3.new(math.cos(angle) * r, -size * 0.35, math.sin(angle) * r), size, material)
+	for i = 1, 64 do
+		local angle = i / 64 * math.pi * 2 + rng:NextNumber(-0.03, 0.03)
+		local r = radius + rng:NextNumber(4, 30)
+		local size = rng:NextNumber(34, 78)
+		local material = (i % 5 == 0) and Enum.Material.Rock
+			or (i % 3 == 0 and Enum.Material.LeafyGrass)
+			or Enum.Material.Grass
+		terrain:FillBall(Vector3.new(math.cos(angle) * r, -size * 0.45, math.sin(angle) * r), size, material)
+		if i % 4 == 0 then
+			local peak = size * rng:NextNumber(0.35, 0.55)
+			terrain:FillBall(
+				Vector3.new(math.cos(angle) * (r + 12), size * 0.15, math.sin(angle) * (r + 12)),
+				peak,
+				Enum.Material.Rock
+			)
+		end
 	end
+end
+
+-- The walkable island: one big grass disc (visible in Studio too).
+function Environment.ground(root: Instance)
+	local radius = GameConfig.Map.WorldRadius + 6
+	local ground =
+		Kit.cyl(root, 2, radius * 2, CFrame.new(0, -1, 0), Environment.GrassColor, Enum.Material.Grass, "Ground")
+	ground.CastShadow = false
+	ground.CanTouch = false
+	return ground
 end
 
 function Environment.lighting()
@@ -83,7 +108,12 @@ function Environment.lighting()
 	rays.Intensity = 0.05
 	rays.Spread = 0.6
 	rays.Parent = Lighting
+end
 
+function Environment.clouds()
+	if workspace.Terrain:FindFirstChildOfClass("Clouds") then
+		return
+	end
 	local clouds = Instance.new("Clouds")
 	clouds.Cover = 0.55
 	clouds.Density = 0.6
@@ -91,79 +121,213 @@ function Environment.lighting()
 	clouds.Parent = workspace.Terrain
 end
 
-local function road(parent: Instance, from: Vector3, to: Vector3, width: number)
+local ASPHALT = rgb(62, 64, 70)
+local SIDEWALK = rgb(198, 194, 186)
+local CURB = rgb(170, 166, 160)
+
+type Gap = { Side: number, From: number, To: number } -- distances along the road
+
+-- Road from `from` to `to` with lane markings, raised sidewalks (with optional gaps where
+-- other roads join) and street lights every `lampSpacing` studs.
+local function road(
+	parent: Instance,
+	from: Vector3,
+	to: Vector3,
+	width: number,
+	options: {
+		Sidewalk: number?,
+		LampSpacing: number?,
+		LampOffset: number?,
+		Gaps: { Gap }?,
+		Overlap: number?,
+	}?
+)
+	local opts = options or {}
 	local delta = to - from
 	local length = delta.Magnitude
 	if length < 1 then
 		return
 	end
 	local cf = CFrame.lookAt((from + to) / 2, to)
+	local sidewalk = opts.Sidewalk or 6
+	Layout.addRoad(from, to, width / 2 + sidewalk)
+
 	local asphalt = Kit.block(
 		parent,
-		Vector3.new(width, 0.4, length),
+		Vector3.new(width, 0.4, length + (opts.Overlap or 0)),
 		cf * CFrame.new(0, 0.05, 0),
-		rgb(70, 72, 80),
+		ASPHALT,
 		Enum.Material.Asphalt,
 		"Road"
 	)
 	asphalt.CastShadow = false
 	local dashes = math.floor(length / 12)
 	for i = 0, dashes - 1 do
-		local dash = Kit.block(
-			parent,
-			Vector3.new(0.6, 0.42, 5),
-			cf * CFrame.new(0, 0.06, -length / 2 + 6 + i * 12),
-			rgb(255, 214, 70),
-			Enum.Material.SmoothPlastic
+		Kit.detail(
+			Kit.block(
+				parent,
+				Vector3.new(0.6, 0.42, 5),
+				cf * CFrame.new(0, 0.06, -length / 2 + 6 + i * 12),
+				rgb(250, 206, 70),
+				Enum.Material.SmoothPlastic
+			)
 		)
-		dash.CastShadow = false
-		dash.CanCollide = false
 	end
 	for side = -1, 1, 2 do
-		local curb = Kit.block(
-			parent,
-			Vector3.new(1, 0.6, length),
-			cf * CFrame.new(side * (width / 2 + 0.5), 0.1, 0),
-			rgb(200, 200, 205),
-			Enum.Material.Concrete
+		Kit.detail(
+			Kit.block(
+				parent,
+				Vector3.new(0.45, 0.42, length),
+				cf * CFrame.new(side * (width / 2 - 1.1), 0.06, 0),
+				rgb(236, 236, 230),
+				Enum.Material.SmoothPlastic
+			)
 		)
-		curb.CastShadow = false
+	end
+	if sidewalk <= 0 then
+		return
+	end
+
+	-- Sidewalk pieces, skipping any gaps on that side.
+	for side = -1, 1, 2 do
+		local pieces = { { 0, length } }
+		for _, gap in opts.Gaps or {} do
+			if gap.Side == side then
+				local nextPieces = {}
+				for _, piece in pieces do
+					if gap.To <= piece[1] or gap.From >= piece[2] then
+						table.insert(nextPieces, piece)
+					else
+						if gap.From > piece[1] + 1 then
+							table.insert(nextPieces, { piece[1], gap.From })
+						end
+						if gap.To < piece[2] - 1 then
+							table.insert(nextPieces, { gap.To, piece[2] })
+						end
+					end
+				end
+				pieces = nextPieces
+			end
+		end
+		for _, piece in pieces do
+			local a, b = piece[1], piece[2]
+			local extra = (a <= 0 and 1 or 0) + (b >= length and 1 or 0)
+			local mid = (a + b) / 2 - length / 2 + ((a <= 0 and -0.5 or 0) + (b >= length and 0.5 or 0))
+			local walk = Kit.block(
+				parent,
+				Vector3.new(sidewalk, 0.7, b - a + extra),
+				cf * CFrame.new(side * (width / 2 + sidewalk / 2), 0.35, -mid),
+				SIDEWALK,
+				Enum.Material.Pavement,
+				"Sidewalk"
+			)
+			walk.CastShadow = false
+			Kit.detail(
+				Kit.block(
+					parent,
+					Vector3.new(0.7, 0.75, b - a + extra),
+					cf * CFrame.new(side * (width / 2 + 0.35), 0.38, -mid),
+					CURB,
+					Enum.Material.Concrete
+				)
+			)
+		end
+	end
+
+	local spacing = opts.LampSpacing
+	if spacing then
+		local i = 0
+		local d = opts.LampOffset or spacing / 2
+		while d < length - 4 do
+			local side = (i % 2 == 0) and 1 or -1
+			local blocked = false
+			for _, gap in opts.Gaps or {} do
+				if gap.Side == side and d > gap.From - 4 and d < gap.To + 4 then
+					blocked = true
+				end
+			end
+			if not blocked then
+				local base = (cf * CFrame.new(side * (width / 2 + sidewalk - 1.2), 0.7, -(d - length / 2))).Position
+				local inward = (cf * CFrame.new(0, 0.7, -(d - length / 2))).Position
+				Kit.streetLamp(parent, CFrame.lookAt(base, Vector3.new(inward.X, base.Y, inward.Z)), 15)
+			end
+			i += 1
+			d += spacing
+		end
 	end
 end
 
+local function flatDir(v: Vector3): Vector3
+	return Vector3.new(v.X, 0, v.Z).Unit
+end
+
+-- Zone entrances along their spoke from the Marketplace.
+Environment.SpokeStops = { Museum = 268, Laboratory = 274, Temple = 281, Warehouse = 264, Vault = 420 }
+
 function Environment.roads(root: Instance, plotCFrames: { CFrame })
 	local folder = Kit.folder("Roads", root)
-	-- Spokes from the Marketplace to each surface zone's front entrance
-	local entrances = { Museum = 268, Laboratory = 274, Temple = 281, Warehouse = 264, Vault = 420 }
-	for zoneId, stop in entrances do
-		local zone = Zones.get(zoneId) :: any
-		local dir = Vector3.new(zone.Center.X, 0, zone.Center.Z).Unit
-		road(folder, dir * 100, dir * stop, 18)
-	end
-	-- Ring road around the city that every vault connects to
 	local ringRadius = GameConfig.Plots.Radius - 80
+
+	-- Avenues from the Marketplace to each surface zone's front entrance
+	for zoneId, stop in Environment.SpokeStops do
+		local zone = Zones.get(zoneId) :: any
+		local dir = flatDir(zone.Center)
+		road(folder, dir * 104, dir * stop, 18, { Sidewalk = 7, LampSpacing = 36 })
+	end
+
+	-- Ring road that every vault connects to. Sidewalks open up wherever a road joins.
+	-- { angle, side, half width }; going counter-clockwise, side +1 is the inner sidewalk.
+	local crossings = {}
+	for _, plotCF in plotCFrames do
+		local p = plotCF.Position
+		table.insert(crossings, { math.atan2(p.Z, p.X), -1, 8 })
+	end
+	for _, zoneId in { "Museum", "Laboratory", "Temple", "Warehouse" } do
+		local c = (Zones.get(zoneId) :: any).Center
+		table.insert(crossings, { math.atan2(c.Z, c.X), 1, 9 })
+	end
 	local segments = 48
+	local ringWidth = 16
 	for i = 0, segments - 1 do
 		local a0 = i / segments * math.pi * 2
 		local a1 = (i + 1) / segments * math.pi * 2
-		road(
-			folder,
-			Vector3.new(math.cos(a0), 0, math.sin(a0)) * ringRadius,
-			Vector3.new(math.cos(a1), 0, math.sin(a1)) * ringRadius,
-			16
-		)
+		local p0 = Vector3.new(math.cos(a0), 0, math.sin(a0)) * ringRadius
+		local p1 = Vector3.new(math.cos(a1), 0, math.sin(a1)) * ringRadius
+		local length = (p1 - p0).Magnitude
+		local gaps = {}
+		for _, crossing in crossings do
+			local angle, side, halfWidth = crossing[1], crossing[2], crossing[3]
+			local rel = (angle - a0) % (math.pi * 2)
+			if rel > math.pi then
+				rel -= math.pi * 2
+			end
+			local along = rel / (a1 - a0) * length
+			table.insert(gaps, { Side = side, From = along - halfWidth - 1, To = along + halfWidth + 1 })
+		end
+		road(folder, p0, p1, ringWidth, {
+			Sidewalk = 6,
+			Gaps = gaps,
+			LampSpacing = i % 2 == 0 and 200 or nil,
+			LampOffset = length / 2,
+			Overlap = 1.2,
+		})
 	end
+
+	-- Driveways from the ring out to every vault
 	for _, plotCF in plotCFrames do
 		local front = (plotCF * CFrame.new(0, 0, -48)).Position
-		local dir = Vector3.new(front.X, 0, front.Z).Unit
-		road(folder, dir * (ringRadius + 8), Vector3.new(front.X, 0, front.Z), 12)
+		local dir = flatDir(front)
+		road(folder, dir * (ringRadius + 7), Vector3.new(front.X, 0, front.Z), 12, { Sidewalk = 0 })
 	end
-	-- Ring road connectors to the zone spokes
+	-- Back roads from each zone to the ring
 	for _, zoneId in { "Museum", "Laboratory", "Temple", "Warehouse" } do
 		local zone = Zones.get(zoneId) :: any
-		local dir = Vector3.new(zone.Center.X, 0, zone.Center.Z).Unit
-		road(folder, dir * (zone.Center.Magnitude + zone.Radius - 10), dir * (ringRadius - 8), 14)
+		local dir = flatDir(zone.Center)
+		road(folder, dir * (zone.Center.Magnitude + zone.Radius - 10), dir * (ringRadius - 7), 14, {
+			Sidewalk = 0,
+		})
 	end
+	return ringRadius
 end
 
 function Environment.border(root: Instance)
@@ -188,75 +352,70 @@ function Environment.border(root: Instance)
 	end
 end
 
--- Scatter trees / rocks / flowers in open ground (away from zones, plots and roads).
-function Environment.scenery(root: Instance, plotCFrames: { CFrame })
+-- Wild edge of the island: a forest belt between the vaults, boulders and meadows.
+function Environment.scenery(root: Instance)
 	local folder = Kit.folder("Scenery", root)
 	local rng = Random.new(2024)
-	local function clear(pos: Vector3): boolean
-		for _, zone in Zones.List do
-			if
-				zone.Center.Y > -40
-				and (Vector3.new(zone.Center.X, 0, zone.Center.Z) - pos).Magnitude < zone.Radius + 40
-			then
-				return false
-			end
-		end
-		for _, cf in plotCFrames do
-			if (cf.Position - pos).Magnitude < 85 then
-				return false
-			end
-		end
-		local r = pos.Magnitude
-		if r < 130 or math.abs(r - (GameConfig.Plots.Radius - 80)) < 18 or r > GameConfig.Map.WorldRadius - 30 then
-			return false
-		end
-		-- Stay off the spoke roads (cardinal + north-east directions).
-		local angle = math.deg(math.atan2(pos.Z, pos.X)) % 360
-		for _, roadAngle in { 0, 90, 180, 270, 315 } do
-			local diff = math.abs(((angle - roadAngle) + 180) % 360 - 180)
-			if diff * math.pi / 180 * r < 18 then
-				return false
-			end
-		end
-		return true
-	end
+	local radius = GameConfig.Map.WorldRadius
+	local oak = { rgb(78, 150, 62), rgb(96, 160, 64), rgb(70, 136, 70), rgb(120, 168, 70) }
+	local autumn = { rgb(214, 128, 52), rgb(232, 176, 70), rgb(196, 84, 60) }
+
+	-- Forest belt
 	local placed = 0
-	local attempts = 0
-	while placed < 90 and attempts < 1500 do
-		attempts += 1
+	for _ = 1, 1400 do
+		if placed >= 170 then
+			break
+		end
 		local angle = rng:NextNumber(0, math.pi * 2)
-		local r = rng:NextNumber(130, GameConfig.Map.WorldRadius - 30)
+		local r = rng:NextNumber(radius - 125, radius - 26)
 		local pos = Vector3.new(math.cos(angle) * r, 0, math.sin(angle) * r)
-		if clear(pos) then
+		local scale = rng:NextNumber(0.9, 1.5)
+		if Layout.isFree(pos, 6 * scale, 4) then
+			Layout.claim(pos, 4 * scale)
 			placed += 1
 			local roll = rng:NextNumber()
-			if roll < 0.6 then
-				local leafColors = { rgb(70, 160, 70), rgb(90, 175, 60), rgb(255, 150, 190), rgb(230, 150, 60) }
-				Kit.tree(folder, pos, rng:NextNumber(0.8, 1.4), leafColors[rng:NextInteger(1, #leafColors)])
-			elseif roll < 0.8 then
-				local rock = Kit.block(
-					folder,
-					Vector3.new(rng:NextNumber(4, 9), rng:NextNumber(3, 6), rng:NextNumber(4, 9)),
-					CFrame.new(pos + Vector3.new(0, 1, 0))
-						* CFrame.Angles(rng:NextNumber(-0.3, 0.3), rng:NextNumber(0, 6), rng:NextNumber(-0.3, 0.3)),
-					rgb(140, 140, 150),
-					Enum.Material.Rock,
-					"Rock"
-				)
-				rock.CastShadow = true
+			if roll < 0.55 then
+				Kit.pine(folder, pos, scale * 1.15, rgb(48, 104, 66):Lerp(rgb(70, 126, 70), rng:NextNumber()))
+			elseif roll < 0.9 then
+				Kit.tree(folder, pos, scale, oak[rng:NextInteger(1, #oak)])
 			else
-				local colors = { rgb(255, 90, 120), rgb(255, 220, 80), rgb(150, 120, 255), rgb(255, 255, 255) }
-				for j = 1, 5 do
-					local flower = Kit.ball(
-						folder,
-						0.9,
-						CFrame.new(pos + Vector3.new(rng:NextNumber(-4, 4), 0.4, rng:NextNumber(-4, 4))),
-						colors[(j % #colors) + 1],
-						Enum.Material.SmoothPlastic
-					)
-					flower.CanCollide = false
-					flower.CastShadow = false
+				Kit.tree(folder, pos, scale, autumn[rng:NextInteger(1, #autumn)])
+			end
+			if rng:NextNumber() < 0.35 then
+				local offset = Vector3.new(rng:NextNumber(-7, 7), 0, rng:NextNumber(-7, 7))
+				if Layout.isFree(pos + offset, 3, 2) then
+					Kit.bush(folder, pos + offset, rng:NextNumber(0.8, 1.3))
 				end
+			end
+		end
+	end
+
+	-- Boulders and meadow clutter anywhere that is still open ground
+	local clutter = 0
+	for _ = 1, 900 do
+		if clutter >= 90 then
+			break
+		end
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local r = rng:NextNumber(150, radius - 30)
+		local pos = Vector3.new(math.cos(angle) * r, 0, math.sin(angle) * r)
+		if Layout.isFree(pos, 7, 4) then
+			clutter += 1
+			local roll = rng:NextNumber()
+			if roll < 0.3 then
+				Kit.rocks(folder, pos, rng:NextNumber(0.8, 1.5))
+				Layout.claim(pos, 5)
+			elseif roll < 0.65 then
+				for j = 1, rng:NextInteger(2, 4) do
+					local offset = Vector3.new(rng:NextNumber(-9, 9), 0, rng:NextNumber(-9, 9))
+					if Layout.isFree(pos + offset, 3, 3) then
+						Kit.bush(folder, pos + offset, rng:NextNumber(0.7, 1.2), oak[(j % #oak) + 1])
+					end
+				end
+				Layout.claim(pos, 8)
+			else
+				Kit.tree(folder, pos, rng:NextNumber(0.9, 1.3), oak[rng:NextInteger(1, #oak)])
+				Layout.claim(pos, 6)
 			end
 		end
 	end

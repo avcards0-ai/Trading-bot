@@ -6,6 +6,7 @@
 
 local Zones = require(game:GetService("ReplicatedStorage").Shared.Config.Zones)
 local Kit = require(script.Parent.Kit)
+local Layout = require(script.Parent.Layout)
 
 local C = Kit.Colors
 local rgb = Kit.rgb
@@ -78,7 +79,39 @@ local function shopBooth(
 		color:Lerp(C.Black, 0.25),
 		Enum.Material.SmoothPlastic
 	)
-	Kit.block(m, Vector3.new(17, 1, 13), cf * CFrame.new(0, 13, 0), color, Enum.Material.SmoothPlastic)
+	Kit.block(m, Vector3.new(17, 0.8, 13), cf * CFrame.new(0, 12.9, 0), C.White, Enum.Material.Wood)
+	Kit.gable(
+		m,
+		cf * CFrame.new(0, 15.3, 0),
+		Vector3.new(18, 4, 14),
+		color:Lerp(C.Black, 0.15),
+		Enum.Material.RoofShingles
+	)
+	for x = -1, 1, 2 do
+		for z = -1, 1, 2 do
+			Kit.detail(
+				Kit.block(
+					m,
+					Vector3.new(1.2, 12.4, 1.2),
+					cf * CFrame.new(x * 7.6, 6.7, z * 5.6),
+					C.White,
+					Enum.Material.Wood
+				)
+			)
+		end
+	end
+	Kit.awning(m, cf * CFrame.new(0, 12, -6), 15, 3, { color, C.White })
+	-- Same name on the back so the shop reads from the street too
+	Kit.noCollide(
+		Kit.sign(
+			m,
+			Vector3.new(12, 3, 0.4),
+			cf * CFrame.new(0, 8.5, 6.3) * CFrame.Angles(0, math.pi, 0),
+			title,
+			color:Lerp(C.Black, 0.6),
+			C.White
+		)
+	)
 	local counter = Kit.block(
 		m,
 		Vector3.new(12, 3.6, 2.4),
@@ -90,7 +123,7 @@ local function shopBooth(
 	local trim = Kit.block(m, Vector3.new(12.4, 0.3, 2.8), cf * CFrame.new(0, 4.75, -3), color, Enum.Material.Neon)
 	trim.CastShadow = false
 	Kit.light(trim, color, 1.2, 16)
-	Kit.sign(m, Vector3.new(15, 3.6, 0.6), cf * CFrame.new(0, 15.6, -1), title, color:Lerp(C.Black, 0.6), C.White)
+	Kit.sign(m, Vector3.new(15, 3.6, 0.6), cf * CFrame.new(0, 15, -7.4), title, color:Lerp(C.Black, 0.6), C.White)
 	local blurbSign =
 		Kit.sign(m, Vector3.new(10, 2.2, 0.3), cf * CFrame.new(0, 9, 4.9), blurb, rgb(30, 30, 40), rgb(230, 230, 240))
 	blurbSign.CanCollide = false
@@ -152,20 +185,82 @@ return function(root: Instance)
 	game:GetService("CollectionService"):AddTag(statue, "Spinner")
 	game:GetService("CollectionService"):AddTag(core, "Spinner")
 
-	-- Default spawn (players are moved to their vault once it's ready).
+	-- City spawn: a marble pad south of the fountain, facing it. Players are sent on to
+	-- their own vault as soon as it is assigned.
+	local spawnCF = origin * CFrame.new(0, 0, 52)
+	Kit.cyl(folder, 0.9, 14, spawnCF * CFrame.new(0, 0.45, 0), rgb(214, 208, 196), Enum.Material.Marble, "SpawnPad")
+	Kit.detail(Kit.cyl(folder, 0.8, 15.2, spawnCF * CFrame.new(0, 0.4, 0), C.Gold, Enum.Material.Neon, "SpawnRing"))
+	-- A plain, unrotated block: characters spawn on top of it facing the fountain.
 	local spawnLocation = Instance.new("SpawnLocation")
 	spawnLocation.Name = "CitySpawn"
-	spawnLocation.Size = Vector3.new(10, 1, 10)
-	spawnLocation.CFrame = origin * CFrame.new(0, 0.3, 26)
+	spawnLocation.Size = Vector3.new(9, 0.6, 9)
+	spawnLocation.CFrame = spawnCF * CFrame.new(0, 1.2, 0)
 	spawnLocation.Anchored = true
 	spawnLocation.Neutral = true
 	spawnLocation.Duration = 0
-	spawnLocation.Transparency = 1
-	spawnLocation.CanCollide = false
+	spawnLocation.Color = rgb(240, 236, 228)
+	spawnLocation.Material = Enum.Material.Marble
+	spawnLocation.TopSurface = Enum.SurfaceType.Smooth
+	spawnLocation.BottomSurface = Enum.SurfaceType.Smooth
 	spawnLocation.Parent = folder
 	local decal = spawnLocation:FindFirstChildOfClass("Decal")
 	if decal then
 		decal:Destroy()
+	end
+	Kit.detail(
+		Kit.block(
+			folder,
+			Vector3.new(4, 0.1, 4),
+			spawnCF * CFrame.new(0, 1.55, 0) * CFrame.Angles(0, math.rad(45), 0),
+			rgb(120, 220, 255),
+			Enum.Material.Neon
+		)
+	)
+	for i = 1, 4 do
+		local angle = i / 4 * math.pi * 2 + math.pi / 4
+		local post = spawnCF * CFrame.new(math.cos(angle) * 9.5, 0, math.sin(angle) * 9.5)
+		Kit.cyl(folder, 2.6, 1, post * CFrame.new(0, 1.3, 0), rgb(60, 60, 70), Enum.Material.Metal)
+		local cap = Kit.cyl(folder, 0.5, 1.2, post * CFrame.new(0, 2.85, 0), C.Gold, Enum.Material.Neon)
+		Kit.detail(cap)
+	end
+
+	-- Café tables with umbrellas between the north roads
+	local umbrellaColors = { rgb(230, 70, 70), rgb(60, 140, 220), rgb(250, 190, 50), rgb(90, 180, 110) }
+	for i, angle in { 330, 342, 12, 24 } do
+		local cf = origin * CFrame.Angles(0, math.rad(angle), 0) * CFrame.new(0, 0, -88)
+		local cafe = Kit.model("CafeTable", folder)
+		Kit.cyl(cafe, 3, 0.4, cf * CFrame.new(0, 1.5, 0), rgb(50, 50, 56), Enum.Material.Metal)
+		Kit.cyl(cafe, 0.3, 4.4, cf * CFrame.new(0, 3.1, 0), C.White, Enum.Material.Marble)
+		for side = -1, 1, 2 do
+			Kit.block(cafe, Vector3.new(1.8, 0.3, 1.8), cf * CFrame.new(side * 3.2, 1.9, 0), C.Wood, Enum.Material.Wood)
+			Kit.detail(
+				Kit.block(cafe, Vector3.new(0.3, 2, 1.8), cf * CFrame.new(side * 4, 2.9, 0), C.Wood, Enum.Material.Wood)
+			)
+			Kit.detail(
+				Kit.block(
+					cafe,
+					Vector3.new(0.3, 1.8, 0.3),
+					cf * CFrame.new(side * 3.2, 0.9, 0),
+					rgb(50, 50, 56),
+					Enum.Material.Metal
+				)
+			)
+		end
+		Kit.detail(Kit.cyl(cafe, 6, 0.3, cf * CFrame.new(0, 6, 0), C.White, Enum.Material.Metal))
+		local color = umbrellaColors[i]
+		for j = 0, 1 do
+			for _, part in
+				Kit.gable(
+					cafe,
+					cf * CFrame.new(0, 9.1, 0) * CFrame.Angles(0, j * math.pi / 2, 0),
+					Vector3.new(5, 1.6, 8),
+					j == 0 and color or C.White,
+					Enum.Material.Fabric
+				)
+			do
+				Kit.noCollide(part)
+			end
+		end
 	end
 
 	-- Shops
@@ -276,11 +371,16 @@ return function(root: Instance)
 	-- Lamps, benches, trees around the plaza ring
 	for i = 1, 12 do
 		local angle = i / 12 * math.pi * 2
-		Kit.lamp(folder, center + Vector3.new(math.cos(angle) * 64, 0, math.sin(angle) * 64), rgb(255, 225, 160))
+		if i ~= 3 then -- keep the walk up from the spawn pad clear
+			Kit.lamp(folder, center + Vector3.new(math.cos(angle) * 64, 0, math.sin(angle) * 64), rgb(255, 225, 160))
+		end
 		if i % 2 == 0 then
 			Kit.bench(folder, origin * CFrame.Angles(0, angle + math.pi / 12, 0) * CFrame.new(0, 0, -30))
 		end
-		Kit.tree(folder, center + Vector3.new(math.cos(angle + 0.25) * 102, 0, math.sin(angle + 0.25) * 102), 1.1)
+		local treePos = center + Vector3.new(math.cos(angle + 0.25) * 102, 0, math.sin(angle + 0.25) * 102)
+		if Layout.roadClearance(treePos) > 5 then
+			Kit.tree(folder, treePos, 1.1)
+		end
 	end
 
 	-- Sewer hatch to the Underground

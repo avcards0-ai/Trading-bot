@@ -143,6 +143,125 @@ return function(root: Instance)
 	)
 	labSign.CanCollide = false
 
+	-- Exterior: window band, teal trim, rooftop tanks, smoking stacks and pipes
+	local glassColor = rgb(60, 90, 100)
+	local teal = rgb(60, 170, 160)
+	for _, spec in
+		{
+			{ Vector3.new(86, 3.2, 0.3), CFrame.new(0, 18.5, 31.1) },
+			{ Vector3.new(86, 3.2, 0.3), CFrame.new(0, 18.5, -31.1) },
+			{ Vector3.new(0.3, 3.2, 56), CFrame.new(-46.1, 18.5, 0) },
+			{ Vector3.new(0.3, 3.2, 56), CFrame.new(46.1, 18.5, 0) },
+		}
+	do
+		Kit.detail(Kit.block(folder, spec[1], bCenter * spec[2], glassColor, Enum.Material.Glass))
+		local stripe = spec[1] + Vector3.new(spec[1].X > 1 and 4 or 0.1, -2.4, spec[1].Z > 1 and 4 or 0.1)
+		Kit.detail(
+			Kit.block(folder, stripe, bCenter * spec[2] * CFrame.new(0, 3, 0), teal, Enum.Material.SmoothPlastic)
+		)
+		Kit.detail(
+			Kit.block(
+				folder,
+				stripe,
+				bCenter * spec[2] * CFrame.new(0, -15.6, 0),
+				rgb(90, 96, 104),
+				Enum.Material.Concrete
+			)
+		)
+	end
+	for i, x in { -30, -19 } do
+		local tank = bCenter * CFrame.new(x, 23.6, 20)
+		Kit.cyl(folder, 8, 7, tank * CFrame.new(0, 4, 0), rgb(226, 230, 232), Enum.Material.Metal, "Tank")
+		Kit.ball(folder, 7, tank * CFrame.new(0, 8, 0), rgb(226, 230, 232), Enum.Material.Metal)
+		local band = Kit.cyl(folder, 0.8, 7.2, tank * CFrame.new(0, 2.5 + i, 0), C.Toxic, Enum.Material.Neon)
+		Kit.detail(band)
+	end
+	for i, x in { 28, 34, 40 } do
+		local stack = bCenter * CFrame.new(x, 23.6, 24)
+		Kit.cyl(
+			folder,
+			12 + i * 2,
+			2.4,
+			stack * CFrame.new(0, (12 + i * 2) / 2, 0),
+			rgb(150, 150, 155),
+			Enum.Material.CorrodedMetal,
+			"Stack"
+		)
+		local cap = Kit.cyl(folder, 0.6, 2.8, stack * CFrame.new(0, 12 + i * 2, 0), C.Toxic, Enum.Material.Neon)
+		Kit.detail(cap)
+		local smoke = Instance.new("Smoke")
+		smoke.Color = rgb(150, 255, 150)
+		smoke.Opacity = 0.12
+		smoke.RiseVelocity = 5
+		smoke.Size = 3
+		smoke.Parent = cap
+	end
+	for z = 0, 1 do
+		Kit.detail(
+			Kit.cyl(
+				folder,
+				60,
+				1.2,
+				bCenter * CFrame.new(5, 25, 26 - z * 3) * CFrame.Angles(0, 0, math.rad(90)),
+				z == 0 and rgb(200, 120, 40) or rgb(110, 150, 170),
+				Enum.Material.Metal
+			)
+		)
+	end
+
+	-- Tank farm in the side yard
+	for i, z in { -38, -16 } do
+		local base = o * CFrame.new(-68, 0, z)
+		Kit.cyl(folder, 1, 16, base * CFrame.new(0, 0.5, 0), rgb(150, 150, 150), Enum.Material.Concrete)
+		Kit.cyl(folder, 18, 13, base * CFrame.new(0, 10, 0), rgb(232, 234, 236), Enum.Material.Metal, "ChemTank")
+		Kit.ball(folder, 13, base * CFrame.new(0, 19, 0), rgb(232, 234, 236), Enum.Material.Metal)
+		Kit.detail(
+			Kit.cyl(
+				folder,
+				2,
+				13.3,
+				base * CFrame.new(0, 12, 0),
+				i == 1 and C.Toxic or rgb(90, 180, 255),
+				Enum.Material.Neon
+			)
+		)
+		Kit.truss(folder, base * CFrame.new(6.8, 1, 0), 18, rgb(230, 200, 40))
+		local warn = Kit.block(
+			folder,
+			Vector3.new(5, 5, 0.2),
+			base * CFrame.new(0, 7, 6.6),
+			rgb(250, 210, 40),
+			Enum.Material.SmoothPlastic
+		)
+		Kit.detail(warn)
+		Kit.label(warn, "☣", { TextColor = rgb(20, 20, 20), Face = Enum.NormalId.Back })
+	end
+	-- Hazard barriers by the gate
+	for side = -1, 1, 2 do
+		for i = 0, 1 do
+			local cf = o * CFrame.new(side * (22 + i * 8), 0, 64)
+			Kit.block(
+				folder,
+				Vector3.new(6, 2.6, 1.4),
+				cf * CFrame.new(0, 1.3, 0),
+				rgb(250, 200, 40),
+				Enum.Material.Plastic,
+				"Barrier"
+			)
+			for stripe = -1, 1 do
+				Kit.detail(
+					Kit.block(
+						folder,
+						Vector3.new(0.8, 2.7, 1.5),
+						cf * CFrame.new(stripe * 1.8, 1.3, 0) * CFrame.Angles(0, 0, math.rad(30)),
+						rgb(30, 30, 34),
+						Enum.Material.Plastic
+					)
+				)
+			end
+		end
+	end
+
 	-- Lab tables with loot
 	local tableSpots = { { -30, -8 }, { -15, -8 }, { 15, -8 }, { 30, -8 }, { -15, -24 }, { 15, -24 } }
 	for i, spot in tableSpots do

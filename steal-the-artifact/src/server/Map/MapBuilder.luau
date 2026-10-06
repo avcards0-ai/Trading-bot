@@ -1,11 +1,21 @@
 --[[
 	MapBuilder
-	Generates the whole world at server start and returns descriptors the gameplay
-	services consume (spawn points, patrol routes, security devices, plots, hatches...).
-	Everything is deterministic, so every server gets the same city.
+	Produces the world plus the descriptors the gameplay services consume (spawn points,
+	patrol routes, security devices, plots, hatches...).
+
+	The place file ships with the city prebuilt in Workspace.Map (see tools/build_place.luau),
+	so `build` normally just reads ServerStorage.MapData and hooks up to it; edits made in
+	Studio are kept. If the prebuilt map is missing or doesn't match, the city is generated
+	from code instead. Everything is deterministic, so every server gets the same city.
 ]]
 
+local HttpService = game:GetService("HttpService")
+local ServerStorage = game:GetService("ServerStorage")
+
+local City = require(script.Parent.City)
 local Environment = require(script.Parent.Environment)
+local Layout = require(script.Parent.Layout)
+local MapSerializer = require(script.Parent.MapSerializer)
 local Plots = require(script.Parent.Plots)
 local Marketplace = require(script.Parent.Marketplace)
 local Museum = require(script.Parent.Museum)
@@ -38,26 +48,22 @@ export type MapData = {
 
 local MapBuilder = {}
 
-function MapBuilder.build(): MapData
-	local existing = workspace:FindFirstChild("Map")
-	if existing then
-		existing:Destroy()
-	end
+-- Builds a fresh city into a new, unparented "Map" folder. Terrain and lighting are separate.
+function MapBuilder.generate(): MapData
 	local root = Instance.new("Folder")
 	root.Name = "Map"
 
-	local started = os.clock()
-	Environment.terrain()
-	Environment.lighting()
+	Layout.reset()
+	Environment.ground(root)
 
 	local plots = Plots(root)
 	local plotCFrames = {}
 	for _, plot in plots do
 		table.insert(plotCFrames, plot.CFrame)
+		Layout.addCircle(plot.CFrame.Position, 74)
 	end
 	Environment.roads(root, plotCFrames)
 	Environment.border(root)
-	Environment.scenery(root, plotCFrames)
 
 	local zones: { [string]: ZoneData } = {}
 	zones.Marketplace = Marketplace(root)
@@ -76,11 +82,15 @@ function MapBuilder.build(): MapData
 			table.insert(links, {
 				Label = label,
 				Arrival = hatch.Destination,
-				Exit = CFrame.new(hatch.Part.Position + Vector3.new(6, 3.5, 0)),
+				Exit = CFrame.new(hatch.Part.CFrame.Position + Vector3.new(6, 3.5, 0)),
 			})
 		end
 	end
 	zones.Underground = Underground(root, links)
+
+	-- Dressing goes last so it can fit around everything above.
+	City.build(root)
+	Environment.scenery(root)
 	zones.SecretRoom = {
 		Id = "SecretRoom",
 		Folder = zones.Underground.Folder,
@@ -101,9 +111,6 @@ function MapBuilder.build(): MapData
 		end
 	end
 
-	root.Parent = workspace
-	print(string.format("[Map] Generated %d instances in %.2fs", #root:GetDescendants(), os.clock() - started))
-
 	return {
 		Root = root,
 		Zones = zones,
@@ -112,6 +119,58 @@ function MapBuilder.build(): MapData
 		Boards = zones.Marketplace.Boards,
 		SpawnLocation = zones.Marketplace.SpawnLocation,
 	}
+end
+
+-- Hooks up to the map that shipped in the place file, or returns nil (with a warning).
+function MapBuilder.loadPrebuilt(root: Instance, storage: Instance?): MapData?
+	local module = (storage or ServerStorage):FindFirstChild("MapData")
+	if not module or not module:IsA("ModuleScript") then
+		warn("[Map] Workspace.Map has no ServerStorage.MapData next to it; generating the city instead")
+		return nil
+	end
+	if module:GetAttribute("MapVersion") ~= root:GetAttribute("MapVersion") then
+		warn("[Map] ServerStorage.MapData belongs to a different Workspace.Map; generating the city instead")
+		return nil
+	end
+	local refs = module:FindFirstChild("Refs")
+	local ok, result = pcall(function()
+		local decoded = HttpService:JSONDecode(require(module) :: any)
+		return MapSerializer.decode(decoded, function(i)
+			local ref = refs and refs:FindFirstChild(tostring(i))
+			return if ref and ref:IsA("ObjectValue") then ref.Value else nil
+		end)
+	end)
+	if not ok then
+		warn("[Map] Couldn't use the prebuilt map (" .. tostring(result) .. "); generating the city instead")
+		return nil
+	end
+	return result
+end
+
+function MapBuilder.build(): MapData
+	local started = os.clock()
+	-- Terrain can't be stored in the place from outside Studio, so the coastline is made here
+	-- (unless someone has already sculpted terrain in Studio).
+	if workspace.Terrain:CountCells() == 0 then
+		Environment.terrain()
+	end
+	Environment.clouds()
+
+	local existing = workspace:FindFirstChild("Map")
+	if existing then
+		local data = MapBuilder.loadPrebuilt(existing)
+		if data then
+			print(string.format("[Map] Using the prebuilt city (%.2fs)", os.clock() - started))
+			return data
+		end
+		existing:Destroy()
+	end
+
+	Environment.lighting()
+	local data = MapBuilder.generate()
+	data.Root.Parent = workspace
+	print(string.format("[Map] Generated %d instances in %.2fs", #data.Root:GetDescendants(), os.clock() - started))
+	return data
 end
 
 return MapBuilder

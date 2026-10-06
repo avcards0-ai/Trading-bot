@@ -10,6 +10,7 @@ local Kit = {}
 
 local rgb = Color3.fromRGB
 Kit.rgb = rgb
+local C_WHITE = Color3.fromRGB(250, 248, 244)
 
 Kit.Colors = {
 	Grass = rgb(98, 176, 82),
@@ -283,32 +284,106 @@ end
 
 -- Props --------------------------------------------------------------------------------
 
+-- Leafy tree: trunk, two branches and a lumpy canopy. Same position -> same tree.
 function Kit.tree(parent: Instance, position: Vector3, scale: number?, leafColor: Color3?)
 	local s = scale or 1
+	local rng = Random.new(math.floor(position.X * 7.3 + position.Z * 13.1) % 100000)
 	local m = Kit.model("Tree", parent)
-	Kit.cyl(
-		m,
-		10 * s,
-		1.8 * s,
-		CFrame.new(position + Vector3.new(0, 5 * s, 0)),
-		Kit.Colors.DarkWood,
-		Enum.Material.Wood
+	local bark = rgb(104, 74, 52)
+	Kit.cyl(m, 9 * s, 1.7 * s, CFrame.new(position + Vector3.new(0, 4.5 * s, 0)), bark, Enum.Material.Wood, "Trunk")
+	for side = -1, 1, 2 do
+		local branch = Kit.cyl(
+			m,
+			4.5 * s,
+			0.8 * s,
+			CFrame.new(position + Vector3.new(side * 1.3 * s, 8.6 * s, 0))
+				* CFrame.Angles(0, rng:NextNumber(0, 6.28), 0)
+				* CFrame.Angles(0, 0, math.rad(side * 38)),
+			bark,
+			Enum.Material.Wood
+		)
+		Kit.noCollide(branch)
+	end
+	local leaves = leafColor or rgb(78, 150, 62)
+	local blobs = {
+		{ 0, 13, 0, 10.5 },
+		{ 3.4, 11.4, 1.6, 7.5 },
+		{ -3.2, 11.8, -1.4, 7.2 },
+		{ 0.8, 15.6, -1.8, 6.4 },
+		{ -1.4, 11, 3, 6.6 },
+	}
+	for i, blob in blobs do
+		local shade =
+			leaves:Lerp(i % 2 == 0 and Color3.new(0, 0, 0) or Color3.new(1, 1, 0.8), rng:NextNumber(0.02, 0.12))
+		local ball = Kit.ball(
+			m,
+			blob[4] * s,
+			CFrame.new(position + Vector3.new(blob[1], blob[2], blob[3]) * s),
+			shade,
+			Enum.Material.LeafyGrass
+		)
+		ball.Name = "Leaves"
+		if i > 1 then
+			Kit.noCollide(ball)
+		end
+	end
+	return m
+end
+
+-- Evergreen: a trunk and three crossed tiers.
+function Kit.pine(parent: Instance, position: Vector3, scale: number?, color: Color3?)
+	local s = scale or 1
+	local m = Kit.model("Pine", parent)
+	Kit.cyl(m, 7 * s, 1.3 * s, CFrame.new(position + Vector3.new(0, 3.5 * s, 0)), rgb(92, 64, 46), Enum.Material.Wood)
+	local green = color or rgb(52, 112, 70)
+	local yaw = (position.X * 0.37 + position.Z * 0.11) % 1.57
+	for tier = 0, 2 do
+		local width = (12 - tier * 3.2) * s
+		local height = (7.5 - tier * 1.2) * s
+		local base = CFrame.new(position + Vector3.new(0, (4 + tier * 4.6) * s + height / 2, 0))
+			* CFrame.Angles(0, yaw, 0)
+		local shade = green:Lerp(Color3.new(1, 1, 1), tier * 0.04)
+		for _, part in Kit.gable(m, base, Vector3.new(width * 0.72, height, width), shade, Enum.Material.LeafyGrass) do
+			Kit.noCollide(part)
+		end
+		for _, part in
+			Kit.gable(
+				m,
+				base * CFrame.Angles(0, math.rad(90), 0),
+				Vector3.new(width * 0.72, height, width),
+				shade:Lerp(Color3.new(0, 0, 0), 0.06),
+				Enum.Material.LeafyGrass
+			)
+		do
+			Kit.noCollide(part)
+		end
+	end
+	return m
+end
+
+-- Round shrub.
+function Kit.bush(parent: Instance, position: Vector3, scale: number?, color: Color3?)
+	local s = scale or 1
+	local green = color or rgb(74, 140, 60)
+	local m = Kit.model("Bush", parent)
+	Kit.ball(m, 4.6 * s, CFrame.new(position + Vector3.new(0, 1.4 * s, 0)), green, Enum.Material.LeafyGrass)
+	Kit.noCollide(
+		Kit.ball(
+			m,
+			3.4 * s,
+			CFrame.new(position + Vector3.new(1.9 * s, 1 * s, 0.6 * s)),
+			green:Lerp(Color3.new(0, 0, 0), 0.08),
+			Enum.Material.LeafyGrass
+		)
 	)
-	local leaves = leafColor or rgb(70, 160, 70)
-	Kit.ball(m, 10 * s, CFrame.new(position + Vector3.new(0, 12 * s, 0)), leaves, Enum.Material.Grass)
-	Kit.ball(
-		m,
-		7 * s,
-		CFrame.new(position + Vector3.new(2.5 * s, 10 * s, 1.5 * s)),
-		leaves:Lerp(Color3.new(0, 0, 0), 0.1),
-		Enum.Material.Grass
-	)
-	Kit.ball(
-		m,
-		6.5 * s,
-		CFrame.new(position + Vector3.new(-2 * s, 14 * s, -1.5 * s)),
-		leaves:Lerp(Color3.new(1, 1, 1), 0.08),
-		Enum.Material.Grass
+	Kit.noCollide(
+		Kit.ball(
+			m,
+			3 * s,
+			CFrame.new(position + Vector3.new(-1.6 * s, 0.9 * s, -0.9 * s)),
+			green:Lerp(Color3.new(1, 1, 1), 0.06),
+			Enum.Material.LeafyGrass
+		)
 	)
 	return m
 end
@@ -338,19 +413,76 @@ function Kit.palm(parent: Instance, position: Vector3, scale: number?)
 	return m
 end
 
+-- Park lamp: post, collar and a glowing lantern.
 function Kit.lamp(parent: Instance, position: Vector3, color: Color3?, height: number?)
 	local h = height or 12
+	local glow = color or rgb(255, 228, 170)
 	local m = Kit.model("Lamp", parent)
-	Kit.cyl(m, h, 0.6, CFrame.new(position + Vector3.new(0, h / 2, 0)), Kit.Colors.Black, Enum.Material.Metal)
-	local bulb = Kit.ball(
+	local iron = rgb(38, 40, 46)
+	Kit.cyl(m, 1.2, 1.4, CFrame.new(position + Vector3.new(0, 0.6, 0)), iron, Enum.Material.Metal)
+	Kit.cyl(m, h, 0.55, CFrame.new(position + Vector3.new(0, h / 2, 0)), iron, Enum.Material.Metal)
+	Kit.noCollide(
+		Kit.block(m, Vector3.new(1.5, 0.3, 1.5), CFrame.new(position + Vector3.new(0, h, 0)), iron, Enum.Material.Metal)
+	)
+	local bulb = Kit.block(
 		m,
-		1.6,
-		CFrame.new(position + Vector3.new(0, h + 0.4, 0)),
-		color or rgb(255, 230, 170),
+		Vector3.new(1.1, 1.4, 1.1),
+		CFrame.new(position + Vector3.new(0, h + 0.85, 0)),
+		glow,
+		Enum.Material.Neon,
+		"Bulb"
+	)
+	bulb.CastShadow = false
+	Kit.noCollide(bulb)
+	Kit.noCollide(
+		Kit.wedge(
+			m,
+			Vector3.new(1.6, 0.6, 0.8),
+			CFrame.new(position + Vector3.new(0, h + 1.85, -0.4)),
+			iron,
+			Enum.Material.Metal
+		)
+	)
+	Kit.noCollide(
+		Kit.wedge(
+			m,
+			Vector3.new(1.6, 0.6, 0.8),
+			CFrame.new(position + Vector3.new(0, h + 1.85, 0.4)) * CFrame.Angles(0, math.pi, 0),
+			iron,
+			Enum.Material.Metal
+		)
+	)
+	Kit.light(bulb, glow, 1.4, 20)
+	return m
+end
+
+-- Street light: base at cf, arm reaching over the road along cf.LookVector.
+function Kit.streetLamp(parent: Instance, cf: CFrame, height: number?)
+	local h = height or 15
+	local m = Kit.model("StreetLamp", parent)
+	local pole = rgb(70, 74, 82)
+	Kit.block(m, Vector3.new(1.4, 1, 1.4), cf * CFrame.new(0, 0.5, 0), pole, Enum.Material.Metal)
+	Kit.cyl(m, h, 0.6, cf * CFrame.new(0, h / 2, 0), pole, Enum.Material.Metal)
+	Kit.noCollide(Kit.block(m, Vector3.new(0.4, 0.4, 4.2), cf * CFrame.new(0, h - 0.2, -2), pole, Enum.Material.Metal))
+	local head = Kit.block(
+		m,
+		Vector3.new(1.4, 0.6, 2.4),
+		cf * CFrame.new(0, h - 0.4, -4.2),
+		pole,
+		Enum.Material.Metal,
+		"LampHead"
+	)
+	Kit.noCollide(head)
+	local bulb = Kit.block(
+		m,
+		Vector3.new(1, 0.12, 1.8),
+		cf * CFrame.new(0, h - 0.75, -4.2),
+		rgb(255, 236, 190),
 		Enum.Material.Neon
 	)
 	bulb.CastShadow = false
-	Kit.light(bulb, color or rgb(255, 220, 160), 1.6, 22)
+	Kit.noCollide(bulb)
+	Kit.light(bulb, rgb(255, 226, 170), 1.2, 26, "Spot")
 	return m
 end
 
@@ -829,6 +961,494 @@ function Kit.hatch(
 	prompt.Parent = base
 	base:SetAttribute("Destination", destination)
 	return base, prompt
+end
+
+-- Architecture -----------------------------------------------------------------------------
+
+-- Decorative part: no collisions, queries, touches or shadows.
+function Kit.detail(p: BasePart): BasePart
+	p.CanCollide = false
+	p.CanTouch = false
+	p.CanQuery = false
+	p.CastShadow = false
+	return p
+end
+
+-- Triangular prism (two wedges back to back). Ridge runs along cf.RightVector at the top.
+function Kit.gable(parent: Instance, cf: CFrame, size: Vector3, color: Color3, material: Enum.Material?): { BasePart }
+	local half = Vector3.new(size.X, size.Y, size.Z / 2)
+	return {
+		Kit.wedge(parent, half, cf * CFrame.new(0, 0, -size.Z / 4), color, material),
+		Kit.wedge(parent, half, cf * CFrame.new(0, 0, size.Z / 4) * CFrame.Angles(0, math.pi, 0), color, material),
+	}
+end
+
+-- Striped fabric awning hanging off a wall. cf sits on the wall face; it slopes toward cf.LookVector.
+function Kit.awning(parent: Instance, cf: CFrame, width: number, depth: number, colors: { Color3 })
+	local stripes = math.max(2, math.floor(width / 2.6))
+	local stripe = width / stripes
+	for i = 0, stripes - 1 do
+		local part = Kit.wedge(
+			parent,
+			Vector3.new(stripe, 1.5, depth),
+			cf * CFrame.new(-width / 2 + stripe * (i + 0.5), 0, -depth / 2),
+			colors[(i % #colors) + 1],
+			Enum.Material.Fabric
+		)
+		part.CanCollide = false
+	end
+	local valance = Kit.block(
+		parent,
+		Vector3.new(width, 0.7, 0.2),
+		cf * CFrame.new(0, -1.1, -depth),
+		colors[1],
+		Enum.Material.Fabric
+	)
+	Kit.detail(valance)
+end
+
+-- Picket fence from a to b (posts every ~6 studs, two rails).
+function Kit.fence(parent: Instance, a: Vector3, b: Vector3, color: Color3?, height: number?)
+	local h = height or 3.2
+	local c = color or rgb(236, 232, 222)
+	local delta = (b - a) * Vector3.new(1, 0, 1)
+	local length = delta.Magnitude
+	if length < 1 then
+		return
+	end
+	local cf = CFrame.lookAt(a, a + delta)
+	local posts = math.max(1, math.floor(length / 6 + 0.5))
+	for i = 0, posts do
+		Kit.block(
+			parent,
+			Vector3.new(0.6, h, 0.6),
+			cf * CFrame.new(0, h / 2, -length * i / posts),
+			c,
+			Enum.Material.Wood
+		)
+	end
+	for _, y in { h * 0.35, h * 0.8 } do
+		Kit.detail(
+			Kit.block(parent, Vector3.new(0.25, 0.4, length), cf * CFrame.new(0, y, -length / 2), c, Enum.Material.Wood)
+		)
+	end
+	-- One invisible collider so the rails can stay cheap.
+	local wall = Kit.ghost(parent, Vector3.new(0.6, h, length), cf * CFrame.new(0, h / 2, -length / 2), "FenceCollider")
+	wall.CanCollide = true
+end
+
+-- Raised bed of soil with a few flowers.
+function Kit.flowerBed(parent: Instance, cf: CFrame, size: Vector2, colors: { Color3 }?)
+	local palette = colors or { rgb(255, 96, 120), rgb(255, 214, 90), rgb(190, 130, 255), rgb(255, 255, 255) }
+	local m = Kit.model("FlowerBed", parent)
+	Kit.block(
+		m,
+		Vector3.new(size.X + 0.8, 1, size.Y + 0.8),
+		cf * CFrame.new(0, 0.5, 0),
+		rgb(160, 150, 140),
+		Enum.Material.Cobblestone
+	)
+	Kit.detail(
+		Kit.block(
+			m,
+			Vector3.new(size.X, 0.3, size.Y),
+			cf * CFrame.new(0, 1.05, 0),
+			rgb(92, 66, 48),
+			Enum.Material.Ground
+		)
+	)
+	local n = math.max(3, math.floor(size.X * size.Y / 5))
+	local seed = math.floor(math.abs(cf.Position.X * 3.1 + cf.Position.Z * 5.7)) % 9973
+	for i = 1, n do
+		local u = ((i * 0.618 + seed * 0.013) % 1 - 0.5) * (size.X - 1)
+		local v = ((i * 0.377 + seed * 0.029) % 1 - 0.5) * (size.Y - 1)
+		local bud =
+			Kit.ball(m, 0.9, cf * CFrame.new(u, 1.55, v), palette[(i % #palette) + 1], Enum.Material.SmoothPlastic)
+		Kit.detail(bud)
+		if i % 2 == 0 then
+			Kit.detail(
+				Kit.ball(m, 1.1, cf * CFrame.new(u + 0.4, 1.3, v - 0.3), rgb(70, 140, 60), Enum.Material.LeafyGrass)
+			)
+		end
+	end
+	return m
+end
+
+-- Cluster of weathered boulders.
+function Kit.rocks(parent: Instance, position: Vector3, scale: number?)
+	local s = scale or 1
+	local seed = math.floor(math.abs(position.X * 1.7 + position.Z * 2.3)) % 997
+	local m = Kit.model("Rocks", parent)
+	for i = 0, 2 do
+		local size = Vector3.new(5 - i, 3.6 - i * 0.7, 4.4 - i * 0.8) * s
+		local offset =
+			Vector3.new((i == 1 and 3.2 or i == 2 and -2.6 or 0) * s, size.Y * 0.35, (i == 2 and 2 or -0.5 * i) * s)
+		Kit.block(
+			m,
+			size,
+			CFrame.new(position + offset) * CFrame.Angles(0.12 * i, (seed + i * 47) % 360, -0.1 * i),
+			rgb(128, 126, 122):Lerp(rgb(160, 156, 148), i / 3),
+			Enum.Material.Rock,
+			"Rock"
+		)
+	end
+	return m
+end
+
+function Kit.trashCan(parent: Instance, position: Vector3)
+	local m = Kit.model("TrashCan", parent)
+	Kit.cyl(m, 3, 2, CFrame.new(position + Vector3.new(0, 1.5, 0)), rgb(60, 110, 80), Enum.Material.Metal)
+	Kit.detail(
+		Kit.cyl(m, 0.3, 2.3, CFrame.new(position + Vector3.new(0, 3.1, 0)), rgb(45, 80, 60), Enum.Material.Metal)
+	)
+	return m
+end
+
+function Kit.hydrant(parent: Instance, position: Vector3)
+	local m = Kit.model("Hydrant", parent)
+	local red = rgb(205, 50, 45)
+	Kit.cyl(m, 2.2, 1.1, CFrame.new(position + Vector3.new(0, 1.1, 0)), red, Enum.Material.Metal)
+	Kit.detail(Kit.ball(m, 1.15, CFrame.new(position + Vector3.new(0, 2.25, 0)), red, Enum.Material.Metal))
+	Kit.detail(
+		Kit.cyl(
+			m,
+			1.6,
+			0.5,
+			CFrame.new(position + Vector3.new(0, 1.4, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			rgb(230, 230, 230),
+			Enum.Material.Metal
+		)
+	)
+	return m
+end
+
+export type BuildingOptions = {
+	Name: string?,
+	Size: Vector3, -- width (X), height (Y), depth (Z); the front faces cf.LookVector
+	Wall: Color3,
+	WallMaterial: Enum.Material?,
+	Trim: Color3,
+	Floors: number?,
+	Glass: Color3?,
+	Style: string?, -- "Classic" (punched windows) or "Modern" (curtain wall)
+	Shop: { Text: string, Color: Color3, TextColor: Color3?, Awning: { Color3 }? }?,
+	RoofProps: boolean?,
+	Seed: number?,
+}
+
+-- City building with floors, windows, a cornice, rooftop clutter and an optional shopfront.
+function Kit.building(parent: Instance, cf: CFrame, o: BuildingOptions): Model
+	local m = Kit.model(o.Name or "Building", parent)
+	local w, h, d = o.Size.X, o.Size.Y, o.Size.Z
+	local floors = o.Floors or math.max(1, math.floor(h / 11))
+	local fh = h / floors
+	local trimMaterial = Enum.Material.Concrete
+	local glass = o.Glass or rgb(70, 96, 122)
+	local seed = o.Seed or math.floor(math.abs(cf.Position.X * 3 + cf.Position.Z * 7))
+
+	Kit.block(m, Vector3.new(w + 0.8, 1, d + 0.8), cf * CFrame.new(0, 0.5, 0), o.Trim, trimMaterial, "Plinth")
+	Kit.block(
+		m,
+		Vector3.new(w, h, d),
+		cf * CFrame.new(0, h / 2, 0),
+		o.Wall,
+		o.WallMaterial or Enum.Material.Brick,
+		"Body"
+	)
+	for f = 1, floors - 1 do
+		Kit.detail(
+			Kit.block(m, Vector3.new(w + 0.5, 0.7, d + 0.5), cf * CFrame.new(0, f * fh, 0), o.Trim, trimMaterial)
+		)
+	end
+	Kit.block(m, Vector3.new(w + 1.6, 1.2, d + 1.6), cf * CFrame.new(0, h + 0.4, 0), o.Trim, trimMaterial, "Cornice")
+	Kit.block(
+		m,
+		Vector3.new(w + 0.4, 1.4, d + 0.4),
+		cf * CFrame.new(0, h + 1.6, 0),
+		o.Wall,
+		o.WallMaterial or Enum.Material.Brick
+	)
+	Kit.detail(
+		Kit.block(
+			m,
+			Vector3.new(w - 1.6, 0.2, d - 1.6),
+			cf * CFrame.new(0, h + 2.35, 0),
+			rgb(78, 80, 86),
+			Enum.Material.Asphalt
+		)
+	)
+
+	-- Facades: { frame on the wall whose LookVector points outward, face width }
+	local faces = {
+		{ CFrame.new(0, 0, -d / 2), w },
+		{ CFrame.new(0, 0, d / 2) * CFrame.Angles(0, math.pi, 0), w },
+		{ CFrame.new(-w / 2, 0, 0) * CFrame.Angles(0, math.rad(90), 0), d },
+		{ CFrame.new(w / 2, 0, 0) * CFrame.Angles(0, math.rad(-90), 0), d },
+	}
+	local firstFloor = o.Shop and 1 or 0
+	if o.Style == "Modern" then
+		for _, face in faces do
+			local faceCF = cf * face[1]
+			local width = face[2]
+			local top = h - 1.2
+			local bottom = firstFloor * fh + 1.2
+			Kit.detail(
+				Kit.block(
+					m,
+					Vector3.new(width - 2.4, top - bottom, 0.3),
+					faceCF * CFrame.new(0, (top + bottom) / 2, -0.1),
+					glass,
+					Enum.Material.Glass
+				)
+			)
+			local mullions = math.max(2, math.floor(width / 6))
+			for i = 0, mullions do
+				local x = -width / 2 + 1.2 + (width - 2.4) * i / mullions
+				Kit.detail(
+					Kit.block(
+						m,
+						Vector3.new(0.5, top - bottom, 0.5),
+						faceCF * CFrame.new(x, (top + bottom) / 2, -0.25),
+						o.Trim,
+						Enum.Material.Metal
+					)
+				)
+			end
+		end
+	else
+		for _, face in faces do
+			local faceCF = cf * face[1]
+			local width = face[2]
+			local count = math.max(1, math.floor((width - 2) / 7))
+			local spacing = (width - 2) / count
+			local winW = math.min(spacing * 0.55, 4.4)
+			local winH = math.min(fh * 0.5, 6)
+			for f = firstFloor, floors - 1 do
+				for i = 0, count - 1 do
+					local x = -width / 2 + 1 + spacing * (i + 0.5)
+					local y = f * fh + fh * 0.55
+					Kit.detail(
+						Kit.block(
+							m,
+							Vector3.new(winW, winH, 0.3),
+							faceCF * CFrame.new(x, y, -0.1),
+							glass,
+							Enum.Material.Glass
+						)
+					)
+					Kit.detail(
+						Kit.block(
+							m,
+							Vector3.new(winW + 0.8, 0.35, 0.7),
+							faceCF * CFrame.new(x, y - winH / 2 - 0.15, -0.3),
+							o.Trim,
+							trimMaterial
+						)
+					)
+				end
+			end
+		end
+	end
+
+	if o.Shop then
+		local front = cf * CFrame.new(0, 0, -d / 2)
+		local shopH = fh
+		Kit.detail(
+			Kit.block(
+				m,
+				Vector3.new(w * 0.62, shopH * 0.55, 0.3),
+				front * CFrame.new(-w * 0.1, shopH * 0.42, -0.1),
+				rgb(150, 190, 210),
+				Enum.Material.Glass
+			)
+		)
+		Kit.detail(
+			Kit.block(
+				m,
+				Vector3.new(w * 0.62 + 0.8, 0.5, 0.8),
+				front * CFrame.new(-w * 0.1, shopH * 0.42 - shopH * 0.275 - 0.2, -0.35),
+				o.Trim,
+				trimMaterial
+			)
+		)
+		local doorX = w * 0.32
+		Kit.detail(
+			Kit.block(
+				m,
+				Vector3.new(4, 7, 0.4),
+				front * CFrame.new(doorX, 4, -0.15),
+				rgb(70, 50, 40),
+				Enum.Material.Wood
+			)
+		)
+		Kit.detail(
+			Kit.block(
+				m,
+				Vector3.new(2.6, 3.2, 0.45),
+				front * CFrame.new(doorX, 5, -0.2),
+				rgb(150, 190, 210),
+				Enum.Material.Glass
+			)
+		)
+		Kit.awning(m, front * CFrame.new(0, shopH * 0.86, 0), w - 2, 4.5, o.Shop.Awning or { o.Shop.Color, C_WHITE })
+		local sign = Kit.block(
+			m,
+			Vector3.new(math.min(w - 4, 22), 2.6, 0.4),
+			front * CFrame.new(0, shopH * 0.86 + 2.3, -0.3),
+			o.Shop.Color,
+			Enum.Material.SmoothPlastic,
+			"ShopSign"
+		)
+		Kit.detail(sign)
+		Kit.label(
+			sign,
+			o.Shop.Text,
+			{ TextColor = o.Shop.TextColor or C_WHITE, Font = Enum.Font.FredokaOne, Stroke = rgb(30, 30, 35) }
+		)
+	end
+
+	if o.RoofProps ~= false then
+		local rng = Random.new(seed)
+		local roofY = h + 2.45
+		for _ = 1, rng:NextInteger(1, 3) do
+			local size = Vector3.new(rng:NextNumber(3, 5), rng:NextNumber(1.8, 2.8), rng:NextNumber(2.5, 4))
+			local x = rng:NextNumber(-w / 2 + 3.5, w / 2 - 3.5)
+			local z = rng:NextNumber(-d / 2 + 3.5, d / 2 - 3.5)
+			Kit.block(m, size, cf * CFrame.new(x, roofY + size.Y / 2, z), rgb(186, 190, 196), Enum.Material.Metal, "AC")
+			Kit.detail(
+				Kit.block(
+					m,
+					Vector3.new(size.X * 0.7, 0.1, size.Z * 0.7),
+					cf * CFrame.new(x, roofY + size.Y + 0.05, z),
+					rgb(60, 62, 68),
+					Enum.Material.DiamondPlate
+				)
+			)
+		end
+		if h > 30 and rng:NextNumber() < 0.6 then
+			-- Water tower
+			local x, z = w / 4, d / 4
+			for _, leg in { { -1.6, -1.6 }, { 1.6, -1.6 }, { -1.6, 1.6 }, { 1.6, 1.6 } } do
+				Kit.detail(
+					Kit.block(
+						m,
+						Vector3.new(0.4, 5, 0.4),
+						cf * CFrame.new(x + leg[1], roofY + 2.5, z + leg[2]),
+						rgb(70, 60, 50),
+						Enum.Material.Wood
+					)
+				)
+			end
+			Kit.cyl(
+				m,
+				6,
+				5.4,
+				cf * CFrame.new(x, roofY + 8, z),
+				rgb(150, 110, 80),
+				Enum.Material.WoodPlanks,
+				"WaterTower"
+			)
+			Kit.cyl(m, 1.4, 5.8, cf * CFrame.new(x, roofY + 11.6, z), rgb(80, 70, 66), Enum.Material.Metal)
+		elseif rng:NextNumber() < 0.5 then
+			Kit.detail(
+				Kit.cyl(m, 8, 0.3, cf * CFrame.new(-w / 4, roofY + 4, d / 5), rgb(200, 200, 205), Enum.Material.Metal)
+			)
+			local tip =
+				Kit.ball(m, 0.6, cf * CFrame.new(-w / 4, roofY + 8.2, d / 5), rgb(255, 70, 70), Enum.Material.Neon)
+			Kit.detail(tip)
+		end
+	end
+	return m
+end
+
+export type HouseOptions = {
+	Size: Vector3?, -- width, wall height, depth
+	Wall: Color3,
+	Roof: Color3,
+	Trim: Color3?,
+	Door: Color3?,
+}
+
+-- Little suburban house with a gable roof, porch and chimney. Front faces cf.LookVector.
+function Kit.house(parent: Instance, cf: CFrame, o: HouseOptions): Model
+	local size = o.Size or Vector3.new(18, 10, 15)
+	local w, h, d = size.X, size.Y, size.Z
+	local trim = o.Trim or rgb(245, 242, 235)
+	local m = Kit.model("House", parent)
+	Kit.block(
+		m,
+		Vector3.new(w + 0.6, 1, d + 0.6),
+		cf * CFrame.new(0, 0.5, 0),
+		rgb(150, 145, 140),
+		Enum.Material.Cobblestone
+	)
+	Kit.block(m, Vector3.new(w, h, d), cf * CFrame.new(0, 1 + h / 2, 0), o.Wall, Enum.Material.Plaster, "Body")
+	local roofH = math.min(w, d) * 0.42
+	Kit.gable(
+		m,
+		cf * CFrame.new(0, 1 + h + roofH / 2, 0),
+		Vector3.new(w + 2.4, roofH, d + 2.4),
+		o.Roof,
+		Enum.Material.RoofShingles
+	)
+	Kit.detail(Kit.block(m, Vector3.new(w + 0.4, 0.5, d + 0.4), cf * CFrame.new(0, 1 + h, 0), trim, Enum.Material.Wood))
+	-- Chimney
+	Kit.block(
+		m,
+		Vector3.new(2.2, roofH + 2, 2.2),
+		cf * CFrame.new(w * 0.28, 1 + h + roofH / 2 + 1, d * 0.18),
+		rgb(150, 80, 64),
+		Enum.Material.Brick
+	)
+	-- Door, porch, windows
+	local front = cf * CFrame.new(0, 1, -d / 2)
+	Kit.detail(
+		Kit.block(
+			m,
+			Vector3.new(3.4, 6.4, 0.3),
+			front * CFrame.new(0, 3.2, -0.1),
+			o.Door or rgb(110, 60, 50),
+			Enum.Material.Wood
+		)
+	)
+	Kit.block(
+		m,
+		Vector3.new(6, 0.6, 3),
+		front * CFrame.new(0, -0.2, -1.5),
+		rgb(170, 160, 150),
+		Enum.Material.Concrete,
+		"Porch"
+	)
+	Kit.detail(
+		Kit.wedge(m, Vector3.new(6, 1.2, 2.6), front * CFrame.new(0, 7.4, -1.3), o.Roof, Enum.Material.RoofShingles)
+	)
+	for side = -1, 1, 2 do
+		local x = side * w * 0.3
+		Kit.detail(
+			Kit.block(
+				m,
+				Vector3.new(3.4, 3.4, 0.3),
+				front * CFrame.new(x, 4.6, -0.1),
+				rgb(120, 160, 190),
+				Enum.Material.Glass
+			)
+		)
+		Kit.detail(
+			Kit.block(m, Vector3.new(4.2, 0.4, 0.6), front * CFrame.new(x, 2.75, -0.3), trim, Enum.Material.Wood)
+		)
+		for edge = -1, 1, 2 do
+			Kit.detail(
+				Kit.block(
+					m,
+					Vector3.new(0.9, 3.6, 0.2),
+					front * CFrame.new(x + edge * 2.25, 4.6, -0.15),
+					o.Door or rgb(110, 60, 50),
+					Enum.Material.Wood
+				)
+			)
+		end
+	end
+	return m
 end
 
 return Kit

@@ -27,7 +27,7 @@ export type PlotData = {
 	Door: { Part: BasePart, Closed: CFrame, Open: CFrame, Prompt: ProximityPrompt },
 	Pedestals: { Pedestal },
 	Interior: { CFrame: CFrame, Size: Vector3 },
-	Sign: { Part: BasePart, Label: TextLabel },
+	Sign: { Part: BasePart, Label: TextLabel, Labels: { TextLabel } },
 	Terminal: BasePart,
 	LaserSlots: { { CFrame: CFrame, Length: number } },
 	CameraSlots: { { Position: Vector3, Yaw: number } },
@@ -53,12 +53,16 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 		return part
 	end
 
-	-- Platform + path
+	local SECONDARY = rgb(90, 95, 110)
+	local ACCENT = rgb(255, 200, 60)
+	local STONE = rgb(176, 168, 154)
+
+	-- Lot: lawn with a stone curb (open at the gate) and a paved front walk
 	local platform = Kit.block(
 		folder,
 		Vector3.new(96, 2, 96),
 		plotCF * CFrame.new(0, 0, 0),
-		rgb(120, 190, 100),
+		rgb(112, 168, 84),
 		Enum.Material.Grass,
 		"Platform"
 	)
@@ -71,15 +75,49 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 		Enum.Material.Cobblestone
 	)
 	edge.CastShadow = false
+	for _, wall in
+		{
+			{ Vector3.new(96, 1.4, 1.6), Vector3.new(0, 1.7, 47.2) },
+			{ Vector3.new(1.6, 1.4, 96), Vector3.new(-47.2, 1.7, 0) },
+			{ Vector3.new(1.6, 1.4, 96), Vector3.new(47.2, 1.7, 0) },
+			{ Vector3.new(40, 1.4, 1.6), Vector3.new(-28, 1.7, -47.2) },
+			{ Vector3.new(40, 1.4, 1.6), Vector3.new(28, 1.7, -47.2) },
+		}
+	do
+		Kit.block(folder, wall[1], plotCF * CFrame.new(wall[2]), STONE, Enum.Material.Cobblestone, "Curb")
+	end
 	local path = Kit.block(
 		folder,
 		Vector3.new(12, 0.2, 42),
 		plotCF * CFrame.new(0, 1.05, -27),
-		rgb(215, 205, 185),
+		rgb(222, 214, 196),
 		Enum.Material.Pavement,
 		"Path"
 	)
 	path.CastShadow = false
+	for side = -1, 1, 2 do
+		Kit.detail(
+			Kit.block(
+				folder,
+				Vector3.new(1, 0.24, 42),
+				plotCF * CFrame.new(side * 6.5, 1.07, -27),
+				rgb(150, 144, 132),
+				Enum.Material.Cobblestone
+			)
+		)
+	end
+
+	-- Spawn pad on the front walk
+	local spawnPad =
+		Kit.cyl(folder, 0.3, 11, plotCF * CFrame.new(0, 1.2, -30), rgb(236, 232, 222), Enum.Material.Marble, "SpawnPad")
+	spawnPad.CastShadow = false
+	local spawnRing =
+		Kit.cyl(folder, 0.25, 12.2, plotCF * CFrame.new(0, 1.15, -30), ACCENT, Enum.Material.Neon, "SpawnRing")
+	Kit.detail(spawnRing)
+	tag(spawnRing, "Accent")
+	local spawnEmblem = Kit.cyl(folder, 0.34, 4, plotCF * CFrame.new(0, 1.21, -30), SECONDARY, Enum.Material.Metal)
+	Kit.detail(spawnEmblem)
+	tag(spawnEmblem, "Secondary")
 
 	-- Vault building
 	local b = plotCF * CFrame.new(0, 1, 18)
@@ -88,7 +126,7 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 			folder,
 			Vector3.new(56, 0.3, 48),
 			b * CFrame.new(0, 0.15, 0),
-			rgb(90, 95, 110),
+			SECONDARY,
 			Enum.Material.SmoothPlastic,
 			"VaultFloor"
 		),
@@ -110,52 +148,175 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 		tag(wall, "Primary")
 	end
 	tag(
-		Kit.block(
-			folder,
-			Vector3.new(58, 1.5, 50),
-			b * CFrame.new(0, 21, 0),
-			rgb(90, 95, 110),
-			Enum.Material.Concrete,
-			"Roof"
-		),
+		Kit.block(folder, Vector3.new(58, 1.5, 50), b * CFrame.new(0, 21, 0), SECONDARY, Enum.Material.Concrete, "Roof"),
 		"Secondary"
 	)
-	-- Trim + accent stripes
-	tag(
-		Kit.block(
-			folder,
-			Vector3.new(58.2, 0.6, 0.6),
-			b * CFrame.new(0, 20, -24.4),
-			rgb(255, 200, 60),
-			Enum.Material.Neon,
-			"Trim"
-		),
-		"Accent"
-	)
-	tag(
-		Kit.block(
-			folder,
-			Vector3.new(12, 0.6, 0.6),
-			b * CFrame.new(0, 13.5, -24.4),
-			rgb(255, 200, 60),
-			Enum.Material.Neon,
-			"Trim"
-		),
-		"Accent"
-	)
+
+	-- Architecture: plinth, pilasters, belt course, cornice, parapet
+	local function trim(size: Vector3, cf: CFrame, name: string?)
+		local part = Kit.block(folder, size, cf, SECONDARY, Enum.Material.Concrete, name or "Trim")
+		part.CastShadow = false
+		part.CanQuery = false
+		return tag(part, "Secondary")
+	end
+	trim(Vector3.new(58.4, 1.4, 1.4), b * CFrame.new(0, 0.7, 24.4), "Plinth")
 	for side = -1, 1, 2 do
-		tag(
+		trim(Vector3.new(1.4, 1.4, 50.2), b * CFrame.new(side * 28.4, 0.7, 0), "Plinth")
+		trim(Vector3.new(22.6, 1.4, 1.4), b * CFrame.new(side * 17, 0.7, -24.4), "Plinth")
+		for _, z in { -24, -8, 8, 24 } do
+			trim(Vector3.new(3, 21, 3), b * CFrame.new(side * 28, 10.8, z), "Pilaster")
+		end
+		trim(Vector3.new(3, 21, 3), b * CFrame.new(side * 17, 10.8, -24.2), "Pilaster")
+		-- Belt course (kept clear of the doorway)
+		trim(Vector3.new(0.8, 1, 48.6), b * CFrame.new(side * 28.4, 13.4, 0))
+		trim(Vector3.new(19.6, 1, 0.8), b * CFrame.new(side * 18.6, 13.4, -24.4))
+	end
+	trim(Vector3.new(56.6, 1, 0.8), b * CFrame.new(0, 13.4, 24.4))
+	trim(Vector3.new(60, 1.2, 52), b * CFrame.new(0, 20.2, 0), "Cornice")
+	for _, wall in
+		{
+			{ Vector3.new(58.4, 2.4, 1.2), Vector3.new(0, 22.9, -24.6) },
+			{ Vector3.new(58.4, 2.4, 1.2), Vector3.new(0, 22.9, 24.6) },
+			{ Vector3.new(1.2, 2.4, 48), Vector3.new(-28.6, 22.9, 0) },
+			{ Vector3.new(1.2, 2.4, 48), Vector3.new(28.6, 22.9, 0) },
+		}
+	do
+		trim(wall[1], b * CFrame.new(wall[2]), "Parapet")
+	end
+	-- Housing that hides the door when it slides up
+	trim(Vector3.new(13, 5.4, 3.4), b * CFrame.new(0, 24.4, -24), "DoorHousing")
+
+	-- Steel portal around the doorway
+	local steel = rgb(70, 74, 86)
+	for side = -1, 1, 2 do
+		Kit.block(
+			folder,
+			Vector3.new(2.4, 13.6, 1.4),
+			b * CFrame.new(side * 6.4, 7.1, -25.6),
+			steel,
+			Enum.Material.DiamondPlate,
+			"DoorFrame"
+		)
+		for i = 0, 2 do
+			Kit.detail(
+				Kit.cyl(
+					folder,
+					0.4,
+					0.9,
+					b * CFrame.new(side * 6.4, 3 + i * 4, -26.35) * CFrame.Angles(math.rad(90), 0, 0),
+					rgb(190, 192, 200),
+					Enum.Material.Metal
+				)
+			)
+		end
+	end
+	Kit.block(
+		folder,
+		Vector3.new(15.2, 2.4, 1.4),
+		b * CFrame.new(0, 13.2, -25.6),
+		steel,
+		Enum.Material.DiamondPlate,
+		"DoorFrame"
+	)
+	local vaultSign = Kit.block(
+		folder,
+		Vector3.new(16, 3.4, 0.5),
+		b * CFrame.new(0, 16.6, -25.3),
+		rgb(30, 32, 40),
+		Enum.Material.Metal,
+		"VaultSign"
+	)
+	Kit.detail(vaultSign)
+	tag(vaultSign, "Secondary")
+	Kit.label(
+		vaultSign,
+		"VAULT",
+		{ TextColor = rgb(255, 214, 90), Font = Enum.Font.LuckiestGuy, Stroke = rgb(40, 30, 10) }
+	)
+	-- Hazard stripes on the threshold
+	for i = 0, 4 do
+		Kit.detail(
 			Kit.block(
 				folder,
-				Vector3.new(0.6, 12.6, 0.6),
-				b * CFrame.new(side * 5.6, 6.6, -24.4),
-				rgb(255, 200, 60),
-				Enum.Material.Neon,
-				"Trim"
-			),
-			"Accent"
+				Vector3.new(2, 0.12, 2.4),
+				b * CFrame.new(-4 + i * 2, 0.36, -26.8),
+				i % 2 == 0 and rgb(250, 200, 40) or rgb(30, 30, 34),
+				Enum.Material.SmoothPlastic
+			)
 		)
 	end
+	-- Wall lanterns
+	for side = -1, 1, 2 do
+		local lantern = Kit.block(
+			folder,
+			Vector3.new(1.2, 2, 1.2),
+			b * CFrame.new(side * 10.5, 9.5, -25.8),
+			ACCENT,
+			Enum.Material.Neon,
+			"Lantern"
+		)
+		Kit.detail(lantern)
+		tag(lantern, "Accent")
+		Kit.detail(
+			Kit.block(
+				folder,
+				Vector3.new(1.6, 0.4, 1.6),
+				b * CFrame.new(side * 10.5, 10.7, -25.8),
+				steel,
+				Enum.Material.Metal
+			)
+		)
+		Kit.light(lantern, rgb(255, 214, 140), 1, 14)
+	end
+	-- Rooftop clutter
+	Kit.block(
+		folder,
+		Vector3.new(6, 3, 4.5),
+		b * CFrame.new(-14, 23.25, 12),
+		rgb(186, 190, 196),
+		Enum.Material.Metal,
+		"AC"
+	)
+	Kit.detail(Kit.cyl(folder, 0.4, 4, b * CFrame.new(-14, 24.9, 12), rgb(60, 62, 68), Enum.Material.DiamondPlate))
+	Kit.block(
+		folder,
+		Vector3.new(4, 2.4, 4),
+		b * CFrame.new(12, 22.95, 14),
+		rgb(170, 174, 180),
+		Enum.Material.Metal,
+		"Vent"
+	)
+	for i = 0, 1 do
+		Kit.detail(
+			Kit.cyl(folder, 3, 1, b * CFrame.new(18 + i * 2.4, 23.5, -6), rgb(160, 164, 170), Enum.Material.Metal)
+		)
+	end
+	local dishPole = Kit.cyl(folder, 3, 0.5, b * CFrame.new(16, 23.5, 4), rgb(70, 72, 80), Enum.Material.Metal)
+	Kit.detail(dishPole)
+	Kit.detail(
+		Kit.cyl(
+			folder,
+			0.5,
+			5,
+			b * CFrame.new(16, 25.6, 4.6) * CFrame.Angles(math.rad(-55), math.rad(30), 0),
+			rgb(230, 232, 236),
+			Enum.Material.Metal
+		)
+	)
+	-- Accent strip along the cornice (front)
+	tag(
+		Kit.detail(
+			Kit.block(
+				folder,
+				Vector3.new(60.2, 0.5, 0.5),
+				b * CFrame.new(0, 19.4, -26.2),
+				ACCENT,
+				Enum.Material.Neon,
+				"Trim"
+			)
+		),
+		"Accent"
+	)
 
 	-- Door (slides up into the wall when open)
 	local doorClosed = b * CFrame.new(0, 6.3, -24)
@@ -265,36 +426,87 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 	-- Alarm lights on the roof
 	local alarms = {}
 	for side = -1, 1, 2 do
-		local light = Kit.ball(folder, 2.2, b * CFrame.new(side * 26, 22.6, -22), rgb(120, 30, 30), Enum.Material.Neon)
+		local light =
+			Kit.ball(folder, 2.2, b * CFrame.new(side * 27.4, 25.3, -24.6), rgb(120, 30, 30), Enum.Material.Neon)
 		light.Name = "AlarmLight"
 		light:SetAttribute("PlotIndex", index)
 		table.insert(alarms, light)
 	end
 
-	-- Owner sign out front
+	-- Entrance gate with the owner's name on both faces
+	local gate = Kit.model("Gate", folder)
 	for side = -1, 1, 2 do
-		Kit.cyl(folder, 9, 0.8, plotCF * CFrame.new(side * 9, 5.5, -44), rgb(60, 60, 70), Enum.Material.Metal)
+		local pillarCF = plotCF * CFrame.new(side * 9.5, 0, -45)
+		tag(
+			Kit.block(
+				gate,
+				Vector3.new(3.4, 1.2, 3.4),
+				pillarCF * CFrame.new(0, 1.6, 0),
+				SECONDARY,
+				Enum.Material.Concrete,
+				"GateBase"
+			),
+			"Secondary"
+		)
+		tag(
+			Kit.block(
+				gate,
+				Vector3.new(2.6, 13, 2.6),
+				pillarCF * CFrame.new(0, 8.5, 0),
+				rgb(150, 155, 165),
+				Enum.Material.Concrete,
+				"GatePillar"
+			),
+			"Primary"
+		)
+		tag(
+			Kit.block(
+				gate,
+				Vector3.new(3.4, 1, 3.4),
+				pillarCF * CFrame.new(0, 15.5, 0),
+				SECONDARY,
+				Enum.Material.Concrete,
+				"GateCap"
+			),
+			"Secondary"
+		)
+		local beacon = Kit.block(
+			gate,
+			Vector3.new(1.6, 1.6, 1.6),
+			pillarCF * CFrame.new(0, 16.8, 0),
+			ACCENT,
+			Enum.Material.Neon,
+			"GateLight"
+		)
+		Kit.detail(beacon)
+		tag(beacon, "Accent")
+		Kit.light(beacon, rgb(255, 220, 150), 1.2, 16)
 	end
 	local signPart = Kit.block(
-		folder,
-		Vector3.new(20, 6, 0.8),
-		plotCF * CFrame.new(0, 9, -44),
+		gate,
+		Vector3.new(16.4, 4.2, 1),
+		plotCF * CFrame.new(0, 12.6, -45),
 		rgb(25, 25, 35),
 		Enum.Material.SmoothPlastic,
 		"OwnerSign"
 	)
 	tag(
-		Kit.block(
-			folder,
-			Vector3.new(20.6, 6.6, 0.6),
-			plotCF * CFrame.new(0, 9, -43.7),
-			rgb(255, 200, 60),
-			Enum.Material.Neon
+		Kit.detail(
+			Kit.block(
+				gate,
+				Vector3.new(16.8, 4.6, 0.6),
+				plotCF * CFrame.new(0, 12.6, -45),
+				ACCENT,
+				Enum.Material.Neon,
+				"SignFrame"
+			)
 		),
 		"Accent"
 	)
 	local _, signLabel =
 		Kit.label(signPart, "EMPTY LOT", { Face = Enum.NormalId.Front, TextColor = C.White, Name = "OwnerLabel" })
+	local _, signLabelBack =
+		Kit.label(signPart, "EMPTY LOT", { Face = Enum.NormalId.Back, TextColor = C.White, Name = "OwnerLabelBack" })
 
 	-- Control terminal
 	local terminal = Kit.block(
@@ -316,20 +528,26 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 	screen.CastShadow = false
 	Kit.uiPrompt(terminal, "Vault Controls", "Terminal", "Vault")
 
-	-- Yard dressing
+	-- Yard dressing: lamps and flower beds along the walk, trees and shrubs
 	for side = -1, 1, 2 do
-		Kit.lamp(folder, (plotCF * CFrame.new(side * 9, 1, -20)).Position, rgb(255, 230, 170), 9)
-		Kit.lamp(folder, (plotCF * CFrame.new(side * 9, 1, -36)).Position, rgb(255, 230, 170), 9)
-		Kit.tree(folder, (plotCF * CFrame.new(side * 36, 1, -32)).Position, 0.9)
+		Kit.lamp(folder, (plotCF * CFrame.new(side * 8.5, 1, -20)).Position, rgb(255, 230, 170), 9)
+		Kit.lamp(folder, (plotCF * CFrame.new(side * 8.5, 1, -38)).Position, rgb(255, 230, 170), 9)
+		Kit.flowerBed(folder, plotCF * CFrame.new(side * 12.5, 1, -29), Vector2.new(3.5, 12))
+		Kit.tree(folder, (plotCF * CFrame.new(side * 36, 1, -33)).Position, 1.05)
+		Kit.tree(folder, (plotCF * CFrame.new(side * 38, 1, 36)).Position, 0.95)
+		for _, z in { -42, -36, 40 } do
+			Kit.bush(folder, (plotCF * CFrame.new(side * 42, 1, z)).Position, 0.8)
+		end
 		local hedge = Kit.block(
 			folder,
 			Vector3.new(2.5, 3, 40),
-			plotCF * CFrame.new(side * 46, 2.5, 0),
-			rgb(70, 150, 70),
-			Enum.Material.Grass,
+			plotCF * CFrame.new(side * 44, 2.5, 4),
+			rgb(70, 140, 62),
+			Enum.Material.LeafyGrass,
 			"Hedge"
 		)
 		hedge.CastShadow = false
+		Kit.bench(folder, plotCF * CFrame.new(side * 24, 1, -40) * CFrame.Angles(0, math.pi, 0))
 	end
 
 	return {
@@ -343,7 +561,7 @@ local function buildPlot(root: Instance, index: number, plotCF: CFrame): PlotDat
 		Door = { Part = door, Closed = doorClosed, Open = doorOpen, Prompt = crack },
 		Pedestals = pedestals,
 		Interior = { CFrame = b * CFrame.new(0, 10.3, 0.5), Size = Vector3.new(53, 20, 45) },
-		Sign = { Part = signPart, Label = signLabel },
+		Sign = { Part = signPart, Label = signLabel, Labels = { signLabel, signLabelBack } },
 		Terminal = terminal,
 		LaserSlots = laserSlots,
 		CameraSlots = cameraSlots,
