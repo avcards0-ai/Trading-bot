@@ -171,7 +171,7 @@ function MapBuilder.build(): MapData
 	-- Terrain can't be stored in the place from outside Studio, so it's built here and replaces
 	-- the stand-in parts (unless someone has already sculpted terrain of their own in Studio).
 	if workspace.Terrain:CountCells() == 0 then
-		local sculpted = Environment.terrain(map.Terrain)
+		local sculpted = Environment.terrain(map.Terrain, map.Root)
 		local standIns = map.Root:FindFirstChild("TerrainStandIns")
 		if standIns and sculpted then
 			standIns:Destroy()

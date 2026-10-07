@@ -321,139 +321,454 @@ function Kit.uiPrompt(
 	return prompt
 end
 
--- Props --------------------------------------------------------------------------------
+-- Vegetation ------------------------------------------------------------------------------------
+-- Every plant is seeded by its position, so the baked map and a regenerated one always agree,
+-- and no two plants come out the same.
 
--- Leafy tree: trunk, two branches and a lumpy canopy. Same position -> same tree.
+local SHADE = rgb(28, 40, 26)
+local SUNLIT = rgb(238, 234, 176)
+
+-- Leaf colour at height `t` through a crown (0 = underside, 1 = top): darker in its own shade,
+-- warmer where the sun lands.
+function Kit.foliage(color: Color3, t: number): Color3
+	return color:Lerp(SHADE, 0.24 * (1 - t)):Lerp(SUNLIT, 0.1 * t)
+end
+
+-- A plant's own random stream. The seed goes through the hash first: freshly seeded
+-- generators can hand out near-identical first numbers for nearby seeds, which would make
+-- every tree on a street grow the same way.
+local function plantRandom(position: Vector3, salt: number): Random
+	return Random.new(math.floor(Kit.hash(position.X * 7.31 + position.Z * 13.17 + salt) * 2147483000))
+end
+
+-- Leaf mass: a real ball (only true part shapes show the leafy material texture). Purely
+-- visual, so nothing collides with it or hits it.
+function Kit.leafBall(parent: Instance, diameter: number, position: Vector3, color: Color3, castShadow: boolean?): Part
+	local p = Kit.ball(parent, diameter, CFrame.new(position), color, Enum.Material.LeafyGrass)
+	p.Name = "Leaves"
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = castShadow == true
+	return p
+end
+
+-- Soft ellipsoid (a block wearing a sphere mesh) for smooth little shapes like mushroom caps.
+-- Sphere meshes don't show material textures, so leaves use leafBall instead.
+function Kit.blob(parent: Instance, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?): Part
+	local p = Kit.block(parent, size, cf, color, material or Enum.Material.SmoothPlastic, "Blob")
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = p
+	Kit.detail(p)
+	return p
+end
+
+-- Cylinder running from a to b: trunks, limbs, logs.
+function Kit.limb(
+	parent: Instance,
+	a: Vector3,
+	b: Vector3,
+	diameter: number,
+	color: Color3,
+	material: Enum.Material?,
+	name: string?
+): Part
+	local axis = b - a
+	local up = axis.Unit
+	local right = up:Cross(if math.abs(up.Y) < 0.98 then Vector3.yAxis else Vector3.xAxis).Unit
+	return Kit.cyl(
+		parent,
+		axis.Magnitude,
+		diameter,
+		CFrame.fromMatrix((a + b) / 2, right, up),
+		color,
+		material or Enum.Material.Wood,
+		name or "Limb"
+	)
+end
+
+-- Flat leaf that is `width` wide at `base` and tapers to a point `length` along its LookVector.
+function Kit.leaf(parent: Instance, base: CFrame, width: number, length: number, color: Color3): WedgePart
+	local p = Kit.wedge(
+		parent,
+		Vector3.new(0.14, width, length),
+		base * CFrame.new(0, 0, -length / 2) * CFrame.Angles(0, 0, math.rad(90)),
+		color,
+		Enum.Material.LeafyGrass
+	)
+	Kit.detail(p)
+	return p
+end
+
+-- Broadleaf tree in one of three habits (rounded, spreading, tall and narrow): a trunk that
+-- leans and kinks a little, root flares, limbs that reach into the crown, and a crown of leaf
+-- masses (darker underneath, sunlit on top) with smaller clumps breaking the outline.
 function Kit.tree(parent: Instance, position: Vector3, scale: number?, leafColor: Color3?)
 	local s = scale or 1
-	local rng = Random.new(math.floor(position.X * 7.3 + position.Z * 13.1) % 100000)
+	local rng = plantRandom(position, 1)
 	local m = Kit.model("Tree", parent)
-	local bark = rgb(104, 74, 52)
-	Kit.cyl(m, 9 * s, 1.7 * s, CFrame.new(position + Vector3.new(0, 4.5 * s, 0)), bark, Enum.Material.Wood, "Trunk")
-	for side = -1, 1, 2 do
-		local branch = Kit.cyl(
-			m,
-			4.5 * s,
-			0.8 * s,
-			CFrame.new(position + Vector3.new(side * 1.3 * s, 8.6 * s, 0))
-				* CFrame.Angles(0, rng:NextNumber(0, 6.28), 0)
-				* CFrame.Angles(0, 0, math.rad(side * 38)),
-			bark,
-			Enum.Material.Wood
-		)
-		Kit.detail(branch)
-	end
+	local habit = rng:NextNumber()
+	local narrow, spreading = habit < 0.22, habit > 0.7
+	local width = (if narrow then 0.74 elseif spreading then 1.1 else 1) * s
+	local trunkH = (if narrow then 9.6 elseif spreading then 7.6 else 8.4) * s * rng:NextNumber(0.92, 1.08)
 	local leaves = leafColor or rgb(76, 114, 58)
-	local blobs = {
-		{ 0, 13, 0, 10.5 },
-		{ 3.4, 11.4, 1.6, 7.5 },
-		{ -3.2, 11.8, -1.4, 7.2 },
-		{ 0.8, 15.6, -1.8, 6.4 },
-		{ -1.4, 11, 3, 6.6 },
-	}
-	for i, blob in blobs do
-		local shade =
-			leaves:Lerp(i % 2 == 0 and Color3.new(0, 0, 0) or Color3.new(1, 1, 0.8), rng:NextNumber(0.02, 0.12))
-		local ball = Kit.ball(
-			m,
-			blob[4] * s,
-			CFrame.new(position + Vector3.new(blob[1], blob[2], blob[3]) * s),
-			shade,
-			Enum.Material.LeafyGrass
-		)
-		ball.Name = "Leaves"
-		if i > 1 then
-			Kit.noCollide(ball)
-		end
-		if i > 2 then
-			ball.CastShadow = false -- inner blobs sit inside the big ones' shadow
+	local bark = if narrow and rng:NextNumber() < 0.35
+		then rgb(192, 188, 178) -- birch
+		else rgb(92, 70, 52):Lerp(rgb(124, 110, 94), rng:NextNumber(0, 0.6))
+	m:SetAttribute("Shade", 6.5 * width)
+
+	-- Trunk: a thick bole, then a thinner stem with a slight kink
+	local lean = Vector3.new(rng:NextNumber(-0.07, 0.07), 0, rng:NextNumber(-0.07, 0.07))
+	local kink = Vector3.new(rng:NextNumber(-0.09, 0.09), 0, rng:NextNumber(-0.09, 0.09))
+	local fork = position + (Vector3.yAxis + lean) * trunkH * 0.55
+	local top = fork + (Vector3.yAxis + lean + kink) * trunkH * 0.45
+	Kit.limb(
+		m,
+		position - Vector3.new(0, 0.5 * s, 0),
+		fork + (fork - position).Unit * 0.4 * s,
+		1.7 * s,
+		bark,
+		nil,
+		"Trunk"
+	)
+	Kit.limb(m, fork - (top - fork).Unit * 0.3 * s, top, 1.4 * s, bark, nil, "Stem").CastShadow = false
+	local yaw = rng:NextNumber(0, math.pi * 2)
+	local roots = if s < 0.8 then 2 else 3
+	for i = 1, roots do
+		local length = rng:NextNumber(1.3, 2.1) * s
+		local height = rng:NextNumber(0.9, 1.4) * s
+		local cf = CFrame.new(position)
+			* CFrame.Angles(0, yaw + i / roots * math.pi * 2 + rng:NextNumber(-0.35, 0.35), 0)
+			* CFrame.new(0, height / 2 - 0.3 * s, -(0.5 * s + length / 2))
+		Kit.detail(Kit.wedge(m, Vector3.new(0.7 * s, height, length), cf, bark:Lerp(SHADE, 0.15), Enum.Material.Wood))
+	end
+
+	-- Crown
+	local crownY = top.Y + 2.9 * s
+	local low, high = top.Y - 2 * s, crownY + 4 * s
+	local function shade(y: number): Color3
+		return Kit.foliage(leaves, math.clamp((y - low) / (high - low), 0, 1))
+	end
+	local cap = Vector3.new(top.X, crownY, top.Z)
+	Kit.leafBall(m, 7.6 * width, cap, shade(crownY + 1.5 * s), true)
+	if narrow then
+		local spire = cap + Vector3.new(0, 3.4 * s, 0) + lean * 3 * s
+		Kit.leafBall(m, 5.6 * width, spire, shade(spire.Y), true)
+	end
+	local masses = if narrow then 3 else rng:NextInteger(3, 4)
+	for i = 1, masses do
+		local angle = yaw + i / masses * math.pi * 2 + rng:NextNumber(-0.3, 0.3)
+		local out = Vector3.new(math.cos(angle), 0, math.sin(angle))
+		local center = top + Vector3.new(0, rng:NextNumber(1.2, 2.4) * s, 0) + out * rng:NextNumber(2.2, 2.9) * width
+		-- the cap and two big masses cast the crown's shadow; the rest would only add cost
+		Kit.leafBall(m, rng:NextNumber(5.2, 6.4) * width, center, shade(center.Y), i <= 2)
+		-- the limb carrying this mass (the first leaves the trunk where it narrows)
+		local from = if i == 1
+			then fork + (top - fork) * 0.15
+			else top - Vector3.new(0, rng:NextNumber(0.8, 2.2) * s, 0)
+		local thickness = (if i == 1 then 0.95 else 0.75) * s
+		Kit.detail(Kit.limb(m, from, center - out * 0.8 * width - Vector3.new(0, 0.6 * s, 0), thickness, bark))
+		if rng:NextNumber() < 0.65 then
+			local side = angle + rng:NextNumber(-0.6, 0.6)
+			local clump = center
+				+ Vector3.new(math.cos(side), 0, math.sin(side)) * 1.8 * width
+				- Vector3.new(0, rng:NextNumber(0.4, 1.2) * s, 0)
+			Kit.leafBall(m, 3 * width * rng:NextNumber(0.85, 1.15), clump, shade(clump.Y))
 		end
 	end
 	return m
 end
 
--- Evergreen: a trunk and three crossed tiers.
+-- Conifer: a straight trunk under stacked whorls of branches (rings of wedges, every whorl
+-- turned from the one below), narrowing to a spire.
 function Kit.pine(parent: Instance, position: Vector3, scale: number?, color: Color3?)
 	local s = scale or 1
+	local rng = plantRandom(position, 2)
 	local m = Kit.model("Pine", parent)
-	Kit.cyl(m, 7 * s, 1.3 * s, CFrame.new(position + Vector3.new(0, 3.5 * s, 0)), rgb(92, 64, 46), Enum.Material.Wood)
 	local green = color or rgb(48, 84, 58)
-	local yaw = (position.X * 0.37 + position.Z * 0.11) % 1.57
-	for tier = 0, 2 do
-		local width = (12 - tier * 3.2) * s
-		local height = (7.5 - tier * 1.2) * s
-		local base = CFrame.new(position + Vector3.new(0, (4 + tier * 4.6) * s + height / 2, 0))
-			* CFrame.Angles(0, yaw, 0)
-		local shade = green:Lerp(Color3.new(1, 1, 1), tier * 0.04)
-		for _, part in Kit.gable(m, base, Vector3.new(width * 0.72, height, width), shade, Enum.Material.LeafyGrass) do
-			Kit.noCollide(part)
+	local height = rng:NextNumber(16.5, 19.5) * s
+	m:SetAttribute("Shade", 5 * s)
+	Kit.limb(
+		m,
+		position - Vector3.new(0, 0.5 * s, 0),
+		position + Vector3.new(0, height * 0.6, 0),
+		1.2 * s,
+		rgb(86, 62, 46):Lerp(rgb(110, 92, 74), rng:NextNumber(0, 0.5)),
+		nil,
+		"Trunk"
+	)
+	local yaw = rng:NextNumber(0, math.pi * 2)
+	-- Flat whorls packed closely: each one hides where the wedges of the one below meet.
+	local whorls = 5
+	for w = 0, whorls - 1 do
+		local u = w / (whorls - 1)
+		local spire = w == whorls - 1
+		local n = if spire then 4 else 5
+		local radius = (5.4 - 3.6 * u) * s * rng:NextNumber(0.94, 1.06)
+		local h = (if spire then 4.6 else 3.6 - 0.4 * u) * s
+		local y = 3 * s + u * (height - 3 * s - h / 2)
+		local span = 2 * radius * math.tan(math.pi / n)
+		local shade = Kit.foliage(green, 0.1 + u * 0.8)
+		for k = 1, n do
+			local cf = CFrame.new(position + Vector3.new(0, y, 0))
+				* CFrame.Angles(0, yaw + k / n * math.pi * 2 + rng:NextNumber(-0.04, 0.04), 0)
+				* CFrame.new(0, 0, -radius / 2)
+			local part = Kit.wedge(m, Vector3.new(span, h, radius), cf, shade, Enum.Material.LeafyGrass)
+			part.Name = "Needles"
+			part.CanCollide = false
+			part.CanQuery = false
+			part.CanTouch = false
+			part.CastShadow = w <= 2 and k % 2 == 1 -- every other wedge of the wide whorls is shadow enough
 		end
-		for _, part in
-			Kit.gable(
-				m,
-				base * CFrame.Angles(0, math.rad(90), 0),
-				Vector3.new(width * 0.72, height, width),
-				shade:Lerp(Color3.new(0, 0, 0), 0.06),
-				Enum.Material.LeafyGrass
-			)
-		do
-			Kit.detail(part) -- the first gable already casts this tier's shadow
-		end
+		yaw += rng:NextNumber(0.35, 0.9)
 	end
 	return m
 end
 
--- Round shrub.
+-- Shrub: a main mound with smaller clumps around it, bedded into the ground. Some are in
+-- flower or carry berries.
 function Kit.bush(parent: Instance, position: Vector3, scale: number?, color: Color3?)
 	local s = scale or 1
+	local rng = plantRandom(position, 3)
 	local green = color or rgb(70, 108, 56)
 	local m = Kit.model("Bush", parent)
-	Kit.ball(m, 4.6 * s, CFrame.new(position + Vector3.new(0, 1.4 * s, 0)), green, Enum.Material.LeafyGrass)
-	Kit.detail(
-		Kit.ball(
-			m,
-			3.4 * s,
-			CFrame.new(position + Vector3.new(1.9 * s, 1 * s, 0.6 * s)),
-			green:Lerp(Color3.new(0, 0, 0), 0.08),
-			Enum.Material.LeafyGrass
-		)
-	)
-	Kit.detail(
-		Kit.ball(
-			m,
-			3 * s,
-			CFrame.new(position + Vector3.new(-1.6 * s, 0.9 * s, -0.9 * s)),
-			green:Lerp(Color3.new(1, 1, 1), 0.06),
-			Enum.Material.LeafyGrass
-		)
-	)
+	local core = position + Vector3.new(0, 1 * s, 0)
+	Kit.ball(m, 4.4 * s, CFrame.new(core), Kit.foliage(green, 0.6), Enum.Material.LeafyGrass).Name = "Leaves"
+	local yaw = rng:NextNumber(0, math.pi * 2)
+	local clumps = rng:NextInteger(2, 4)
+	for i = 1, clumps do
+		local angle = yaw + i / clumps * math.pi * 2 + rng:NextNumber(-0.4, 0.4)
+		local diameter = rng:NextNumber(2.6, 3.4) * s
+		local center = position
+			+ Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(1.5, 2.1) * s
+			+ Vector3.new(0, diameter * 0.22, 0)
+		Kit.leafBall(m, diameter, center, Kit.foliage(green, rng:NextNumber(0.1, 0.7)))
+	end
+	if rng:NextNumber() < 0.25 then
+		local blooms = { rgb(236, 232, 224), rgb(226, 150, 170), rgb(236, 206, 96), rgb(170, 40, 46) }
+		local bloom = blooms[rng:NextInteger(1, #blooms)]
+		for _ = 1, rng:NextInteger(4, 6) do
+			local a = rng:NextNumber(0, math.pi * 2)
+			local up = rng:NextNumber(0.25, 0.9)
+			local flat = math.sqrt(1 - up * up)
+			local dir = Vector3.new(math.cos(a) * flat, up, math.sin(a) * flat)
+			Kit.detail(Kit.ball(m, 0.45 * s, CFrame.new(core + dir * 2.15 * s), bloom, Enum.Material.SmoothPlastic))
+		end
+	end
 	return m
 end
 
+-- Palm: a ringed trunk curving away from the sea wind, coconuts, and fronds that arch up
+-- from the crown and droop toward their tips.
 function Kit.palm(parent: Instance, position: Vector3, scale: number?)
 	local s = scale or 1
+	local rng = plantRandom(position, 4)
 	local m = Kit.model("Palm", parent)
-	for i = 0, 4 do
-		Kit.cyl(
+	local lean = rng:NextNumber(0, math.pi * 2)
+	local dir = Vector3.new(math.cos(lean), 0, math.sin(lean))
+	local bend = rng:NextNumber(2.2, 4.2) * s
+	local height = rng:NextNumber(15, 17.5) * s
+	local previous = position - Vector3.new(0, 0.5 * s, 0)
+	local segments = 5
+	for i = 1, segments do
+		local u = i / segments
+		local point = position + Vector3.new(0, height * u, 0) + dir * bend * u * u
+		Kit.limb(
 			m,
-			3.2 * s,
-			(1.5 - i * 0.1) * s,
-			CFrame.new(position + Vector3.new(i * 0.35 * s, (1.6 + i * 3) * s, 0)) * CFrame.Angles(0, 0, math.rad(-6)),
-			rgb(150, 110, 70),
-			Enum.Material.Wood
+			previous,
+			point + (point - previous).Unit * 0.25 * s,
+			(1.45 - 0.42 * u) * s,
+			if i % 2 == 0 then rgb(150, 122, 90) else rgb(132, 106, 80),
+			nil,
+			if i == 1 then "Trunk" else "Stem"
+		)
+		previous = point
+	end
+	local top = previous
+	for i = 1, 3 do
+		local a = i * 2.1 + rng:NextNumber(-0.3, 0.3)
+		Kit.detail(
+			Kit.ball(
+				m,
+				0.9 * s,
+				CFrame.new(top + Vector3.new(math.cos(a) * 0.55 * s, -0.7 * s, math.sin(a) * 0.55 * s)),
+				rgb(92, 70, 40),
+				Enum.Material.Wood
+			)
 		)
 	end
-	local top = position + Vector3.new(1.8 * s, 15.5 * s, 0)
-	for i = 1, 6 do
-		local angle = i / 6 * math.pi * 2
-		local cf = CFrame.new(top)
-			* CFrame.Angles(0, angle, 0)
-			* CFrame.new(0, -0.8 * s, -3.5 * s)
-			* CFrame.Angles(math.rad(-25), 0, 0)
-		Kit.block(m, Vector3.new(1.6 * s, 0.3 * s, 7 * s), cf, rgb(60, 170, 70), Enum.Material.Grass)
+	local frond = rgb(88, 124, 60)
+	local fronds = rng:NextInteger(7, 8)
+	for i = 1, fronds do
+		local angle = i / fronds * math.pi * 2 + rng:NextNumber(-0.2, 0.2)
+		local length = rng:NextNumber(3.6, 4.4) * s
+		local base = CFrame.new(top) * CFrame.Angles(0, angle, 0) * CFrame.Angles(math.rad(rng:NextNumber(8, 22)), 0, 0)
+		local inner = Kit.block(
+			m,
+			Vector3.new(1.7 * s, 0.22 * s, length),
+			base * CFrame.new(0, 0, -length / 2),
+			Kit.foliage(frond, 0.75),
+			Enum.Material.LeafyGrass
+		)
+		Kit.detail(inner)
+		inner.CastShadow = i % 2 == 1
+		Kit.leaf(
+			m,
+			base * CFrame.new(0, 0, -length + 0.2 * s) * CFrame.Angles(math.rad(-rng:NextNumber(38, 55)), 0, 0),
+			1.6 * s,
+			length * 1.1,
+			Kit.foliage(frond, 0.45)
+		)
 	end
 	return m
 end
+
+-- Undergrowth ---------------------------------------------------------------------------------
+
+-- Clump of long grass where nobody mows: fence lines, rocks, tree trunks, verges.
+function Kit.tuft(parent: Instance, position: Vector3, seed: number, height: number?)
+	local h = height or (1.3 + Kit.hash(seed) * 1.1)
+	local m = Kit.model("Tuft", parent)
+	local color = rgb(102, 128, 64):Lerp(rgb(150, 146, 86), Kit.hash(seed + 1) * 0.5)
+	local yaw = Kit.hash(seed + 2) * math.pi * 2
+	for i = 1, 4 do
+		local blade = h * (0.7 + Kit.hash(seed + i * 3.1) * 0.4)
+		local cf = CFrame.new(position)
+			* CFrame.Angles(0, yaw + i * 1.7, 0)
+			* CFrame.Angles(math.rad(12 + Kit.hash(seed + i) * 20), 0, 0)
+			* CFrame.new(0, blade / 2 - 0.15, 0)
+		Kit.detail(
+			Kit.wedge(m, Vector3.new(0.12, blade, 0.55), cf, color:Lerp(SHADE, 0.14 * (i % 2)), Enum.Material.Grass)
+		)
+	end
+	return m
+end
+
+-- Fern for the forest floor: fronds fanning out from the middle and arching up.
+function Kit.fern(parent: Instance, position: Vector3, seed: number, scale: number?)
+	local s = scale or 1
+	local m = Kit.model("Fern", parent)
+	local color = rgb(66, 104, 50):Lerp(rgb(98, 128, 58), Kit.hash(seed))
+	local fronds = 5 + math.floor(Kit.hash(seed + 1) * 3)
+	for i = 1, fronds do
+		local angle = i / fronds * math.pi * 2 + Kit.hash(seed + i) * 0.5
+		local rise = math.rad(16 + Kit.hash(seed + i * 1.9) * 22)
+		Kit.leaf(
+			m,
+			CFrame.new(position + Vector3.new(0, 0.25 * s, 0)) * CFrame.Angles(0, angle, 0) * CFrame.Angles(rise, 0, 0),
+			0.9 * s,
+			(2.2 + Kit.hash(seed + i * 2.3) * 0.9) * s,
+			Kit.foliage(color, 0.3 + Kit.hash(seed + i * 3.7) * 0.5)
+		)
+	end
+	return m
+end
+
+-- Loose patch of wildflowers on thin, leaning stems; a patch is mostly one kind of flower.
+function Kit.wildflowers(parent: Instance, position: Vector3, seed: number, colors: { Color3 }?)
+	local palette = colors or { rgb(238, 234, 224), rgb(238, 204, 84), rgb(190, 142, 206), rgb(222, 124, 120) }
+	local main = palette[math.floor(Kit.hash(seed) * #palette) + 1]
+	local m = Kit.model("Wildflowers", parent)
+	for i = 1, 5 + math.floor(Kit.hash(seed + 1) * 4) do
+		local a = Kit.hash(seed + i * 1.3) * math.pi * 2
+		local r = math.sqrt(Kit.hash(seed + i * 2.7)) * 2.6
+		local h = 0.6 + Kit.hash(seed + i * 4.1) * 0.6
+		local stem = CFrame.new(position + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r))
+			* CFrame.Angles(
+				math.rad((Kit.hash(seed + i * 7.7) - 0.5) * 26),
+				0,
+				math.rad((Kit.hash(seed + i * 8.3) - 0.5) * 26)
+			)
+		Kit.detail(
+			Kit.block(
+				m,
+				Vector3.new(0.1, h, 0.1),
+				stem * CFrame.new(0, h / 2 - 0.1, 0),
+				rgb(104, 138, 64),
+				Enum.Material.Grass
+			)
+		)
+		local color = if Kit.hash(seed + i * 5.3) < 0.8
+			then main
+			else palette[math.floor(Kit.hash(seed + i * 6.1) * #palette) + 1]
+		Kit.detail(Kit.ball(m, 0.36, stem * CFrame.new(0, h - 0.1, 0), color, Enum.Material.SmoothPlastic))
+	end
+	return m
+end
+
+-- Tree stump: the cut face shows paler wood, and mushrooms often grow at its foot.
+function Kit.stump(parent: Instance, position: Vector3, seed: number)
+	local m = Kit.model("Stump", parent)
+	local d = 1.6 + Kit.hash(seed) * 0.9
+	local h = 0.9 + Kit.hash(seed + 1) * 0.9
+	Kit.cyl(
+		m,
+		h + 0.4,
+		d,
+		CFrame.new(position + Vector3.new(0, (h - 0.4) / 2, 0)),
+		rgb(92, 72, 54),
+		Enum.Material.Wood,
+		"Stump"
+	)
+	Kit.detail(
+		Kit.cyl(
+			m,
+			0.1,
+			d - 0.3,
+			CFrame.new(position + Vector3.new(0, h + 0.02, 0)),
+			rgb(176, 148, 108),
+			Enum.Material.Wood
+		)
+	)
+	if Kit.hash(seed + 2) < 0.6 then
+		for i = 1, 2 + math.floor(Kit.hash(seed + 3) * 2) do
+			local a = Kit.hash(seed + i * 1.7) * math.pi * 2
+			local at = position + Vector3.new(math.cos(a), 0, math.sin(a)) * (d / 2 + 0.25)
+			local stalk = 0.35 + Kit.hash(seed + i * 2.9) * 0.3
+			Kit.detail(Kit.cyl(m, stalk, 0.18, CFrame.new(at + Vector3.new(0, stalk / 2, 0)), rgb(226, 218, 200)))
+			Kit.blob(m, Vector3.new(0.6, 0.3, 0.6), CFrame.new(at + Vector3.new(0, stalk, 0)), rgb(150, 104, 70))
+		end
+	end
+	return m
+end
+
+-- Fallen log with a broken-off branch and moss along its top.
+function Kit.log(parent: Instance, position: Vector3, seed: number)
+	local m = Kit.model("Log", parent)
+	local yaw = Kit.hash(seed) * math.pi * 2
+	local length = 7 + Kit.hash(seed + 1) * 5
+	local d = 1.3 + Kit.hash(seed + 2) * 0.6
+	local dir = Vector3.new(math.cos(yaw), 0, math.sin(yaw))
+	local mid = position + Vector3.new(0, d * 0.38, 0)
+	local wood = rgb(96, 76, 58)
+	Kit.limb(m, mid - dir * length / 2, mid + dir * length / 2, d, wood, Enum.Material.Wood, "Log")
+	Kit.detail(
+		Kit.cyl(
+			m,
+			0.1,
+			d - 0.25,
+			CFrame.fromMatrix(mid + dir * (length / 2 + 0.03), dir:Cross(Vector3.yAxis), dir),
+			rgb(170, 142, 104),
+			Enum.Material.Wood
+		)
+	)
+	local side = dir:Cross(Vector3.yAxis) * (if Kit.hash(seed + 3) < 0.5 then 1 else -1)
+	local knot = mid + dir * length * (Kit.hash(seed + 4) - 0.5) * 0.5
+	Kit.detail(Kit.limb(m, knot, knot + side * (d / 2 + 0.9) + Vector3.new(0, 0.6, 0), 0.45, wood))
+	for i = 1, 3 do
+		local along = (Kit.hash(seed + 5 + i) - 0.5) * length * 0.6
+		Kit.leafBall(
+			m,
+			0.8 + Kit.hash(seed + 9 + i) * 0.4,
+			mid + dir * along + Vector3.new(0, d * 0.42, 0),
+			rgb(84, 112, 52)
+		)
+	end
+	return m
+end
+
+-- Props --------------------------------------------------------------------------------
 
 -- Park lamp: post, collar and a glowing lantern.
 function Kit.lamp(parent: Instance, position: Vector3, color: Color3?, height: number?)

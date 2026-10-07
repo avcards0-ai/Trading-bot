@@ -23,7 +23,7 @@ edit it there like any hand-made map.
    rojo build default.project.json -o StealTheArtifact.rbxlx
    lune run tools/build_place StealTheArtifact.rbxlx StealTheArtifact.rbxl
    ```
-   The second step bakes the city into `Workspace.Map` (about 20,500 parts, with the spawn
+   The second step bakes the city into `Workspace.Map` (about 26,000 parts, with the spawn
    point, lighting and post-processing). See [Baked map](#baked-map) below.
 2. Open `StealTheArtifact.rbxl` in Roblox Studio. To keep syncing code while you work, run
    `rojo serve` and click **Connect** in the Rojo plugin.
@@ -34,8 +34,8 @@ edit it there like any hand-made map.
      Without it, the game automatically uses an in-memory store and everything still works.
 4. Press **Play**. The server hooks up to the baked city instantly and builds the terrain:
    ocean, beach, the hills around the island and the island surface itself (rolling ground,
-   patchy grass, worn dirt trails). Terrain only exists while the game runs; in edit mode
-   simple stand-in parts show where it will be.
+   patchy grass with animated blades, worn dirt trails). Terrain only exists while the game
+   runs; in edit mode simple stand-in parts show where it will be.
 
 To test multiplayer interactions (bonks, raids), use **Test → Clients and Servers** with
 2-4 players.
@@ -230,6 +230,12 @@ at runtime, from a plan stored in `MapData` (where the hills rise and where the 
 run). It replaces the parts in `Workspace.Map.TerrainStandIns`. If you sculpt terrain of your
 own in Studio, the server leaves it alone and keeps the stand-ins.
 
+The animated grass blades come from `Terrain.Decoration`, which scripts can't change, so it's
+switched on (with `GrassLength`) in `default.project.json` and saved into the place. Blades
+would poke straight up through thin floors, so when the server sculpts the island it looks at
+the baked map and lays leafy grass (which grows no blades) under every road, sidewalk, plaza,
+floor and path, and under each tree's crown, with bare soil around the trunk.
+
 ### Look and feel
 
 The city is meant to read as a place people live in, not a generated level:
@@ -251,6 +257,14 @@ The city is meant to read as a place people live in, not a generated level:
   mix of props while the gameplay layout stays identical.
 - Props are generated with controlled variation (type, color, rotation, wear, open/closed
   state) from `src/server/Map/Props.luau`, so repeats never look copy-pasted.
+- **Plants:** every tree is grown from its position: broadleaf trees come in rounded,
+  spreading and tall narrow habits (the odd birch among them), with leaning, kinked trunks,
+  root flares, limbs that reach into the crown and crowns that are darker underneath and
+  sunlit on top. Pines stack flat whorls up to a spire, palms curve away from the wind, and
+  shrubs are lumpy mounds, some in flower. The woods grow in groves and clearings with pine
+  stands and broadleaf stands, ferns and long grass around the trunks, stumps and fallen
+  logs; meadows get drifts of wildflowers, and long grass survives along fence lines and
+  around boulders where nobody mows.
 
 ### Security model
 
@@ -288,10 +302,11 @@ The server owns every outcome. Clients only *ask*.
   all client-side. World VFX use an `UnreliableRemoteEvent` and only go to nearby players.
 - Data replication is batched per frame and per key.
 - Low VFX mode cuts particles for older devices.
-- The city is ~20,500 anchored parts: ~7,000 collide and ~7,400 cast shadows. Decorative
-  pieces (windows, trims, stains, inner foliage, wheels) have collisions, queries, touch
-  events and shadows switched off, anything under 1.5 studs casts no shadow, wires are
-  Beams, and everything streams in by distance.
+- The city is ~26,000 anchored parts: ~6,900 collide and ~8,100 cast shadows. Decorative
+  pieces (windows, trims, stains, leaves, undergrowth, wheels) have collisions, queries,
+  touch events and shadows switched off (only a crown's few biggest leaf masses cast its
+  shadow), anything under 1.5 studs casts no shadow, wires are Beams, and everything streams
+  in by distance.
 
 ---
 
@@ -332,8 +347,9 @@ lune run tests/run
 # Client smoke test: boots every controller, opens every window and presses every button
 lune run tests/client
 
-# Release QA for the map: floating or buried props, props clipping into buildings or each
-# other, props on roads, plus a part/shadow/light budget (exit code 1 if anything is found)
+# Release QA for the map: floating or buried props, props (and tree crowns) clipping into
+# buildings or each other, props on roads, plus a part/shadow/light budget (exit code 1 if
+# anything is found)
 lune run tools/dump_map map.json
 python3 tools/qa_map.py map.json
 ```

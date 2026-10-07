@@ -87,6 +87,13 @@
         "StreamingTargetRadius": 480,
         "StreamingIntegrityMode": "MinimumRadiusPause",
         "Gravity": 196.2
+      },
+      "Terrain": {
+        "$className": "Terrain",
+        "$properties": {
+          "Decoration": true,
+          "GrassLength": 0.75
+        }
       }
     }
   }

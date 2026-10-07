@@ -17,7 +17,7 @@ local rgb = Kit.rgb
 
 local Environment = {}
 
-Environment.GrassColor = rgb(94, 120, 64)
+Environment.GrassColor = rgb(94, 126, 62)
 
 export type TerrainPlan = {
 	Mounds: { { Center: Vector3, Radius: number, Height: number } },
@@ -25,8 +25,8 @@ export type TerrainPlan = {
 }
 
 local TERRAIN_COLORS = {
-	{ Enum.Material.Grass, rgb(96, 122, 64) },
-	{ Enum.Material.LeafyGrass, rgb(80, 106, 56) },
+	{ Enum.Material.Grass, rgb(94, 126, 62) },
+	{ Enum.Material.LeafyGrass, rgb(80, 110, 54) },
 	{ Enum.Material.Ground, rgb(106, 94, 74) },
 	{ Enum.Material.Mud, rgb(82, 68, 56) },
 	{ Enum.Material.Sand, rgb(190, 172, 132) },
@@ -52,10 +52,104 @@ local function segmentDistance(px: number, pz: number, a: Vector3, b: Vector3): 
 	return math.sqrt(dx * dx + dz * dz)
 end
 
+-- Ground cover -----------------------------------------------------------------------------------
+-- The place file turns on Terrain.Decoration, so Grass terrain grows animated blades. Blades
+-- would poke straight up through thin floors, so the ground under any low, flat part (roads,
+-- sidewalks, plazas, floors, paths) is leafy grass instead, which grows none. So is the shade
+-- under each tree's crown, with bare soil around the trunk.
+
+local COVER_RES = 4
+local LUSH, SOIL = 1, 2
+
+local function coverCell(x: number, z: number): number
+	return (math.floor(x / COVER_RES) + 2048) * 4096 + math.floor(z / COVER_RES) + 2048
+end
+
+local function markCircle(cover: { [number]: number }, x: number, z: number, radius: number, value: number)
+	for gx = math.floor((x - radius) / COVER_RES), math.floor((x + radius) / COVER_RES) do
+		for gz = math.floor((z - radius) / COVER_RES), math.floor((z + radius) / COVER_RES) do
+			local cx, cz = (gx + 0.5) * COVER_RES, (gz + 0.5) * COVER_RES
+			if (cx - x) ^ 2 + (cz - z) ^ 2 <= radius * radius then
+				local key = (gx + 2048) * 4096 + gz + 2048
+				cover[key] = math.max(cover[key] or 0, value)
+			end
+		end
+	end
+end
+
+-- Marks every terrain column a low, flat part sits on (any quarter of the column will do).
+local function markPart(cover: { [number]: number }, part: BasePart)
+	local cf, size = part.CFrame, part.Size
+	local c = cf.Position
+	local axes = { cf.RightVector, cf.UpVector, -cf.LookVector }
+	local half = { size.X / 2, size.Y / 2, size.Z / 2 }
+	local ex, ey, ez = 0, 0, 0
+	local vertical = 1
+	for k = 1, 3 do
+		ex += math.abs(axes[k].X) * half[k]
+		ey += math.abs(axes[k].Y) * half[k]
+		ez += math.abs(axes[k].Z) * half[k]
+		if math.abs(axes[k].Y) > math.abs(axes[vertical].Y) then
+			vertical = k
+		end
+	end
+	if c.Y - ey > 0.6 or c.Y + ey < -0.2 or c.Y + ey > 2.2 or math.min(ex, ez) < 0.4 then
+		return -- not lying on the ground, or too slim to matter
+	end
+	local a, b = if vertical == 1 then 2 else 1, if vertical == 3 then 2 else 3
+	local round = (part:IsA("Part") and part.Shape == Enum.PartType.Cylinder and vertical == 1)
+		or (part:IsA("Part") and part.Shape == Enum.PartType.Ball)
+	local radius = math.min(half[a], half[b])
+	for gx = math.floor((c.X - ex) / COVER_RES), math.floor((c.X + ex) / COVER_RES) do
+		for gz = math.floor((c.Z - ez) / COVER_RES), math.floor((c.Z + ez) / COVER_RES) do
+			local key = (gx + 2048) * 4096 + gz + 2048
+			if not cover[key] then
+				for q = 0, 3 do
+					local d = Vector3.new(
+						(gx + 0.25 + (q % 2) * 0.5) * COVER_RES - c.X,
+						0,
+						(gz + 0.25 + math.floor(q / 2) * 0.5) * COVER_RES - c.Z
+					)
+					local u, v = d:Dot(axes[a]), d:Dot(axes[b])
+					local inside = if round
+						then u * u + v * v <= radius * radius
+						else math.abs(u) <= half[a] and math.abs(v) <= half[b]
+					if inside then
+						cover[key] = LUSH
+						break
+					end
+				end
+			end
+		end
+	end
+end
+
+local function groundCover(root: Instance?): { [number]: number }
+	local cover: { [number]: number } = {}
+	if not root then
+		return cover
+	end
+	local standIns = root:FindFirstChild("TerrainStandIns")
+	for _, inst in root:GetDescendants() do
+		if inst:IsA("BasePart") then
+			local shade = inst.Name == "Trunk" and inst.Parent and inst.Parent:GetAttribute("Shade")
+			if type(shade) == "number" then
+				local at = inst.CFrame.Position
+				markCircle(cover, at.X, at.Z, shade, LUSH)
+				markCircle(cover, at.X, at.Z, 2.2, SOIL)
+			elseif inst.Transparency < 1 and not (standIns and inst:IsDescendantOf(standIns)) then
+				markPart(cover, inst)
+			end
+		end
+	end
+	return cover
+end
+
 -- Writes the island surface voxel by voxel: hills, patchy grass and worn dirt paths.
-local function sculptIsland(terrain: Terrain, plan: TerrainPlan)
+local function sculptIsland(terrain: Terrain, plan: TerrainPlan, root: Instance?)
 	local islandR = GameConfig.Map.WorldRadius + 6
-	local res, chunk = 4, 128
+	local res, chunk = COVER_RES, 128
+	local cover = groundCover(root)
 	for cx = -islandR, islandR, chunk do
 		for cz = -islandR, islandR, chunk do
 			local nearX = math.clamp(0, cx, cx + chunk)
@@ -110,6 +204,12 @@ local function sculptIsland(terrain: Terrain, plan: TerrainPlan)
 							if h > 1.5 and material == Enum.Material.Ground then
 								material = Enum.Material.Grass -- hilltops stay green
 							end
+							local covered = cover[coverCell(x, z)]
+							if covered == SOIL then
+								material = Enum.Material.Ground
+							elseif covered == LUSH and material == Enum.Material.Grass then
+								material = Enum.Material.LeafyGrass
+							end
 							for iy = 1, size.Y do
 								local y0 = corner.Y + (iy - 1) * res
 								local occupancy = math.clamp((h - y0) / res, 0, 1)
@@ -130,8 +230,9 @@ end
 
 -- Terrain only exists in a running server (it can't be saved into the place file from
 -- outside Studio). It replaces the Ground stand-in parts with the real thing: ocean, beach,
--- hills ringing the island, and the island surface itself.
-function Environment.terrain(plan: TerrainPlan?): boolean
+-- hills ringing the island, and the island surface itself. `root` is the built map, which
+-- decides where grass may grow blades.
+function Environment.terrain(plan: TerrainPlan?, root: Instance?): boolean
 	local terrain = workspace.Terrain
 	local radius = GameConfig.Map.WorldRadius
 	terrain:Clear()
@@ -164,7 +265,7 @@ function Environment.terrain(plan: TerrainPlan?): boolean
 	if not plan then
 		return false
 	end
-	local ok, err = pcall(sculptIsland, terrain, plan)
+	local ok, err = pcall(sculptIsland, terrain, plan, root)
 	if not ok then
 		warn("[Map] Couldn't sculpt the island terrain (keeping it flat):", err)
 	end
@@ -708,32 +809,51 @@ local function onGround(position: Vector3): Vector3
 	return Vector3.new(position.X, h > 0 and h - 0.4 or 0, position.Z)
 end
 
+-- True if the ground under a circle of `radius` is flat (no hill under any part of it).
+local function flatGround(position: Vector3, radius: number): boolean
+	for _, offset in { Vector3.zero, Vector3.xAxis, -Vector3.xAxis, Vector3.zAxis, -Vector3.zAxis } do
+		if Layout.groundHeight(position + offset * radius) > 0 then
+			return false
+		end
+	end
+	return true
+end
+
 -- Wild edge of the island: a forest belt between the vaults, boulders and meadows.
 function Environment.scenery(root: Instance)
 	local folder = Kit.folder("Scenery", root)
 	local rng = Random.new(2024)
+	-- Undergrowth draws from its own stream so the trees and rocks keep their places.
+	local under = Random.new(808)
+	local function nearby(center: Vector3, low: number, high: number): Vector3
+		local a = under:NextNumber(0, math.pi * 2)
+		return center + Vector3.new(math.cos(a), 0, math.sin(a)) * under:NextNumber(low, high)
+	end
 	local radius = GameConfig.Map.WorldRadius
 	local oak = { rgb(74, 112, 56), rgb(88, 122, 60), rgb(64, 104, 62), rgb(102, 124, 64) }
 	local autumn = { rgb(176, 112, 52), rgb(190, 148, 66), rgb(150, 84, 56) }
 
-	-- Forest belt
+	-- Forest belt: groves and clearings rather than an even scatter, with stands of pine in
+	-- some places and broadleaf woods in others
 	local placed = 0
-	for _ = 1, 1400 do
-		if placed >= 170 then
+	for _ = 1, 4000 do
+		if placed >= 180 then
 			break
 		end
 		local angle = rng:NextNumber(0, math.pi * 2)
 		local r = rng:NextNumber(radius - 125, radius - 26)
 		local pos = Vector3.new(math.cos(angle) * r, 0, math.sin(angle) * r)
+		local density = math.noise(pos.X / 95, pos.Z / 95, 3.3) + 0.35 * math.noise(pos.X / 31, pos.Z / 31, 8.1)
+		local conifers = math.noise(pos.X / 150, pos.Z / 150, 6.6) > -0.05
 		pos = onGround(pos)
 		local scale = rng:NextNumber(0.9, 1.5)
-		if Layout.isFree(pos, 6 * scale, 4) then
+		if rng:NextNumber() < 0.45 + density * 1.8 and Layout.isFree(pos, 6 * scale, 4) then
 			Layout.claim(pos, 4 * scale)
 			placed += 1
 			local roll = rng:NextNumber()
-			if roll < 0.55 then
+			if roll < (if conifers then 0.8 else 0.2) then
 				Kit.pine(folder, pos, scale * 1.15, rgb(44, 78, 56):Lerp(rgb(62, 96, 62), rng:NextNumber()))
-			elseif roll < 0.9 then
+			elseif roll < 0.92 then
 				Kit.tree(folder, pos, scale, oak[rng:NextInteger(1, #oak)])
 			else
 				Kit.tree(folder, pos, scale, autumn[rng:NextInteger(1, #autumn)])
@@ -743,6 +863,41 @@ function Environment.scenery(root: Instance)
 				if Layout.isFree(pos + offset, 3, 2) then
 					Kit.bush(folder, onGround(pos + offset), rng:NextNumber(0.8, 1.3))
 				end
+			end
+			-- Forest floor: ferns between the trunks, long grass against them
+			if under:NextNumber() < 0.3 then
+				local at = nearby(pos, 2.6 * scale, 5 * scale)
+				if Layout.roadClearance(at) > 1.5 then
+					Kit.fern(folder, onGround(at), under:NextInteger(1, 1e6), under:NextNumber(0.8, 1.2))
+				end
+			end
+			if under:NextNumber() < 0.2 then
+				local at = nearby(pos, 1.3 * scale, 1.8 * scale)
+				if Layout.roadClearance(at) > 1.5 then
+					Kit.tuft(folder, onGround(at), under:NextInteger(1, 1e6))
+				end
+			end
+		end
+	end
+
+	-- Not every tree is still standing: stumps where some were cut, a few fallen logs
+	local fallen = 0
+	for _ = 1, 500 do
+		if fallen >= 21 then
+			break
+		end
+		local angle = under:NextNumber(0, math.pi * 2)
+		local r = under:NextNumber(radius - 120, radius - 30)
+		local pos = Vector3.new(math.cos(angle) * r, 0, math.sin(angle) * r)
+		local isLog = fallen % 3 == 2
+		if Layout.isFree(pos, if isLog then 6.5 else 2.5, 2) and (not isLog or flatGround(pos, 6.5)) then
+			fallen += 1
+			if isLog then
+				Kit.log(folder, pos, under:NextInteger(1, 1e6))
+				Layout.claim(pos, 6.5)
+			else
+				Kit.stump(folder, onGround(pos), under:NextInteger(1, 1e6))
+				Layout.claim(pos, 2.5)
 			end
 		end
 	end
@@ -763,6 +918,10 @@ function Environment.scenery(root: Instance)
 			if roll < 0.3 then
 				Kit.rocks(folder, pos, rng:NextNumber(0.8, 1.5))
 				Layout.claim(pos, 5)
+				-- the mower never gets close to a boulder
+				for _ = 1, under:NextInteger(1, 3) do
+					Kit.tuft(folder, onGround(nearby(pos, 3.6, 5)), under:NextInteger(1, 1e6))
+				end
 			elseif roll < 0.65 then
 				for j = 1, rng:NextInteger(2, 4) do
 					local offset = Vector3.new(rng:NextNumber(-9, 9), 0, rng:NextNumber(-9, 9))
@@ -775,6 +934,31 @@ function Environment.scenery(root: Instance)
 				Kit.tree(folder, pos, rng:NextNumber(0.9, 1.3), oak[rng:NextInteger(1, #oak)])
 				Layout.claim(pos, 6)
 			end
+		end
+	end
+
+	-- Drifts of wildflowers in the open meadows, a few patches of one kind together
+	local blooms = { rgb(238, 234, 224), rgb(238, 204, 84), rgb(190, 142, 206), rgb(222, 124, 120) }
+	local drifts = 0
+	for _ = 1, 800 do
+		if drifts >= 10 then
+			break
+		end
+		local angle = under:NextNumber(0, math.pi * 2)
+		local r = under:NextNumber(160, radius - 34)
+		local pos = Vector3.new(math.cos(angle) * r, 0, math.sin(angle) * r)
+		if Layout.isFree(pos, 9, 3) then
+			drifts += 1
+			local kind = blooms[under:NextInteger(1, #blooms)]
+			for _ = 1, under:NextInteger(2, 3) do
+				Kit.wildflowers(
+					folder,
+					onGround(nearby(pos, 0, 6)),
+					under:NextInteger(1, 1e6),
+					{ kind, kind, kind, blooms[1] }
+				)
+			end
+			Layout.claim(pos, 9)
 		end
 	end
 end

@@ -805,6 +805,10 @@ local function buildSuburbs(parent: Instance, rng: Random)
 								)
 							end
 							Kit.fence(folder, from.Position, to.Position, fenceColor)
+							if Kit.hash(seed + 40 + side) < 0.45 then
+								-- long grass where the mower can't reach the end post
+								Kit.tuft(folder, (to * CFrame.new(-side * 0.7, 0, 0.6)).Position, seed + 41 + side)
+							end
 						end
 					end
 					Props.mailbox(folder, cf * CFrame.new(3.4, 0, front - 1), seed + 5)

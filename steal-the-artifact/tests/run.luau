@@ -380,7 +380,7 @@ test("map size is reasonable", function()
 		end
 	end
 	print(string.format("      (%d parts in the generated city)", parts))
-	check(parts > 2000 and parts < 15000, "unexpected part count " .. parts)
+	check(parts > 2000 and parts < 18000, "unexpected part count " .. parts)
 end)
 
 -- 6. Full city + baking it into a place file ----------------------------------------------------
@@ -401,7 +401,7 @@ test("full city generates", function()
 		end
 	end
 	print(string.format("      (%d parts in the full city)", parts))
-	check(parts > 8000 and parts < 26000, "unexpected part count " .. parts)
+	check(parts > 8000 and parts < 28000, "unexpected part count " .. parts)
 	check(spawns == 1, "expected exactly one SpawnLocation, found " .. spawns)
 end)
 
@@ -441,9 +441,10 @@ end
 test("island terrain gets hills, paths and patchy grass", function()
 	local Environment = H.require("src/server/Map/Environment.luau")
 	table.clear(H.VoxelWrites)
-	check(Environment.terrain(fullMap.Terrain), "sculpting reported a failure")
+	check(Environment.terrain(fullMap.Terrain, fullMap.Root), "sculpting reported a failure")
 	check(#H.VoxelWrites > 50, "expected the island to be written in chunks")
 	local raised, materials = 0, {}
+	local surface: { [string]: string } = {} -- top solid voxel of each column, by "x,z"
 	for _, write in H.VoxelWrites do
 		local size = write.Materials.Size
 		local corner = write.Region.CFrame.Position - write.Region.Size / 2
@@ -458,6 +459,10 @@ test("island terrain gets hills, paths and patchy grass", function()
 						if corner.Y + (y - 1) * write.Resolution >= 0 then
 							raised += 1
 						end
+						local column = math.floor((corner.X + (x - 0.5) * write.Resolution) / 4)
+							.. ","
+							.. math.floor((corner.Z + (z - 0.5) * write.Resolution) / 4)
+						surface[column] = material.Name
 					end
 				end
 			end
@@ -465,6 +470,34 @@ test("island terrain gets hills, paths and patchy grass", function()
 	end
 	check(raised > 100, "hills should raise voxels above the flat island")
 	check(materials.Grass and materials.LeafyGrass and materials.Ground, "expected grass, leafy grass and dirt")
+
+	-- Grass blades must never grow up through a road, and trees shade the grass under them.
+	local function columnAt(position: Vector3): string?
+		return surface[math.floor(position.X / 4) .. "," .. math.floor(position.Z / 4)]
+	end
+	local roads, trees = 0, 0
+	for _, part in fullMap.Root:GetDescendants() do
+		if part:IsA("BasePart") and part.Name == "Road" and part.CFrame.Position.Y < 1 then
+			local material = columnAt(part.CFrame.Position)
+			if material then
+				roads += 1
+				check(
+					material ~= "Grass",
+					"grass blades would grow through the road at " .. tostring(part.CFrame.Position)
+				)
+			end
+		elseif part:IsA("BasePart") and part.Name == "Trunk" and part.Parent:GetAttribute("Shade") then
+			local material = columnAt(part.CFrame.Position)
+			if material then
+				trees += 1
+				check(
+					material == "Ground" or material == "LeafyGrass",
+					"no shade under the tree at " .. tostring(part.CFrame.Position)
+				)
+			end
+		end
+	end
+	check(roads > 20 and trees > 100, string.format("expected roads and trees to check (%d, %d)", roads, trees))
 end)
 
 test("baked city round-trips through a place file", function()

@@ -7,7 +7,7 @@
 Checks every prop/building model for:
   * floating   - its lowest point hangs in the air above whatever is under it
   * sunk       - furniture/vehicles/buildings pushed too far into the ground
-  * in-wall    - a prop's solid core pushed into a building body
+  * in-wall    - a prop's solid core (or a tree's crown) pushed into a building body
   * on-road    - static props blocking a road surface (parked cars and street lights excepted)
   * overlap    - two solid props occupying the same space
 and prints a performance budget. Exit code 1 if anything is flagged.
@@ -31,10 +31,12 @@ AREA_MODELS = {
     "ConstructionSite", "Pond", "Gazebo", "StreetLife",
 }
 # Things that are meant to sit partly in the ground or on other props.
-SINK_OK = {"Tree", "Pine", "Bush", "Rocks", "TrashBags", "FlowerPot", "Tires", "UtilityPole", "Cone", "Crystals", "Mushroom"}
+SINK_OK = {"Tree", "Pine", "Palm", "Bush", "Rocks", "TrashBags", "FlowerPot", "Tires", "UtilityPole", "Cone", "Crystals",
+           "Mushroom", "Tuft", "Fern", "Wildflowers", "Stump", "Log"}
 ROAD_OK = {"Car", "StreetLamp", "UtilityPole", "Cone", "Barrier", "TowerCrane", "Scaffold", "BusStop"}
 # Furniture placed on purpose against/inside other objects.
-OVERLAP_OK = {"Bush", "FlowerPot", "TrashBags", "FlowerBed", "Cone", "Bike", "Tires", "Lamp", "Rocks"}
+OVERLAP_OK = {"Bush", "FlowerPot", "TrashBags", "FlowerBed", "Cone", "Bike", "Tires", "Lamp", "Rocks", "Tuft", "Fern",
+              "Wildflowers"}
 TREES = {"Tree", "Pine", "Palm"}
 # Fixed to walls rather than standing on something.
 WALL_MOUNTED = {"SecurityCamera"}
@@ -237,6 +239,22 @@ def main(path):
                     if depth > 0.6:
                         issues["on-road"].append("%s sits on a road near %s" % (name, where(core)))
                         break
+
+    # Tree crowns don't collide, but leaves poking through a wall look just as wrong.
+    # (Leaf masses are ellipsoids inside their boxes, hence the looser threshold.)
+    for model, members in models.items():
+        name = parts[members[0]]["ModelName"]
+        if name not in TREES:
+            continue
+        crown = merge([parts[i]["_box"] for i in members])
+        for i in bodies:
+            body = parts[i]
+            if overlap(crown, body["_box"]) <= 0:
+                continue
+            depth = deepest(members, [i])
+            if depth > 2.0:
+                issues["in-wall"].append("%s crown pushes %.1f studs into %s near %s" % (name, depth, body.get("ModelName"), where(crown)))
+                break
 
     # Solid props occupying the same space
     buckets = defaultdict(list)
