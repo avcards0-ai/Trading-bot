@@ -107,18 +107,52 @@ def _price_check(name: str, variable: str, price_id: str, stripe: Stripe, mode: 
     return Check(name, True, f"Charging {amount:,.2f} {currency} per {recurring.get('interval', 'month')}, {mode}")
 
 
+def _key_problem(value: str) -> str | None:
+    """What's wrong with STRIPE_SECRET_KEY, without ever printing the key."""
+    if not value:
+        return "STRIPE_SECRET_KEY is empty."
+    if value.startswith("pk_"):
+        return ("STRIPE_SECRET_KEY has the publishable key (pk_...). Use the Secret key (sk_test_...) "
+                "from Developers → API keys.")
+    if value.startswith("whsec_"):
+        return "STRIPE_SECRET_KEY has the webhook signing secret. Use the Secret key (sk_test_...) from Developers → API keys."
+    if not value.startswith(("sk_", "rk_")):
+        return "STRIPE_SECRET_KEY doesn't look like a Stripe secret key, which starts with sk_test_ or sk_live_."
+    return None
+
+
+def _price_problem(variable: str, value: str, plan: str) -> str | None:
+    if not value:
+        return f"{variable} is empty."
+    if value.startswith("prod_"):
+        return (f"{variable} has a product ID (prod_...). Open the {plan} product in Stripe and copy the ID "
+                "of its price instead, which starts with price_.")
+    if not value.startswith("price_"):
+        return f"{variable} should be a price ID starting with price_."
+    return None
+
+
 def _stripe(settings: Settings, stripe: Stripe | None) -> list[Check]:
     if not settings.stripe_enabled:
-        return [Check(
-            "Payments", None,
-            "Stripe isn't set up yet, so visitors can sign up but can't pay. Add STRIPE_SECRET_KEY and STRIPE_PRICE_ID.",
-        )]
+        if not settings.stripe_secret_key and not settings.stripe_price_id:
+            return [Check(
+                "Payments", None,
+                "Stripe isn't set up yet, so visitors can sign up but can't pay. Add STRIPE_SECRET_KEY and STRIPE_PRICE_ID.",
+            )]
+        problems = [p for p in (
+            _key_problem(settings.stripe_secret_key),
+            _price_problem("STRIPE_PRICE_ID", settings.stripe_price_id, "Basic"),
+        ) if p]
+        return [Check("Payments", False, "Payments are off because: " + " ".join(problems))]
     stripe = stripe or Stripe(settings.stripe_secret_key, settings.stripe_price_id)
     mode = "TEST mode (use card 4242 4242 4242 4242)" if settings.stripe_secret_key.startswith(("sk_test", "rk_test")) else "LIVE mode"
     checks = [_price_check("Payments", "STRIPE_PRICE_ID", settings.stripe_price_id, stripe, mode)]
     if settings.premium_offered:
         if settings.stripe_premium_price_id.startswith("price_"):
             checks.append(_price_check("Premium plan", "STRIPE_PREMIUM_PRICE_ID", settings.stripe_premium_price_id, stripe, mode))
+        elif settings.stripe_premium_price_id:
+            problem = _price_problem("STRIPE_PREMIUM_PRICE_ID", settings.stripe_premium_price_id, "Premium")
+            checks.append(Check("Premium plan", False, problem or "STRIPE_PREMIUM_PRICE_ID isn't a price ID."))
         else:
             checks.append(Check(
                 "Premium plan", False,

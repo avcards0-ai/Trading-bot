@@ -710,6 +710,19 @@ class SetupCheckTests(unittest.TestCase):
         self.assertIn("No such price", checks["Payments"].detail)
         self.assertIsNone(checks["Stock analysis"].ok)
 
+    def test_common_stripe_mix_ups_are_explained(self):
+        settings = Settings.from_env({"STRIPE_SECRET_KEY": "pk_test_abc", "STRIPE_PRICE_ID": "prod_abc"})
+        (check,) = [c for c in run_checks(settings, sec_http=FakeHttp(), price_http=FakeHttp()) if c.name == "Payments"]
+        self.assertIs(check.ok, False)
+        self.assertIn("publishable key", check.detail)
+        self.assertIn("product ID (prod_...)", check.detail)
+        self.assertNotIn("pk_test_abc", check.detail)  # never print keys
+
+    def test_pasted_values_are_cleaned(self):
+        settings = Settings.from_env({"STRIPE_SECRET_KEY": '  "sk_test_abc"  ', "STRIPE_PRICE_ID": " price_1 \n"})
+        self.assertEqual((settings.stripe_secret_key, settings.stripe_price_id), ("sk_test_abc", "price_1"))
+        self.assertTrue(settings.stripe_enabled)
+
     def test_render_address_and_placeholder_keys(self):
         settings = Settings.from_env({"RENDER_EXTERNAL_URL": "https://longhold.onrender.com",
                                       "STRIPE_SECRET_KEY": "later", "STRIPE_PRICE_ID": "later"})

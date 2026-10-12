@@ -10,6 +10,11 @@ PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_UNIVERSE = os.path.join(PACKAGE_DIR, "universe.txt")
 
 
+def _key(value: str | None) -> str:
+    """A pasted key or ID, without the spaces or quote marks that often come along with it."""
+    return (value or "").strip().strip("\"'").strip()
+
+
 def _bool(value: str | None, default: bool) -> bool:
     if value is None or value.strip() == "":
         return default
@@ -58,7 +63,7 @@ class Settings:
             data_dir=env.get("DATA_DIR", d.data_dir),
             sec_user_agent=env.get("SEC_USER_AGENT", ""),
             price_source=env.get("PRICE_SOURCE", d.price_source).lower(),
-            finnhub_api_key=env.get("FINNHUB_API_KEY", ""),
+            finnhub_api_key=_key(env.get("FINNHUB_API_KEY")),
             universe_file=env.get("UNIVERSE_FILE") or d.universe_file,
             picks_count=int(env.get("PICKS_COUNT") or d.picks_count),
             premium_picks_count=int(env.get("PREMIUM_PICKS_COUNT") or d.premium_picks_count),
@@ -68,10 +73,10 @@ class Settings:
             price_label=env.get("PRICE_LABEL", d.price_label),
             premium_price_label=env.get("PREMIUM_PRICE_LABEL", d.premium_price_label),
             support_email=env.get("SUPPORT_EMAIL", ""),
-            stripe_secret_key=env.get("STRIPE_SECRET_KEY", ""),
-            stripe_price_id=env.get("STRIPE_PRICE_ID", ""),
-            stripe_premium_price_id=env.get("STRIPE_PREMIUM_PRICE_ID", ""),
-            stripe_webhook_secret=env.get("STRIPE_WEBHOOK_SECRET", ""),
+            stripe_secret_key=_key(env.get("STRIPE_SECRET_KEY")),
+            stripe_price_id=_key(env.get("STRIPE_PRICE_ID")),
+            stripe_premium_price_id=_key(env.get("STRIPE_PREMIUM_PRICE_ID")),
+            stripe_webhook_secret=_key(env.get("STRIPE_WEBHOOK_SECRET")),
             smtp_host=env.get("SMTP_HOST", ""),
             smtp_port=int(env.get("SMTP_PORT") or d.smtp_port),
             smtp_user=env.get("SMTP_USER", ""),
