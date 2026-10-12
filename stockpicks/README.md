@@ -80,6 +80,15 @@ To change which companies are analyzed, edit `stockpicks/universe.txt` (one tick
 5. **Settings → Billing → Customer portal**: turn it on and allow customers to cancel and update their card. To let Premium members switch down to Basic, also allow switching plans and add both products. The site's *Manage billing* button opens this portal. (Upgrades from Basic happen on the site itself and charge the price difference for the rest of the month.)
 6. Subscribe on your site with the test card `4242 4242 4242 4242`. When it all works, repeat steps 2-4 in live mode and swap in the live keys.
 
+### Recommended Stripe dashboard settings
+
+These are switches in the Stripe dashboard, not code. Names can differ slightly between dashboard versions:
+
+- **One subscription per customer.** The site creates one Stripe customer per account, reuses it for every checkout, and checks for an existing subscription before starting a new one. If your Checkout settings offer *Limit customers to one subscription*, turn it on as well.
+- **Failed payments (Billing → Revenue recovery).** Turn on Smart Retries and the emails that ask customers to update their card. Set the final action to **cancel the subscription**, so access ends when every retry fails.
+- **Receipts and invoices (Settings → Customer emails).** Turn on emails for successful payments. Subscriptions create an invoice every month automatically; customers can see and download them under *Billing, invoices or cancel* on their account page (the Customer portal), so enable invoice history there.
+- **A restricted API key** (optional, safer than the full secret key). Under Developers → API keys, create a restricted key with write access to Customers, Checkout Sessions, Subscriptions and the Customer portal, and read access to Prices. Use it (`rk_...`) as `STRIPE_SECRET_KEY`. If a permission is missing, `python -m stockpicks check` or the error log will say which call failed.
+
 Access is granted while a subscription is `active`, `trialing` or `past_due` (Stripe retries failed cards for a while). It ends automatically when Stripe cancels the subscription. Stripe handles card details, receipts, failed-payment emails, tax settings and promo codes (enabled at checkout).
 
 ## Putting it online

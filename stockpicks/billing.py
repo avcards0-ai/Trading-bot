@@ -58,8 +58,16 @@ class Stripe:
         self.premium_price_id = premium_price_id
         self.transport = transport or _urllib_transport
 
-    def _request(self, method: str, path: str, params: list[tuple[str, str]] | None = None) -> dict:
+    def _request(
+        self,
+        method: str,
+        path: str,
+        params: list[tuple[str, str]] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict:
         headers = {"Authorization": f"Bearer {self.secret_key}"}
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
         body = None
         url = f"{API_BASE}{path}"
         if method == "POST":
@@ -79,6 +87,30 @@ class Stripe:
             message = (data.get("error") or {}).get("message") or f"HTTP {status}"
             raise StripeError(f"Stripe {method} {path}: {message}")
         return data
+
+    def create_customer(self, user: User) -> str:
+        """Create the user's Stripe customer. Every checkout reuses it, so one person is one customer.
+
+        The idempotency key makes a double-click return the same customer.
+        """
+        tag = hashlib.sha256(user.email.lower().encode()).hexdigest()[:16]
+        customer = self._request(
+            "POST",
+            "/customers",
+            [("email", user.email), ("metadata[user_id]", str(user.id))],
+            idempotency_key=f"customer-{user.id}-{tag}",
+        )
+        if not customer.get("id"):
+            raise StripeError("Stripe didn't return a customer")
+        return customer["id"]
+
+    def find_live_subscription(self, customer_id: str) -> dict | None:
+        """The customer's subscription that still grants access, if any."""
+        data = self._request("GET", "/subscriptions", [("customer", customer_id), ("status", "all"), ("limit", "10")])
+        for sub in data.get("data") or []:
+            if sub.get("status") in ACCESS_STATUSES:
+                return sub
+        return None
 
     def create_checkout_session(self, user: User, base_url: str, price_id: str | None = None) -> str:
         params = [

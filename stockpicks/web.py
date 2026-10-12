@@ -496,7 +496,19 @@ class App:
                 return Response.redirect("/account?error=" + urllib.parse.quote("Premium isn't available yet."))
             price_id = self.settings.stripe_premium_price_id
         try:
-            url = self.stripe.create_checkout_session(ctx.user, self.settings.base_url, price_id)
+            user = ctx.user
+            if not user.stripe_customer_id:
+                self.db.set_customer(user.id, self.stripe.create_customer(user))
+                user = self.db.get_user(user.id)
+            # Never start a second subscription: a payment in another tab, or a
+            # webhook we missed, may already have given them one.
+            existing = self.stripe.find_live_subscription(user.stripe_customer_id)
+            if existing:
+                apply_subscription(
+                    self.db, user.id, existing, user.stripe_customer_id, self.settings.stripe_premium_price_id
+                )
+                return Response.redirect("/picks")
+            url = self.stripe.create_checkout_session(user, self.settings.base_url, price_id)
         except StripeError as err:
             self.log(f"checkout for user {ctx.user.id} failed: {err}")
             return Response.redirect("/account?error=" + urllib.parse.quote("We couldn't reach the payment page. Please try again."))
@@ -514,7 +526,7 @@ class App:
             sub = self.stripe.change_price(ctx.user.stripe_subscription_id, self.settings.stripe_premium_price_id)
         except StripeError as err:
             self.log(f"upgrade for user {ctx.user.id} failed: {err}")
-            msg = "We couldn't upgrade you, and you haven't been charged. Check your card under Manage billing."
+            msg = "We couldn't upgrade you, and you haven't been charged. Check your card under Billing, invoices or cancel."
             return Response.redirect("/account?error=" + urllib.parse.quote(msg))
         apply_subscription(self.db, ctx.user.id, sub, None, self.settings.stripe_premium_price_id)
         return Response.redirect("/picks?upgraded=1")

@@ -32,15 +32,28 @@ class FakeStripe:
 
     def __init__(self):
         self.requests = []
+        self.headers = []
+        self.customers = {}
         self.subscriptions = {}
         self.sessions = {}
         self.fail = False
 
     def __call__(self, method, url, headers, body):
         self.requests.append((method, url, body.decode() if body else ""))
+        self.headers.append(headers)
         if self.fail:
             return 500, b'{"error": {"message": "boom"}}'
-        path = urllib.parse.urlsplit(url).path[len("/v1"):]
+        parts = urllib.parse.urlsplit(url)
+        path = parts.path[len("/v1"):]
+        if method == "POST" and path == "/customers":
+            # Like Stripe, the same idempotency key returns the same customer.
+            key = headers.get("Idempotency-Key") or f"no-key-{len(self.customers)}"
+            self.customers.setdefault(key, f"cus_{len(self.customers) + 1}")
+            return 200, json.dumps({"id": self.customers[key]}).encode()
+        if method == "GET" and path == "/subscriptions":
+            customer = urllib.parse.parse_qs(parts.query)["customer"][0]
+            subs = [s for s in self.subscriptions.values() if s.get("customer") == customer]
+            return 200, json.dumps({"object": "list", "data": subs}).encode()
         if method == "POST" and path == "/checkout/sessions":
             return 200, json.dumps({"id": "cs_1", "url": "https://checkout.stripe.com/c/pay/cs_1"}).encode()
         if method == "POST" and path == "/billing_portal/sessions":
@@ -400,10 +413,15 @@ class BillingTests(Site):
         user = self.db.get_user_by_email("sam@example.com")
         r = self.client.post("/subscribe")
         self.assertEqual((r.status, r.header("Location")), (303, "https://checkout.stripe.com/c/pay/cs_1"))
-        method, url, body = self.stripe_api.requests[0]
+        paths = [(m, urllib.parse.urlsplit(u).path) for m, u, _ in self.stripe_api.requests]
+        self.assertEqual(paths, [("POST", "/v1/customers"), ("GET", "/v1/subscriptions"), ("POST", "/v1/checkout/sessions")])
+        self.assertTrue(self.stripe_api.headers[0]["Idempotency-Key"].startswith(f"customer-{user.id}-"))
+        self.assertEqual(self.db.get_user(user.id).stripe_customer_id, "cus_1")
+        method, url, body = self.stripe_api.requests[-1]
         params = urllib.parse.parse_qs(body)
         self.assertEqual(params["line_items[0][price]"], ["price_123"])
-        self.assertEqual(params["customer_email"], ["sam@example.com"])
+        self.assertEqual(params["customer"], ["cus_1"])
+        self.assertNotIn("customer_email", params)
         self.assertEqual(params["client_reference_id"], [str(user.id)])
         self.assertEqual(params["success_url"], ["https://picks.example.com/welcome?session_id={CHECKOUT_SESSION_ID}"])
 
@@ -419,6 +437,23 @@ class BillingTests(Site):
 
         r = self.client.post("/billing")
         self.assertEqual(r.header("Location"), "https://billing.stripe.com/p/session/1")
+
+    def test_no_second_subscription_when_stripe_already_has_one(self):
+        self.signup()
+        user = self.db.get_user_by_email("sam@example.com")
+        self.client.post("/subscribe")  # creates customer cus_1 and starts checkout
+        self.client.post("/subscribe")  # e.g. a second tab: reuses the same customer
+        creates = [u for m, u, _ in self.stripe_api.requests if m == "POST" and u.endswith("/customers")]
+        self.assertEqual(len(creates), 1)
+
+        # They paid in one tab, but the webhook hasn't arrived yet.
+        self.active_subscription(customer="cus_1", user_id=user.id)
+        before = len(self.stripe_api.requests)
+        r = self.client.post("/subscribe")
+        self.assertEqual(r.header("Location"), "/picks")
+        self.assertTrue(self.db.get_user(user.id).has_access)
+        new_paths = [urllib.parse.urlsplit(u).path for _, u, _ in self.stripe_api.requests[before:]]
+        self.assertNotIn("/v1/checkout/sessions", new_paths)
 
     def test_welcome_ignores_someone_elses_checkout(self):
         self.signup("a@example.com")

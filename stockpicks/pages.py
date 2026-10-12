@@ -307,7 +307,7 @@ list are marked NEW.</p></details>
 <details><summary>Why aren't banks or insurers on the list?</summary><p>Their financial statements
 work differently (debt is their raw material), so the same yardsticks would mislead. They're left out
 rather than scored badly.</p></details>
-<details><summary>How do I cancel?</summary><p>Go to Account, then Manage billing. Payments are handled
+<details><summary>How do I cancel?</summary><p>Go to Account, then Billing, invoices or cancel. Payments are handled
 by Stripe; we never see your card number.</p></details>
 </section>"""
     return layout(settings, "", body, user=user, csrf=csrf)
@@ -687,7 +687,7 @@ def account(settings: Settings, user: User, csrf: str, message: str = "", error:
         when = _timestamp(user.current_period_end)
         status = f"{plan}. " + (f"Cancels on {when}." if user.cancel_at_period_end else f"Renews on {when}.")
     elif user.subscription_status == "past_due":
-        status = "Your last payment failed. Update your card under Manage billing to keep access."
+        status = "Your last payment failed. Update your card under Billing, invoices or cancel to keep access."
     elif user.subscription_status in ("canceled", "unpaid", "incomplete_expired"):
         status = "Your subscription has ended."
     elif user.subscription_status == "incomplete":
@@ -714,7 +714,7 @@ def account(settings: Settings, user: User, csrf: str, message: str = "", error:
     if user.stripe_customer_id and settings.stripe_enabled:
         actions.append(
             f'<form method="post" action="/billing">{csrf_field(csrf)}'
-            '<button class="btn secondary" type="submit">Manage billing or cancel</button></form>'
+            '<button class="btn secondary" type="submit">Billing, invoices or cancel</button></form>'
         )
     body = f"""<div class="narrow" style="margin:0 auto">
 {notice(message)}{notice(error, error=True)}
