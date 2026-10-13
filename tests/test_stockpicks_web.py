@@ -696,6 +696,43 @@ class PlanTests(Site):
         self.assertIn('name="plan" value=""', page)
         self.assertNotIn("<script>", page)
 
+    def test_live_keys_ignore_test_mode_subscriptions(self):
+        user = self.subscriber("basic")  # paid in test mode (no livemode recorded)
+        self.assertNotIn("Subscribe to unlock", self.client.get("/picks").text)
+
+        self.app.settings.stripe_secret_key = "sk_live_x"
+        r = self.client.get("/picks")
+        self.assertIn("Subscribe to unlock", r.text)  # back to the free view
+        account = self.client.get("/account").text
+        self.assertIn("Basic: $10/month for 5 picks", account)
+        self.assertNotIn("nothing is really charged", account)
+
+        # A real (livemode) subscription unlocks again.
+        self.db.update_subscription(user.id, customer_id="cus_9", subscription_id="sub_live", status="active",
+                                    current_period_end=None, cancel_at_period_end=False, livemode=True)
+        self.assertNotIn("Subscribe to unlock", self.client.get("/picks").text)
+
+    def test_test_mode_note_on_account_page(self):
+        self.signup()
+        self.assertIn("Payments are in test mode", self.client.get("/account").text)
+
+    def test_live_keys_keep_free_access_accounts(self):
+        self.member()
+        self.app.settings.stripe_secret_key = "sk_live_x"
+        self.assertEqual(self.client.get("/stocks").status, 200)
+
+    def test_webhook_records_livemode(self):
+        self.signup()
+        user = self.db.get_user_by_email("sam@example.com")
+        self.db.update_subscription(user.id, customer_id="cus_1", subscription_id="sub_1", status="active",
+                                    current_period_end=None, cancel_at_period_end=False)
+        BillingTests.active_subscription(self)
+        self.stripe_api.subscriptions["sub_1"]["livemode"] = True
+        payload = json.dumps({"id": "evt_live", "type": "customer.subscription.updated",
+                              "data": {"object": {"id": "sub_1", "customer": "cus_1", "status": "active"}}}).encode()
+        self.client.request("POST", "/stripe/webhook", body=payload, headers={"HTTP_STRIPE_SIGNATURE": sign(payload)})
+        self.assertIs(self.db.get_user(user.id).stripe_livemode, True)
+
     def test_one_plan_only(self):
         self.app.settings.premium_picks_count = 0
         self.subscriber("basic")
@@ -715,7 +752,9 @@ class PlanTests(Site):
                 comped INTEGER NOT NULL DEFAULT 0)""")
             conn.execute("INSERT INTO users (email, password_hash, created_at) VALUES ('old@example.com', 'x', 0)")
         db = Database(path)
-        self.assertEqual(db.get_user_by_email("old@example.com").plan, "basic")
+        old = db.get_user_by_email("old@example.com")
+        self.assertEqual(old.plan, "basic")
+        self.assertIsNone(old.stripe_livemode)
 
 
 class SetupCheckTests(unittest.TestCase):

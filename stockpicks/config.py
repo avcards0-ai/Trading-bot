@@ -107,6 +107,11 @@ class Settings:
         return self.stripe_secret_key.startswith(("sk_", "rk_")) and self.stripe_price_id.startswith("price_")
 
     @property
+    def stripe_live(self) -> bool:
+        """True with live keys: only real (livemode) subscriptions grant access then."""
+        return self.stripe_secret_key.startswith(("sk_live_", "rk_live_"))
+
+    @property
     def premium_offered(self) -> bool:
         return self.premium_picks_count > self.picks_count
 

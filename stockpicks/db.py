@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS users (
     current_period_end INTEGER,
     cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
     comped INTEGER NOT NULL DEFAULT 0,
-    plan TEXT NOT NULL DEFAULT 'basic'
+    plan TEXT NOT NULL DEFAULT 'basic',
+    stripe_livemode INTEGER
 );
 CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
@@ -62,6 +63,7 @@ class User:
     cancel_at_period_end: bool
     comped: bool
     plan: str = "basic"
+    stripe_livemode: bool | None = None  # was the subscription real (True) or a test (False)?
 
     @property
     def has_access(self) -> bool:
@@ -114,6 +116,8 @@ class Database:
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
             if "plan" not in columns:
                 conn.execute("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'basic'")
+            if "stripe_livemode" not in columns:
+                conn.execute("ALTER TABLE users ADD COLUMN stripe_livemode INTEGER")
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -145,6 +149,7 @@ class Database:
             cancel_at_period_end=bool(row["cancel_at_period_end"]),
             comped=bool(row["comped"]),
             plan=row["plan"],
+            stripe_livemode=None if row["stripe_livemode"] is None else bool(row["stripe_livemode"]),
         )
 
     # Users
@@ -199,14 +204,17 @@ class Database:
         current_period_end: int | None,
         cancel_at_period_end: bool,
         plan: str = "basic",
+        livemode: bool | None = None,
     ) -> None:
         with self.connect() as conn:
             conn.execute(
                 """UPDATE users SET stripe_customer_id = COALESCE(?, stripe_customer_id),
                        stripe_subscription_id = COALESCE(?, stripe_subscription_id),
-                       subscription_status = ?, current_period_end = ?, cancel_at_period_end = ?, plan = ?
+                       subscription_status = ?, current_period_end = ?, cancel_at_period_end = ?, plan = ?,
+                       stripe_livemode = ?
                    WHERE id = ?""",
-                (customer_id, subscription_id, status, current_period_end, int(cancel_at_period_end), plan, user_id),
+                (customer_id, subscription_id, status, current_period_end, int(cancel_at_period_end), plan,
+                 None if livemode is None else int(livemode), user_id),
             )
 
     def set_customer(self, user_id: int, customer_id: str) -> None:

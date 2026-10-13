@@ -710,6 +710,9 @@ def account(settings: Settings, user: User, csrf: str, message: str = "", error:
                 f'{settings.total_picks} picks)</button></form>'
             )
     elif settings.stripe_enabled:
+        if not settings.stripe_live:
+            actions.append('<p class="muted small" style="width:100%">Payments are in test mode: '
+                           'nothing is really charged yet.</p>')
         actions.append(_subscribe_button(settings, csrf, plans.BASIC, primary=True))
         if settings.premium_enabled:
             actions.append(_subscribe_button(settings, csrf, plans.PREMIUM, primary=False))

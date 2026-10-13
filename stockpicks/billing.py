@@ -230,6 +230,7 @@ def apply_subscription(
         current_period_end=_period_end(sub),
         cancel_at_period_end=bool(sub.get("cancel_at_period_end")),
         plan=plan_for(sub, premium_price_id),
+        livemode=sub.get("livemode") if isinstance(sub.get("livemode"), bool) else None,
     )
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import hmac
 import json
 import os
@@ -200,7 +201,7 @@ class Context:
         self.app = app
         self.req = req
         self.settings = app.settings
-        self.user: User | None = app.db.user_for_session(req.cookies.get("session", ""))
+        self.user: User | None = app.effective(app.db.user_for_session(req.cookies.get("session", "")))
         self.csrf = req.cookies.get("csrf") or ""
         self.new_csrf = not self.csrf
         if self.new_csrf:
@@ -409,7 +410,7 @@ class App:
         ip_key, email_key = "ip:" + ctx.req.client_ip, "email:" + email.lower()
         if self.throttle.blocked(email_key) or self.ip_throttle.blocked(ip_key):
             raise HttpError(429, "Too many failed attempts. Please wait 15 minutes and try again.")
-        user = self.db.authenticate(email, form.get("password", ""))
+        user = self.effective(self.db.authenticate(email, form.get("password", "")))
         if user is None:
             self.throttle.hit(email_key)
             self.ip_throttle.hit(ip_key)
@@ -529,6 +530,19 @@ class App:
             return self._stripe_error_redirect("We couldn't reach the payment page. Please try again.", err)
         return Response.redirect(url)
 
+    def effective(self, user: User | None) -> User | None:
+        """The user as access rules see them: with live Stripe keys, a subscription
+        made in test mode (or before modes were recorded) doesn't count as paid."""
+        if (
+            user is not None
+            and self.settings.stripe_live
+            and not user.comped
+            and user.stripe_livemode is not True
+            and user.subscription_status != "none"
+        ):
+            return dataclasses.replace(user, subscription_status="none", stripe_subscription_id=None)
+        return user
+
     def _new_customer(self, user: User) -> User:
         self.db.set_customer(user.id, self.stripe.create_customer(user))
         return self.db.get_user(user.id)
@@ -567,7 +581,7 @@ class App:
                 sync_checkout_session(self.db, self.stripe, session, expect_user=ctx.user.id)
             except StripeError as err:
                 self.log(f"welcome sync for user {ctx.user.id} failed: {err}")
-        user = self.db.get_user(ctx.user.id)
+        user = self.effective(self.db.get_user(ctx.user.id))
         if user and user.has_access:
             return Response.redirect("/picks?welcome=1")
         return Response.redirect("/account?pending=1")
