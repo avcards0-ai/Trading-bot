@@ -598,6 +598,10 @@ def _auth_page(settings: Settings, title: str, inner: str, user: User | None, cs
 def signup(settings: Settings, csrf: str, error: str = "", email: str = "", plan: str = "") -> str:
     if plan == plans.FREE:
         next_step = "The Free plan is $0 forever, and no card is needed. You can upgrade anytime."
+    elif plan == plans.PREMIUM and settings.premium_offered:
+        next_step = f"Next you'll pay {e(settings.premium_price_label)} for Premium securely with Stripe."
+    elif plan == plans.BASIC:
+        next_step = f"Next you'll pay {e(settings.price_label)} for Basic securely with Stripe."
     else:
         premium = f" or {e(settings.premium_price_label)} for Premium" if settings.premium_offered else ""
         next_step = (

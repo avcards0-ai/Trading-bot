@@ -673,6 +673,21 @@ class PlanTests(Site):
         self.assertIn("Your plan: see the picks", home)
         self.assertNotIn("Start with Free", home)
 
+    def test_paid_signup_links_go_straight_to_stripe(self):
+        r = self.client.post("/signup", {"email": "p@example.com", "password": "longenough",
+                                         "agree": "1", "plan": "premium"})
+        self.assertEqual(r.header("Location"), "https://checkout.stripe.com/c/pay/cs_1")
+        params = urllib.parse.parse_qs(self.stripe_api.requests[-1][2])
+        self.assertEqual(params["line_items[0][price]"], ["price_premium"])
+        self.assertIn("session", self.client.cookies)  # logged in for the return trip
+        page = Client(self.app).get("/signup?plan=basic").text
+        self.assertIn("Next you'll pay $10/month for Basic", page)
+
+    def test_paid_signup_without_stripe_goes_to_account(self):
+        client = Client(App(temp_settings(), log=lambda m: None))
+        r = client.post("/signup", {"email": "q@example.com", "password": "longenough", "agree": "1", "plan": "basic"})
+        self.assertEqual(r.header("Location"), "/account?new=1")
+
     def test_unknown_signup_plan_is_ignored(self):
         r = self.client.post("/signup", {"email": "x@example.com", "password": "longenough",
                                          "agree": "1", "plan": "<script>"})

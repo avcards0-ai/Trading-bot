@@ -389,7 +389,10 @@ class App:
         if user is None:
             msg = "There's already an account with that email. Try logging in."
             return ctx.html(pages.signup(self.settings, ctx.csrf, msg, email, plan), 400)
-        # Free sign-ups go straight to the picks; paid ones choose a plan on the account page.
+        # Sign-up links double as payment links: /signup?plan=basic goes straight to
+        # Stripe after the account is made. Free goes to the picks; no plan, to Account.
+        if plan in (plans.BASIC, plans.PREMIUM) and self.stripe is not None:
+            return self.login_session(user, self._start_checkout(user, plan))
         target = "/picks?welcome=1" if plan == plans.FREE else "/account?new=1"
         return self.login_session(user, Response.redirect(target))
 
@@ -490,13 +493,16 @@ class App:
             return Response.redirect("/picks")
         if self.stripe is None:
             return Response.redirect("/account")
+        return self._start_checkout(ctx.user, ctx.req.form.get("plan", ""))
+
+    def _start_checkout(self, user: User, plan: str) -> Response:
+        """Send the user to Stripe's payment page for a plan (or to their picks if already paid)."""
         price_id = self.settings.stripe_price_id
-        if ctx.req.form.get("plan") == plans.PREMIUM:
+        if plan == plans.PREMIUM:
             if not self.settings.premium_enabled:
                 return Response.redirect("/account?error=" + urllib.parse.quote("Premium isn't available yet."))
             price_id = self.settings.stripe_premium_price_id
         try:
-            user = ctx.user
             existing = None
             if user.stripe_customer_id:
                 # Never start a second subscription: a payment in another tab, or a
@@ -519,7 +525,7 @@ class App:
                 return Response.redirect("/picks")
             url = self.stripe.create_checkout_session(user, self.settings.base_url, price_id)
         except StripeError as err:
-            self.log(f"checkout for user {ctx.user.id} failed: {err}")
+            self.log(f"checkout for user {user.id} failed: {err}")
             return self._stripe_error_redirect("We couldn't reach the payment page. Please try again.", err)
         return Response.redirect(url)
 
