@@ -84,6 +84,7 @@ To change which companies are analyzed, edit `stockpicks/universe.txt` (one tick
 
 These are switches in the Stripe dashboard, not code. Names can differ slightly between dashboard versions:
 
+- **Managed Payments off.** Some newer Stripe accounts turn on *Managed Payments* by default, and Checkout then fails with "the product tax code is missing". This site uses standard Stripe Billing, so turn it off under Settings → Managed Payments, in test mode and again in live mode. (Or keep it and give each product an eligible tax code.) In test mode, the account page shows Stripe's exact error if checkout fails.
 - **One subscription per customer.** The site creates one Stripe customer per account, reuses it for every checkout, and checks for an existing subscription before starting a new one. If your Checkout settings offer *Limit customers to one subscription*, turn it on as well.
 - **Failed payments (Billing → Revenue recovery).** Turn on Smart Retries and the emails that ask customers to update their card. Set the final action to **cancel the subscription**, so access ends when every retry fails.
 - **Receipts and invoices (Settings → Customer emails).** Turn on emails for successful payments. Subscriptions create an invoice every month automatically; customers can see and download them under *Billing, invoices or cancel* on their account page (the Customer portal), so enable invoice history there.
