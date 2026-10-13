@@ -52,6 +52,9 @@ class FakeStripe:
             return 200, json.dumps({"id": self.customers[key]}).encode()
         if method == "GET" and path == "/subscriptions":
             customer = urllib.parse.parse_qs(parts.query)["customer"][0]
+            if customer.startswith("cus_gone"):
+                return 400, json.dumps({"error": {"code": "resource_missing",
+                                                  "message": f"No such customer: '{customer}'"}}).encode()
             subs = [s for s in self.subscriptions.values() if s.get("customer") == customer]
             return 200, json.dumps({"object": "list", "data": subs}).encode()
         if method == "POST" and path == "/checkout/sessions":
@@ -414,7 +417,8 @@ class BillingTests(Site):
         r = self.client.post("/subscribe")
         self.assertEqual((r.status, r.header("Location")), (303, "https://checkout.stripe.com/c/pay/cs_1"))
         paths = [(m, urllib.parse.urlsplit(u).path) for m, u, _ in self.stripe_api.requests]
-        self.assertEqual(paths, [("POST", "/v1/customers"), ("GET", "/v1/subscriptions"), ("POST", "/v1/checkout/sessions")])
+        # A brand-new customer can't have a subscription yet, so there's nothing to check first.
+        self.assertEqual(paths, [("POST", "/v1/customers"), ("POST", "/v1/checkout/sessions")])
         self.assertTrue(self.stripe_api.headers[0]["Idempotency-Key"].startswith(f"customer-{user.id}-"))
         self.assertEqual(self.db.get_user(user.id).stripe_customer_id, "cus_1")
         method, url, body = self.stripe_api.requests[-1]
@@ -454,6 +458,25 @@ class BillingTests(Site):
         self.assertTrue(self.db.get_user(user.id).has_access)
         new_paths = [urllib.parse.urlsplit(u).path for _, u, _ in self.stripe_api.requests[before:]]
         self.assertNotIn("/v1/checkout/sessions", new_paths)
+
+    def test_saved_customer_from_another_stripe_account_is_replaced(self):
+        self.signup()
+        user = self.db.get_user_by_email("sam@example.com")
+        self.db.set_customer(user.id, "cus_gone_from_sandbox")
+        r = self.client.post("/subscribe")
+        self.assertEqual(r.header("Location"), "https://checkout.stripe.com/c/pay/cs_1")
+        self.assertEqual(self.db.get_user(user.id).stripe_customer_id, "cus_1")
+        params = urllib.parse.parse_qs(self.stripe_api.requests[-1][2])
+        self.assertEqual(params["customer"], ["cus_1"])
+
+    def test_stripe_reason_shown_in_test_mode_only(self):
+        self.signup()
+        self.stripe_api.fail = True
+        r = self.client.post("/subscribe")
+        self.assertIn("Test mode: Stripe POST /customers: boom", urllib.parse.unquote(r.header("Location")))
+        self.app.settings.stripe_secret_key = "sk_live_x"
+        r = self.client.post("/subscribe")
+        self.assertNotIn("boom", urllib.parse.unquote(r.header("Location")))
 
     def test_welcome_ignores_someone_elses_checkout(self):
         self.signup("a@example.com")

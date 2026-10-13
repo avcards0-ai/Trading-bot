@@ -497,12 +497,21 @@ class App:
             price_id = self.settings.stripe_premium_price_id
         try:
             user = ctx.user
-            if not user.stripe_customer_id:
-                self.db.set_customer(user.id, self.stripe.create_customer(user))
-                user = self.db.get_user(user.id)
-            # Never start a second subscription: a payment in another tab, or a
-            # webhook we missed, may already have given them one.
-            existing = self.stripe.find_live_subscription(user.stripe_customer_id)
+            existing = None
+            if user.stripe_customer_id:
+                # Never start a second subscription: a payment in another tab, or a
+                # webhook we missed, may already have given them one.
+                try:
+                    existing = self.stripe.find_live_subscription(user.stripe_customer_id)
+                except StripeError as err:
+                    if err.code != "resource_missing":
+                        raise
+                    # The saved customer belongs to another Stripe account or sandbox
+                    # (e.g. after switching from test to live), so start fresh.
+                    self.log(f"user {user.id}: saved Stripe customer not found; creating a new one")
+                    user = self._new_customer(user)
+            else:
+                user = self._new_customer(user)
             if existing:
                 apply_subscription(
                     self.db, user.id, existing, user.stripe_customer_id, self.settings.stripe_premium_price_id
@@ -511,8 +520,19 @@ class App:
             url = self.stripe.create_checkout_session(user, self.settings.base_url, price_id)
         except StripeError as err:
             self.log(f"checkout for user {ctx.user.id} failed: {err}")
-            return Response.redirect("/account?error=" + urllib.parse.quote("We couldn't reach the payment page. Please try again."))
+            return self._stripe_error_redirect("We couldn't reach the payment page. Please try again.", err)
         return Response.redirect(url)
+
+    def _new_customer(self, user: User) -> User:
+        self.db.set_customer(user.id, self.stripe.create_customer(user))
+        return self.db.get_user(user.id)
+
+    def _stripe_error_redirect(self, message: str, err: StripeError) -> Response:
+        # In test mode only the site owner is clicking around, so show Stripe's own
+        # reason; real customers in live mode just see the friendly message.
+        if self.settings.stripe_secret_key.startswith(("sk_test_", "rk_test_")):
+            message += f" (Test mode: {err})"
+        return Response.redirect("/account?error=" + urllib.parse.quote(message))
 
     def upgrade(self, ctx: Context) -> Response:
         if (redirect := self.require_login(ctx)) is not None:
@@ -527,7 +547,7 @@ class App:
         except StripeError as err:
             self.log(f"upgrade for user {ctx.user.id} failed: {err}")
             msg = "We couldn't upgrade you, and you haven't been charged. Check your card under Billing, invoices or cancel."
-            return Response.redirect("/account?error=" + urllib.parse.quote(msg))
+            return self._stripe_error_redirect(msg, err)
         apply_subscription(self.db, ctx.user.id, sub, None, self.settings.stripe_premium_price_id)
         return Response.redirect("/picks?upgraded=1")
 
@@ -555,7 +575,7 @@ class App:
             url = self.stripe.create_portal_session(ctx.user.stripe_customer_id, f"{self.settings.base_url}/account")
         except StripeError as err:
             self.log(f"billing portal for user {ctx.user.id} failed: {err}")
-            return Response.redirect("/account?error=" + urllib.parse.quote("We couldn't open billing. Please try again."))
+            return self._stripe_error_redirect("We couldn't open billing. Please try again.", err)
         return Response.redirect(url)
 
     def webhook(self, ctx: Context) -> Response:

@@ -30,7 +30,10 @@ CHECKOUT_EVENTS = {"checkout.session.completed", "checkout.session.async_payment
 
 
 class StripeError(Exception):
-    pass
+    def __init__(self, message: str, status: int | None = None, code: str | None = None):
+        super().__init__(message)
+        self.status = status
+        self.code = code  # Stripe's error code, e.g. "resource_missing"
 
 
 class WebhookError(Exception):
@@ -84,8 +87,9 @@ class Stripe:
         except ValueError:
             data = {}
         if status >= 400:
-            message = (data.get("error") or {}).get("message") or f"HTTP {status}"
-            raise StripeError(f"Stripe {method} {path}: {message}")
+            error = data.get("error") or {}
+            message = error.get("message") or f"HTTP {status}"
+            raise StripeError(f"Stripe {method} {path}: {message}", status=status, code=error.get("code"))
         return data
 
     def create_customer(self, user: User) -> str:
